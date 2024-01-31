@@ -395,19 +395,18 @@ struct blazingio_istream {
 };
 
 struct blazingio_ostream {
-	off_t file_size = -1;
 	char* base;
 	NonAliasingChar* ptr;
-	int fd = -1;
 
 #	ifdef LUT
 	inline static char decimal_lut[200];
 #	endif
 
 	blazingio_ostream() {
-		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
-		// freopen to work.
-		base = (char*)mmap(NULL, BIG, PROT_READ | PROT_WRITE, MAP_SHARED, empty_fd, BIG);
+		// Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
+		// end. This also allows us to allocate memory immediately without waiting for freopen,
+		// because we'll only use the fd in the destructor.
+		base = (char*)mmap(NULL, BIG, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 		ensure(base != MAP_FAILED);
 		ptr = (NonAliasingChar*)base;
 
@@ -420,57 +419,27 @@ struct blazingio_ostream {
 #	endif
 	}
 	~blazingio_ostream() {
-		if (!file_size) {
-			ssize_t n_written = 1;
-			while (n_written > 0) {
-				iovec iov{base, (size_t)ptr - (size_t)base};
-				base += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
-			}
-			ensure(n_written != -1);
-		} else if (file_size != -1) {
-			ensure(ftruncate(STDOUT_FILENO, (char*)ptr - base) != -1);
-		}
-	}
-
-	void init() {
-		// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so reopen it
-		// via procfs.
-#	define COND ftruncate(STDOUT_FILENO, file_size = 16384) != -1 && (fd = open("/dev/stdout", O_RDWR)) != -1
 #	ifdef PIPE
-		if (!(COND)) {
-			// Likely a pipe. Reserve however much space we need, but don't populate it. We'll rely
-			// on the kernel to manage it for us.
-			file_size = 0;
+		ssize_t n_written = 1;
+		while (n_written > 0) {
+			iovec iov{base, (size_t)ptr - (size_t)base};
+			base += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
+		}
+		// Perhaps not a pipe?
+		if (n_written) {
+			base++;
+			do {
+				base += (n_written = write(STDOUT_FILENO, base, (char*)ptr - base));
+			} while (n_written > 0);
+			ensure(n_written != -1);
 		}
 #	else
-		ensure(COND);
+		ssize_t n_written = 1;
+		while (n_written > 0) {
+			base += (n_written = write(STDOUT_FILENO, base, (char*)ptr - base));
+		}
+		ensure(n_written != -1);
 #	endif
-		ensure(
-			mmap(
-				base,
-				BIG,
-				PROT_READ | PROT_WRITE,
-#	ifdef PIPE
-				file_size ?
-#	endif
-				MAP_SHARED | MAP_FIXED | MAP_POPULATE
-#	ifdef PIPE
-				: MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE
-#	endif
-				, fd,
-				0
-			) != MAP_FAILED
-		);
-	}
-
-	void on_eof() {
-		// Attempt to write beyond end of stdout.
-		// Double the size of the file
-		ensure(ftruncate(STDOUT_FILENO, file_size * 2) != -1);
-		// If we want to populate the pages, we have to remap the area.
-		ensure(mmap(base + file_size, file_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, file_size) != MAP_FAILED);
-		ensure(madvise(base + file_size, file_size, MADV_POPULATE_WRITE) != -1);
-		file_size *= 2;
 	}
 
 	blazingio_ostream& operator<<(const char& value) {
@@ -739,12 +708,6 @@ struct init {
 			blazingio_cin.init();
 		} else if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
 			blazingio_cin.on_eof();
-		} else if ((uintptr_t)info->si_addr - (uintptr_t)(blazingio_cout.base + blazingio_cout.file_size) < 4096) {
-			if (blazingio_cout.file_size == -1) {
-				blazingio_cout.init();
-			} else {
-				blazingio_cout.on_eof();
-			}
 		} else {
 			ensure(false);
 		}

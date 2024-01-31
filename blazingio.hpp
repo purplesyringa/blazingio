@@ -2,6 +2,7 @@
 // #	define LUT
 // #	define PRINT_SIGNED_CHAR_STRINGS
 // #	define BITSET
+#	define FLOAT
 
 #include <array>
 #include <atomic>
@@ -206,6 +207,7 @@ struct blazingio_istream {
 		}
 		bool negative = is_signed_v<T> && *ptr == '-';
 		ptr += negative;
+#	ifdef FLOAT
 		T x;
 		if constexpr (is_floating_point_v<T>) {
 			ptr += *ptr == '+';
@@ -250,6 +252,10 @@ struct blazingio_istream {
 			x = 0;
 			collect_digits(x);
 		}
+#	else
+		T x = 0;
+		collect_digits(x);
+#	endif
 		return negative ? -x : x;
 	}
 
@@ -446,7 +452,9 @@ struct blazingio_ostream {
 
 	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
 	blazingio_ostream& operator<<(const T& value) {
+#	ifdef FLOAT
 		if constexpr (is_integral_v<T>) {
+#	endif
 			make_unsigned_t<T> abs = value;
 			if (value < 0) {
 				*ptr++ = '-';
@@ -457,6 +465,7 @@ struct blazingio_ostream {
 				1, 1,
 				array{3, 5, 10, 20}[__builtin_ctz(sizeof(value))]
 			>(abs, abs);
+#	ifdef FLOAT
 		} else {
 			T abs = value;
 			if (value < 0) {
@@ -494,6 +503,7 @@ struct blazingio_ostream {
 				write_int_split<unsigned, 1, 8, 8>(n, n);
 			}
 		}
+#	endif
 		return *this;
 	}
 

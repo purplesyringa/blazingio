@@ -141,6 +141,12 @@ blazingio = re.sub(r"(?<!<<)('\\?.')", lambda match: str(ord(eval(match[1]))), b
 # Replace hexadecimal integer literals
 blazingio = re.sub(r"0x([0-9a-f]+)", lambda match: str(int(match[0], 16)) if len(str(int(match[0], 16))) < 2 + len(match[1].lstrip("0")) else "0x" + match[1].lstrip("0"), blazingio)
 
+# Replace SIMD intrinsics
+if "_mm256_" in blazingio:
+	blazingio = "#define M$(x,...)_mm256_##x##_epi8(__VA_ARGS__)\n" + re.sub(r"_mm256_(\w+)_epi8\(", r"M$(\1,", blazingio)
+elif "_mm_" in blazingio:
+	blazingio = "#define M$(x,...)_mm_##x##_epi8(__VA_ARGS__)\n" + re.sub(r"_mm_(\w+)_epi8\(", r"M$(\1,", blazingio)
+
 open("blazingio.min.hpp", "w").write(blazingio)
 
 print(blazingio, len(blazingio))

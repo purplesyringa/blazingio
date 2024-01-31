@@ -378,9 +378,15 @@ struct blazingio_istream {
 		}
 		ptr = (NonAliasingChar*)p;
 #	else
-		while (i) {
+		while (i % 8) {
 			value[--i] = *ptr++ == '1';
 		}
+		long* p = (long*)ptr;
+		i /= 8;
+		while (i) {
+			((char*)&value)[--i] = ((*p++ - 0x3030303030303030) * 0x8040201008040201) >> 56;
+		}
+		ptr = (NonAliasingChar*)p;
 #	endif
 		return *this;
 	}

@@ -209,7 +209,10 @@ struct blazingio_istream {
 		ptr += negative;
 #	ifdef FLOAT
 		T x;
-		if constexpr (is_floating_point_v<T>) {
+		if constexpr (is_integral_v<T>) {
+			x = 0;
+			collect_digits(x);
+		} else {
 			ptr += *ptr == '+';
 			auto start = ptr;
 			auto n = read_arithmetic<uint64_t>();
@@ -248,9 +251,6 @@ struct blazingio_istream {
 				}
 			}
 			return negative ? -x : x;
-		} else {
-			x = 0;
-			collect_digits(x);
 		}
 #	else
 		T x = 0;
@@ -616,18 +616,18 @@ namespace std {
 	blazingio::blazingio_ignoreostream blazingio_cerr;
 
 	blazingio::blazingio_istream& getline(blazingio::blazingio_istream& in, string& value) {
-		if (!*in.ptr) {
+		if (*in.ptr) {
+			auto start = in.ptr;
+			in.trace_line();
+			// We know there's no overlap, so avoid doing this for a little bit of performance:
+			// value.assign((const char*)start, in.ptr - start);
+			((basic_string<blazingio::UninitChar>&)value).resize(in.ptr - start);
+			memcpy(value.data(), (char*)start, in.ptr - start);
+			in.ptr += *in.ptr == '\r';
+			in.ptr++;
+		} else {
 			in.is_ok = false;
-			return in;
 		}
-		auto start = in.ptr;
-		in.trace_line();
-		// We know there's no overlap, so avoid doing this for a little bit of performance:
-		// value.assign((const char*)start, in.ptr - start);
-		((basic_string<blazingio::UninitChar>&)value).resize(in.ptr - start);
-		memcpy(value.data(), (char*)start, in.ptr - start);
-		in.ptr += *in.ptr == '\r';
-		in.ptr++;
 		return in;
 	}
 

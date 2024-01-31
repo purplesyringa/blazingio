@@ -1,7 +1,7 @@
 #	define AVX2
 // #	define SSE41
 // #	define LUT
-// #	define PRINT_SIGNED_CHAR_STRINGS
+// #	define CHAR_WITH_SIGN_IS_GLYPH
 #	define BITSET
 // #	define FLOAT
 #	define COMPLEX
@@ -219,7 +219,11 @@ struct blazingio_istream {
 
 	template<typename T>
 	T read_arithmetic() {
+#	ifdef CHAR_WITH_SIGN_IS_GLYPH
 		if constexpr (is_same_v<T, char> || is_same_v<T, unsigned char> || is_same_v<T, signed char>) {
+#	else
+		if constexpr (is_same_v<T, char>) {
+#	endif
 			return *ptr++;
 		} else if constexpr (is_same_v<T, bool>) {
 			return *ptr++ == '1';
@@ -425,6 +429,7 @@ struct blazingio_ostream {
 		*ptr++ = value;
 		return *this;
 	}
+#	ifdef CHAR_WITH_SIGN_IS_GLYPH
 	blazingio_ostream& operator<<(const unsigned char& value) {
 		*ptr++ = value;
 		return *this;
@@ -433,6 +438,7 @@ struct blazingio_ostream {
 		*ptr++ = value;
 		return *this;
 	}
+#	endif
 	blazingio_ostream& operator<<(const bool& value) {
 		*ptr++ = '0' + value;
 		return *this;
@@ -538,7 +544,7 @@ struct blazingio_ostream {
 		ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
 		return *this;
 	}
-#	ifdef PRINT_SIGNED_CHAR_STRINGS
+#	ifdef CHAR_WITH_SIGN_IS_GLYPH
 	blazingio_ostream& operator<<(const unsigned char* const& value) {
 		return *this << (char*)value;
 	}

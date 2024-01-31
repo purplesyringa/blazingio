@@ -386,13 +386,9 @@ struct blazingio_ostream {
 			while (n_written != -1 && base < p) {
 				base += (n_written = write(STDOUT_FILENO, base, p - base));
 			}
-			if (n_written == -1) {
-				terminate();
-			}
+			ensure(n_written != -1);
 		} else if (file_size != -1) {
-			if (ftruncate(STDOUT_FILENO, (char*)ptr - base) == -1) {
-				terminate();
-			}
+			ensure(ftruncate(STDOUT_FILENO, (char*)ptr - base) != -1);
 		}
 	}
 

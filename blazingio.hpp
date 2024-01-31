@@ -1,10 +1,11 @@
-#	define AVX2
+// #	define AVX2
 // #	define SSE41
 // #	define LUT
 // #	define CHAR_WITH_SIGN_IS_GLYPH
 #	define BITSET
 // #	define FLOAT
-#	define COMPLEX
+// #	define COMPLEX
+// #	define PIPE
 
 #include <array>
 #include <atomic>
@@ -78,12 +79,15 @@ struct blazingio_istream {
 	void init() {
 		struct stat statbuf;
 		ensure(fstat(STDIN_FILENO, &statbuf) != -1);
+#	ifdef PIPE
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
+#	endif
 			file_size = statbuf.st_size;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end
 			// of file.
 			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED);
 			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1);
+#	ifdef PIPE
 		} else {
 			size_t alloc_size = 16384;
 			ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
@@ -102,6 +106,7 @@ struct blazingio_istream {
 			ensure(mmap(base + want_alloc_size - 4096, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0x1000000000) != MAP_FAILED);
 			ensure(munmap(base + want_alloc_size, 0x1000000000 - want_alloc_size) != -1);
 		}
+#	endif
 	}
 
 	void on_eof() {
@@ -397,9 +402,11 @@ struct blazingio_ostream {
 	}
 
 	void init() {
+#	ifdef PIPE
 		struct stat statbuf;
 		ensure(fstat(STDOUT_FILENO, &statbuf) != -1);
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
+#	endif
 			file_size = 16384;
 			ensure(ftruncate(STDOUT_FILENO, file_size) != -1);
 			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
@@ -407,12 +414,14 @@ struct blazingio_ostream {
 			fd = open("/dev/stdout", O_RDWR);
 			ensure(fd != -1);
 			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
+#	ifdef PIPE
 		} else {
 			// Reserve however much space we need, but don't populate it. We'll rely on the kernel
 			// to manage it for us.
 			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 		}
+#	endif
 	}
 
 	void on_eof() {

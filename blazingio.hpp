@@ -1,8 +1,9 @@
 #	define AVX2
+// #	define SSE41
 // #	define LUT
 // #	define PRINT_SIGNED_CHAR_STRINGS
-// #	define BITSET
-#	define FLOAT
+#	define BITSET
+// #	define FLOAT
 
 #include <array>
 #include <atomic>
@@ -17,6 +18,9 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#	if !defined(AVX2) && !defined(SSE41)
+#	define SIMD
+#	else
 #	ifdef BITSET
 #	ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
@@ -28,6 +32,7 @@
 #	define SIMD __attribute__((target("avx2")))
 #	else
 #	define SIMD __attribute__((target("sse4.1")))
+#	endif
 #	endif
 #	endif
 
@@ -127,8 +132,8 @@ struct blazingio_istream {
 		// We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
-		char* p = (char*)ptr;
 #	ifdef AVX2
+		char* p = (char*)ptr;
 		__m256i vec;
 		do {
 			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((__m256i*)p));
@@ -136,7 +141,9 @@ struct blazingio_istream {
 		} while (_mm256_testz_si256(vec, vec));
 		p -= 32;
 		p += __builtin_ctz(_mm256_movemask_epi8(vec));
-#	else
+		ptr = (NonAliasingChar*)p;
+#	elif defined(SSE41)
+		char* p = (char*)ptr;
 		__m128i vec;
 		do {
 			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((__m128i*)p));
@@ -144,8 +151,12 @@ struct blazingio_istream {
 		} while (_mm_testz_si128(vec, vec));
 		p -= 16;
 		p += __builtin_ctz(_mm_movemask_epi8(vec));
-#	endif
 		ptr = (NonAliasingChar*)p;
+#	else
+		while (*ptr > ' ') {
+			ptr++;
+		}
+#	endif
 		// while (*ptr > ' ') {
 		// 	ptr++;
 		// }
@@ -155,9 +166,9 @@ struct blazingio_istream {
 		// We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
+#	ifdef AVX2
 		char* p = (char*)ptr;
 		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
-#	ifdef AVX2
 		__m256i vec1, vec2;
 		do {
 			__m256i vec = _mm256_loadu_si256((__m256i*)p);
@@ -167,7 +178,10 @@ struct blazingio_istream {
 		} while (_mm256_testz_si256(vec1, vec2));
 		p -= 32;
 		p += __builtin_ctz(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
-#	else
+		ptr = (NonAliasingChar*)p;
+#	elif defined(SSE41)
+		char* p = (char*)ptr;
+		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
 		__m128i vec1, vec2;
 		do {
 			__m128i vec = _mm_loadu_si128((__m128i*)p);
@@ -177,11 +191,12 @@ struct blazingio_istream {
 		} while (_mm_testz_si128(vec1, vec2));
 		p -= 16;
 		p += __builtin_ctz(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
-#	endif
 		ptr = (NonAliasingChar*)p;
-		// while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
-		// 	ptr++;
-		// }
+#	else
+		while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
+			ptr++;
+		}
+#	endif
 	}
 
 	template<typename T>
@@ -310,22 +325,31 @@ struct blazingio_istream {
 			return *this;
 		}
 		size_t i = N;
+#	ifdef AVX2
 		while (i % 32 > 0) {
 			value[--i] = *ptr++ == '1';
 		}
 		char* p = (char*)ptr;
-#	ifdef AVX2
 		while (i >= 32) {
 			((uint32_t*)&value)[(i -= 32) / 32] = __builtin_bswap32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_slli_epi16(_mm256_loadu_si256((__m256i*)p), 7), _mm256_set_epi8(24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7))));
 			p += 32;
 		}
-#	else
+		ptr = (NonAliasingChar*)p;
+#	elif defined(SSE41)
+		while (i % 32 > 0) {
+			value[--i] = *ptr++ == '1';
+		}
+		char* p = (char*)ptr;
 		while (i >= 16) {
 			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_slli_epi16(_mm_loadu_si128((__m128i*)p), 7), _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)));
 			p += 16;
 		}
-#	endif
 		ptr = (NonAliasingChar*)p;
+#	else
+		while (i > 0) {
+			value[--i] = *ptr++ == '1';
+		}
+#	endif
 		return *this;
 	}
 #	endif
@@ -565,7 +589,8 @@ struct blazingio_ostream {
 			);
 			p += 32;
 		}
-#	else
+		ptr = (NonAliasingChar*)p;
+#	elif defined(SSE41)
 		while (i % 16 > 0) {
 			*ptr++ = '0' + value[--i];
 		}
@@ -589,8 +614,12 @@ struct blazingio_ostream {
 			);
 			p += 16;
 		}
-#	endif
 		ptr = (NonAliasingChar*)p;
+#	else
+		while (i > 0) {
+			*ptr++ = '0' + value[--i];
+		}
+#	endif
 		return *this;
 	}
 #	endif

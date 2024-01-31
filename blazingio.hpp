@@ -38,6 +38,8 @@ struct NonAliasingChar {
 	}
 };
 
+int empty_fd = fileno(tmpfile());
+
 struct blazingio_istream {
 	off_t file_size = -1;
 	const char* base;
@@ -48,11 +50,8 @@ struct blazingio_istream {
 	explicit blazingio_istream(int fd) : fd(fd) {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
-		int fd_exe = open("/proc/self/exe", O_RDONLY);
-		ensure(fd_exe != -1);
-		base = (const char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, fd_exe, 0x1000000000);
+		base = (const char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, empty_fd, 0x1000000000);
 		ensure(base != MAP_FAILED);
-		close(fd_exe);
 		ptr = (NonAliasingChar*)base;
 	}
 
@@ -80,11 +79,8 @@ struct blazingio_istream {
 			// We want file_size + 1 more page
 			size_t want_alloc_size = ((file_size + 4095) & ~4095) + 4096;
 			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end
-			int fd_exe = open("/proc/self/exe", O_RDONLY);
-			ensure(fd_exe != -1);
-			ensure(mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd_exe, 0x1000000000) != MAP_FAILED);
+			ensure(mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0x1000000000) != MAP_FAILED);
 			ensure(munmap((void*)(base + want_alloc_size), 0x1000000000 - want_alloc_size) != -1);
-			close(fd_exe);
 		}
 	}
 
@@ -329,11 +325,8 @@ struct blazingio_ostream {
 	blazingio_ostream(int fd) : fd(fd) {
 		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
 		// freopen to work.
-		FILE *f = tmpfile();
-		ensure(f);
-		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, fileno(f), 0x1000000000);
+		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, empty_fd, 0x1000000000);
 		ensure(base != MAP_FAILED);
-		fclose(f);
 		ptr = (NonAliasingChar*)base;
 	}
 	~blazingio_ostream() {

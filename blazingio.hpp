@@ -63,9 +63,8 @@ struct blazingio_istream {
 	char* base;
 	NonAliasingChar* ptr;
 	atomic_bool is_ok = true;
-	int fd;
 
-	explicit blazingio_istream(int fd) : fd(fd) {
+	explicit blazingio_istream() {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
 		base = (char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, empty_fd, 0x1000000000);
@@ -75,12 +74,12 @@ struct blazingio_istream {
 
 	void init() {
 		struct stat statbuf;
-		ensure(fstat(fd, &statbuf) != -1);
+		ensure(fstat(STDIN_FILENO, &statbuf) != -1);
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
 			file_size = statbuf.st_size;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end
 			// of file.
-			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0) != MAP_FAILED);
+			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED);
 			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1);
 		} else {
 			size_t alloc_size = 16384;
@@ -368,7 +367,7 @@ struct blazingio_ostream {
 	NonAliasingChar* ptr;
 	int fd;
 
-	blazingio_ostream(int fd) : fd(fd) {
+	blazingio_ostream() {
 		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
 		// freopen to work.
 		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, empty_fd, 0x1000000000);
@@ -380,13 +379,13 @@ struct blazingio_ostream {
 			char* p = (char*)ptr;
 			ssize_t n_written = 0;
 			while (n_written != -1 && base < p) {
-				base += (n_written = write(fd, base, p - base));
+				base += (n_written = write(STDOUT_FILENO, base, p - base));
 			}
 			if (n_written == -1) {
 				terminate();
 			}
 		} else if (file_size != -1) {
-			if (ftruncate(fd, (char*)ptr - base) == -1) {
+			if (ftruncate(STDOUT_FILENO, (char*)ptr - base) == -1) {
 				terminate();
 			}
 		}
@@ -394,15 +393,13 @@ struct blazingio_ostream {
 
 	void init() {
 		struct stat statbuf;
-		ensure(fstat(fd, &statbuf) != -1);
+		ensure(fstat(STDOUT_FILENO, &statbuf) != -1);
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
 			file_size = 16384;
-			ensure(ftruncate(fd, file_size) != -1);
+			ensure(ftruncate(STDOUT_FILENO, file_size) != -1);
 			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
 			// reopen it via procfs.
-			char path[20];
-			sprintf(path, "/proc/self/fd/%d", fd);
-			fd = open(path, O_RDWR);
+			fd = open("/dev/stdout", O_RDWR);
 			ensure(fd != -1);
 			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
 		} else {
@@ -416,7 +413,7 @@ struct blazingio_ostream {
 	void on_eof() {
 		// Attempt to write beyond end of stdout.
 		// Double the size of the file
-		ensure(ftruncate(fd, file_size * 2) != -1);
+		ensure(ftruncate(STDOUT_FILENO, file_size * 2) != -1);
 		// If we want to populate the pages, we have to remap the area.
 		ensure(mmap(base + file_size, file_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, file_size) != MAP_FAILED);
 		ensure(madvise(base + file_size, file_size, MADV_POPULATE_WRITE) != -1);
@@ -642,8 +639,8 @@ struct blazingio_ignoreostream {
 }
 
 namespace std {
-	blazingio::blazingio_istream blazingio_cin(0);
-	blazingio::blazingio_ostream blazingio_cout(1);
+	blazingio::blazingio_istream blazingio_cin;
+	blazingio::blazingio_ostream blazingio_cout;
 	blazingio::blazingio_ignoreostream blazingio_cerr;
 
 	blazingio::blazingio_istream& getline(blazingio::blazingio_istream& in, string& value) {

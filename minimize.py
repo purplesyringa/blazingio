@@ -121,7 +121,9 @@ def repl(s):
 		"MAP_POPULATE": 0x8000,
 		"MADV_POPULATE_READ": 22,
 		"MADV_POPULATE_WRITE": 23,
-		"SA_SIGINFO": 4
+		"SA_SIGINFO": 4,
+		"STDIN_FILENO": 0,
+		"STDOUT_FILENO": 1
 	}
 	const = "(" + "|".join(consts) + ")"
 	s = re.sub(const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s)

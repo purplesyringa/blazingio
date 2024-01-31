@@ -280,7 +280,6 @@ struct blazingio_istream {
 					x *= .1;
 				}
 			}
-			return negative ? -x : x;
 		}
 #	else
 		T x = 0;

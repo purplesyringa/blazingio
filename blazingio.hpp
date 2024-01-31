@@ -4,13 +4,16 @@
 // #	define PRINT_SIGNED_CHAR_STRINGS
 #	define BITSET
 // #	define FLOAT
+#	define COMPLEX
 
 #include <array>
 #include <atomic>
 #	ifdef BITSET
 #include <bitset>
 #	endif
+#	ifdef COMPLEX
 #include <complex>
+#	endif
 #include <cstring>
 #include <fcntl.h>
 #include <immintrin.h>
@@ -293,6 +296,7 @@ struct blazingio_istream {
 		return *this;
 	}
 
+#	ifdef COMPLEX
 	template<typename T>
 	blazingio_istream& operator>>(complex<T>& value) {
 		skip_whitespace();
@@ -311,6 +315,7 @@ struct blazingio_istream {
 		}
 		return *this;
 	}
+#	endif
 
 #	ifdef BITSET
 	template<size_t N>
@@ -553,10 +558,12 @@ struct blazingio_ostream {
 		return *this;
 	}
 
+#	ifdef COMPLEX
 	template<typename T>
 	blazingio_ostream& operator<<(const complex<T>& value) {
 		return *this << '(' << ' ' << value.real() << ',' << ' ' << value.imag() << ')';
 	}
+#	endif
 
 #	ifdef BITSET
 	template<size_t N>

@@ -503,7 +503,7 @@ struct blazingio_ostream {
 	template<typename T, T = 1>
 	blazingio_ostream& operator<<(const T& value) {
 #	ifdef FLOAT
-		if (is_integral_v<T>) {
+		if constexpr (is_integral_v<T>) {
 #	endif
 			make_unsigned_t<T> abs = value;
 			if (value < 0) {

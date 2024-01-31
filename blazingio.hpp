@@ -521,7 +521,8 @@ struct blazingio_ostream {
 			write_int_split<unsigned, 8, 8>(n, n);
 		};
 		if (!value) {
-			return *this << '0';
+			*ptr++ = '0';
+			return *this;
 		}
 		if (value >= 1e16) {
 			value *= 1e-16;
@@ -560,10 +561,12 @@ struct blazingio_ostream {
 	}
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
 	blazingio_ostream& operator<<(const unsigned char* const& value) {
-		return *this << (char*)value;
+		*this << (char*)value;
+		return *this;
 	}
 	blazingio_ostream& operator<<(const signed char* const& value) {
-		return *this << (char*)value;
+		*this << (char*)value;
+		return *this;
 	}
 #	endif
 

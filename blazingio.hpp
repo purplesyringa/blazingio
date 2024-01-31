@@ -217,7 +217,7 @@ struct blazingio_istream {
 
 #	ifdef FLOAT
 	template<typename T>
-	static constexpr T exps[] = {
+	static const T exps[] = {
 		1e-15, 1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1,
 		1,
 		1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15
@@ -227,19 +227,19 @@ struct blazingio_istream {
 	template<typename T>
 	T read_arithmetic() {
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-		if constexpr (is_same_v<T, char> || is_same_v<T, unsigned char> || is_same_v<T, signed char>) {
+		if (is_same_v<T, char> || is_same_v<T, unsigned char> || is_same_v<T, signed char>) {
 #	else
-		if constexpr (is_same_v<T, char>) {
+		if (is_same_v<T, char>) {
 #	endif
 			return *ptr++;
-		} else if constexpr (is_same_v<T, bool>) {
+		} else if (is_same_v<T, bool>) {
 			return *ptr++ == '1';
 		}
 		bool negative = is_signed_v<T> && *ptr == '-';
 		ptr += negative;
 #	ifdef FLOAT
 		T x;
-		if constexpr (is_integral_v<T>) {
+		if (is_integral_v<T>) {
 			x = 0;
 			collect_digits(x);
 		} else {
@@ -504,7 +504,7 @@ struct blazingio_ostream {
 	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
 	blazingio_ostream& operator<<(const T& value) {
 #	ifdef FLOAT
-		if constexpr (is_integral_v<T>) {
+		if (is_integral_v<T>) {
 #	endif
 			make_unsigned_t<T> abs = value;
 			if (value < 0) {

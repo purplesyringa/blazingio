@@ -486,11 +486,10 @@ struct blazingio_ostream {
 			constexpr auto computed = [] {
 				int low_digits = 1;
 				T coeff = 10;
-				while (low_digits * 2 < MaxDigits) {
-					low_digits *= 2;
+				while (low_digits *= 2 < MaxDigits) {
 					coeff *= coeff;
 				}
-				return pair{low_digits, coeff};
+				return pair{low_digits / 2, coeff};
 			}();
 			constexpr int low_digits = computed.first;
 			constexpr T coeff = computed.second;

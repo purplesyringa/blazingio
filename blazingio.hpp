@@ -629,7 +629,7 @@ namespace std {
 	}
 
 	blazingio::blazingio_ignoreostream& endl(blazingio::blazingio_ignoreostream& stream) {
-		return stream << '\n';
+		return stream;
 	}
 	blazingio::blazingio_ignoreostream& flush(blazingio::blazingio_ignoreostream& stream) {
 		return stream;

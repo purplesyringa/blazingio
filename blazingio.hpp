@@ -24,7 +24,7 @@ namespace blazingio {
 
 using namespace std;
 
-struct UninitChar { UninitChar& operator=(const UninitChar&) { return *this; } };
+struct UninitChar { UninitChar& operator=(UninitChar) { return *this; } };
 
 struct NonAliasingChar {
 	enum class Inner : char {};
@@ -42,15 +42,15 @@ int empty_fd = fileno(tmpfile());
 
 struct blazingio_istream {
 	off_t file_size = -1;
-	const char* base;
-	const NonAliasingChar* ptr;
+	char* base;
+	NonAliasingChar* ptr;
 	atomic_bool is_ok = true;
 	int fd;
 
 	explicit blazingio_istream(int fd) : fd(fd) {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
-		base = (const char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, empty_fd, 0x1000000000);
+		base = (char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, empty_fd, 0x1000000000);
 		ensure(base != MAP_FAILED);
 		ptr = (NonAliasingChar*)base;
 	}
@@ -62,16 +62,16 @@ struct blazingio_istream {
 			file_size = statbuf.st_size;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end
 			// of file.
-			ensure(mmap((void*)base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0) != MAP_FAILED);
-			ensure(madvise((void*)base, file_size, MADV_POPULATE_READ) != -1);
+			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0) != MAP_FAILED);
+			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1);
 		} else {
 			size_t alloc_size = 16384;
-			ensure(mmap((void*)base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
+			ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 			ssize_t n_read;
-			while ((n_read = read(0, (void*)(base + file_size), 0x1000000000 - file_size)) > 0) {
+			while ((n_read = read(0, base + file_size, 0x1000000000 - file_size)) > 0) {
 				if ((file_size += n_read) == alloc_size) {
-					ensure(mmap((void*)(base + alloc_size), alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
+					ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
 					alloc_size *= 2;
 				}
 			}
@@ -79,8 +79,8 @@ struct blazingio_istream {
 			// We want file_size + 1 more page
 			size_t want_alloc_size = ((file_size + 4095) & ~4095) + 4096;
 			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end
-			ensure(mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0x1000000000) != MAP_FAILED);
-			ensure(munmap((void*)(base + want_alloc_size), 0x1000000000 - want_alloc_size) != -1);
+			ensure(mmap(base + want_alloc_size - 4096, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0x1000000000) != MAP_FAILED);
+			ensure(munmap(base + want_alloc_size, 0x1000000000 - want_alloc_size) != -1);
 		}
 	}
 
@@ -91,7 +91,7 @@ struct blazingio_istream {
 		// the loop by encountering a space character. Something like "\00" works for both cases: it
 		// stops (for instance) integer parsing immediately with a zero, and also stops whitespace
 		// parsing *soon*.
-		char* p = (char*)base + ((file_size + 4095) & ~4095);
+		char* p = base + ((file_size + 4095) & ~4095);
 		ensure(mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED);
 		p[1] = '0';
 		is_ok = false;
@@ -114,11 +114,11 @@ struct blazingio_istream {
 		// We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
-		const char* p = (const char*)ptr;
+		char* p = (char*)ptr;
 #	ifdef AVX2
 		__m256i vec;
 		do {
-			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((const __m256i*)p));
+			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((__m256i*)p));
 			p += 32;
 		} while (_mm256_testz_si256(vec, vec));
 		p -= 32;
@@ -126,13 +126,13 @@ struct blazingio_istream {
 #	else
 		__m128i vec;
 		do {
-			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((const __m128i*)p));
+			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((__m128i*)p));
 			p += 16;
 		} while (_mm_testz_si128(vec, vec));
 		p -= 16;
 		p += __builtin_ctz(_mm_movemask_epi8(vec));
 #	endif
-		ptr = (const NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p;
 		// while (*ptr > ' ') {
 		// 	ptr++;
 		// }
@@ -142,12 +142,12 @@ struct blazingio_istream {
 		// We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
-		const char* p = (const char*)ptr;
+		char* p = (char*)ptr;
 		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
 #	ifdef AVX2
 		__m256i vec1, vec2;
 		do {
-			__m256i vec = _mm256_loadu_si256((const __m256i*)p);
+			__m256i vec = _mm256_loadu_si256((__m256i*)p);
 			vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec);
 			vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec);
 			p += 32;
@@ -157,7 +157,7 @@ struct blazingio_istream {
 #	else
 		__m128i vec1, vec2;
 		do {
-			__m128i vec = _mm_loadu_si128((const __m128i*)p);
+			__m128i vec = _mm_loadu_si128((__m128i*)p);
 			vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec);
 			vec2 = _mm_shuffle_epi8(mask, vec);
 			p += 16;
@@ -165,7 +165,7 @@ struct blazingio_istream {
 		p -= 16;
 		p += __builtin_ctz(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
 #	endif
-		ptr = (const NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p;
 		// while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
 		// 	ptr++;
 		// }
@@ -255,7 +255,7 @@ struct blazingio_istream {
 		// We know there's no overlap, so avoid doing this for a little bit of performance:
 		// value.assign((const char*)start, ptr - start);
 		((basic_string<UninitChar>&)value).resize(ptr - start);
-		memcpy(value.data(), (const char*)start, ptr - start);
+		memcpy(value.data(), start, ptr - start);
 		return *this;
 	}
 
@@ -292,19 +292,19 @@ struct blazingio_istream {
 		while (i % 32 > 0) {
 			value[--i] = *ptr++ == '1';
 		}
-		const char* p = (const char*)ptr;
+		char* p = (char*)ptr;
 #	ifdef AVX2
 		while (i >= 32) {
-			((uint32_t*)&value)[(i -= 32) / 32] = __builtin_bswap32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_slli_epi16(_mm256_loadu_si256((const __m256i*)p), 7), _mm256_set_epi8(24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7))));
+			((uint32_t*)&value)[(i -= 32) / 32] = __builtin_bswap32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_slli_epi16(_mm256_loadu_si256((__m256i*)p), 7), _mm256_set_epi8(24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7))));
 			p += 32;
 		}
 #	else
 		while (i >= 16) {
-			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_slli_epi16(_mm_loadu_si128((const __m128i*)p), 7), _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)));
+			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_slli_epi16(_mm_loadu_si128((__m128i*)p), 7), _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)));
 			p += 16;
 		}
 #	endif
-		ptr = (const NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p;
 		return *this;
 	}
 
@@ -331,7 +331,7 @@ struct blazingio_ostream {
 	}
 	~blazingio_ostream() {
 		if (!file_size) {
-			const char* p = (const char*)ptr;
+			char* p = (char*)ptr;
 			ssize_t n_written = 0;
 			while (n_written != -1 && base < p) {
 				base += (n_written = write(fd, base, p - base));
@@ -491,10 +491,10 @@ struct blazingio_ostream {
 		return *this;
 	}
 	blazingio_ostream& operator<<(const unsigned char* const& value) {
-		return *this << (const char*)value;
+		return *this << (char*)value;
 	}
 	blazingio_ostream& operator<<(const signed char* const& value) {
-		return *this << (const char*)value;
+		return *this << (char*)value;
 	}
 
 	blazingio_ostream& operator<<(const string& value) {
@@ -601,7 +601,7 @@ namespace std {
 		// We know there's no overlap, so avoid doing this for a little bit of performance:
 		// value.assign((const char*)start, in.ptr - start);
 		((basic_string<blazingio::UninitChar>&)value).resize(in.ptr - start);
-		memcpy(value.data(), (const char*)start, in.ptr - start);
+		memcpy(value.data(), (char*)start, in.ptr - start);
 		in.ptr += *in.ptr == '\r';
 		in.ptr++;
 		return in;

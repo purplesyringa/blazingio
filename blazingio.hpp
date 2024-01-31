@@ -1,4 +1,5 @@
 #	define AVX2
+// #	define LUT
 
 #include <array>
 #include <atomic>
@@ -440,7 +441,9 @@ struct blazingio_ostream {
 		return *this;
 	}
 
+#	ifdef LUT
 	static constexpr char decimal_lut[] = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+#	endif
 
 	template<typename T, T Factor, int MinDigits, int MaxDigits>
 	void write_int_split(T value, T interval) {
@@ -448,6 +451,7 @@ struct blazingio_ostream {
 			if (MinDigits >= 1 || value >= Factor) {
 				*ptr++ = '0' + interval;
 			}
+#	ifdef LUT
 		} else if constexpr (MaxDigits == 2) {
 			if (MinDigits >= 2 || value >= 10 * Factor) {
 				*ptr++ = decimal_lut[interval * 2];
@@ -455,6 +459,7 @@ struct blazingio_ostream {
 			if (MinDigits >= 1 || value >= Factor) {
 				*ptr++ = decimal_lut[interval * 2 + 1];
 			}
+#	endif
 		} else {
 			constexpr auto computed = [] {
 				int low_digits = 1;

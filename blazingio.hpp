@@ -216,29 +216,31 @@ struct blazingio_istream {
 	}
 
 	template<typename T, T = 1>
-	T read_arithmetic() {
+	void read_arithmetic(T& x) {
 		bool negative = is_signed_v<T> && *ptr == '-';
 		ptr += negative;
-		T x = 0;
 		collect_digits(x);
-		return negative ? -x : x;
+		if (negative) {
+			x = -x;
+		}
 	}
 
 #	ifdef FLOAT
 	template<typename T, typename = decltype(T{1.})>
-	T read_arithmetic() {
+	void read_arithmetic(T& x) {
 		bool negative = *ptr == '-';
 		ptr += negative;
 		ptr += *ptr == '+';
 		auto start = ptr;
-		auto n = read_arithmetic<uint64_t>();
+		uint64_t n;
+		read_arithmetic(n);
 		int exponent = 20;  // Offset by 20, for reasons
 		if (*ptr == '.') {
 			auto after_dot = ++ptr;
 			collect_digits(n);
 			exponent += after_dot - ptr;
 		}
-		T x = n;
+		x = n;
 		if (ptr - start >= 19) {
 			ptr = start;
 			x = 0;
@@ -251,7 +253,9 @@ struct blazingio_istream {
 		if ((*ptr | 0x20) == 'e') {
 			ptr++;
 			ptr += *ptr == '+';
-			exponent += read_arithmetic<int>();
+			int new_exponent;
+			read_arithmetic(new_exponent);
+			exponent += new_exponent;
 		}
 		if (0 <= exponent && exponent < 41) {
 			// This generates {1e-20, 1e-14, ..., 1e14, 1e20}
@@ -274,34 +278,32 @@ struct blazingio_istream {
 				x *= .1;
 			}
 		}
-		return negative ? -x : x;
+		if (negative) {
+			x = -x;
+		}
 	}
 #	endif
 
-	template<>
-	bool read_arithmetic<bool>() {
-		return *ptr++ == '1';
+	void read_arithmetic(bool& x) {
+		x = *ptr++ == '1';
+	}
+	void read_arithmetic(char& x) {
+		x = *ptr++;
 	}
 
-	template<>
-	char read_arithmetic<char>() {
-		return *ptr++;
-	}
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-	template<>
-	auto read_arithmetic<unsigned char>() {
-		return *ptr++;
+	void read_arithmetic(unsigned char& x) {
+		x = *ptr++;
 	}
-	template<>
-	auto read_arithmetic<signed char>() {
-		return *ptr++;
+	void read_arithmetic(signed char& x) {
+		x = *ptr++;
 	}
 #	endif
 
-	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
+	template<typename T, int = numeric_limits<T>::radix>
 	blazingio_istream& operator>>(T& value) {
 		skip_whitespace();
-		value = read_arithmetic<T>();
+		read_arithmetic(value);
 		return *this;
 	}
 
@@ -320,19 +322,19 @@ struct blazingio_istream {
 	template<typename T>
 	blazingio_istream& operator>>(complex<T>& value) {
 		skip_whitespace();
+		T re, im{};
 		if (*ptr == '(') {
 			ptr++;
-			T re = read_arithmetic<T>();
-			T im{};
+			read_arithmetic(re);
 			if (*ptr++ == ',') {
 				skip_whitespace();
-				im = read_arithmetic<T>();
+				read_arithmetic(im);
 				ptr++;
 			}
-			value = {re, im};
 		} else {
-			value = read_arithmetic<T>();
+			read_arithmetic(re);
 		}
+		value = {re, im};
 		return *this;
 	}
 #	endif

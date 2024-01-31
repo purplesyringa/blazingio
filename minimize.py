@@ -104,6 +104,7 @@ def repl(s):
 		("Inner", "q"),
 		("empty_fd", "U"),
 		("write8", "w"),
+		("new_exponent", "k"),
 		("NULL", "0"),
 		("false", "0"),
 		("true", "1"),

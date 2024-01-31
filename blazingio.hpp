@@ -20,7 +20,6 @@
 #include <immintrin.h>
 #include <signal.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
 
 #	if !defined(AVX2) && !defined(SSE41)
 #	define SIMD
@@ -78,13 +77,14 @@ struct blazingio_istream {
 	}
 
 	void init() {
-		struct stat statbuf;
-		ensure(fstat(STDIN_FILENO, &statbuf) != -1);
+		file_size = lseek(STDIN_FILENO, 0, SEEK_END);
 #	ifdef PIPE
-		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
+		if (file_size != -1) {
+#	else
+		ensure(file_size != -1);
 #	endif
 			// Round to page size.
-			file_size = (statbuf.st_size + 4095) & -4096;
+			(file_size += 4095) &= -4096;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end of
 			// file.
 			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED);

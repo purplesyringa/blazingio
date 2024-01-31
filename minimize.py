@@ -99,7 +99,6 @@ def repl(s):
 		("want_alloc_size", "v"),
 		("alloc_size", "w"),
 		("n_read", "y"),
-		("statbuf", "z"),
 		("fd", "q"),
 		("Inner", "q"),
 		("empty_fd", "U"),
@@ -129,7 +128,8 @@ def repl(s):
 		"MADV_POPULATE_WRITE": 23,
 		"SA_SIGINFO": 4,
 		"STDIN_FILENO": 0,
-		"STDOUT_FILENO": 1
+		"STDOUT_FILENO": 1,
+		"SEEK_END": 2
 	}
 	const = "(" + "|".join(consts) + ")"
 	s = re.sub(const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s)

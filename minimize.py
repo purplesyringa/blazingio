@@ -104,6 +104,8 @@ def repl(s):
 		("empty_fd", "U"),
 		("write8", "w"),
 		("new_exponent", "k"),
+		("real_part", "w"),
+		("imag_part", "q"),
 		("BIG", "k"),
 		("NULL", "0"),
 		("false", "0"),

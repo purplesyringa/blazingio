@@ -326,19 +326,19 @@ struct blazingio_istream {
 	template<typename T>
 	blazingio_istream& operator>>(complex<T>& value) {
 		skip_whitespace();
-		T re, im{};
+		T real_part, imag_part{};
 		if (*ptr == '(') {
 			ptr++;
-			read_arithmetic(re);
+			read_arithmetic(real_part);
 			if (*ptr++ == ',') {
 				skip_whitespace();
-				read_arithmetic(im);
+				read_arithmetic(imag_part);
 				ptr++;
 			}
 		} else {
-			read_arithmetic(re);
+			read_arithmetic(real_part);
 		}
-		value = {re, im};
+		value = {real_part, imag_part};
 		return *this;
 	}
 #	endif

@@ -507,7 +507,7 @@ struct blazingio_ostream {
 			}();
 			constexpr int low_digits = computed.first;
 			constexpr T coeff = computed.second;
-			write_int_split<T, max(0, MinDigits - low_digits), MaxDigits - low_digits, (T)(Factor * coeff)>(value, interval / coeff);
+			write_int_split<T, max(0, MinDigits - low_digits), MaxDigits - low_digits, T(Factor * coeff)>(value, interval / coeff);
 			write_int_split<T, min(MinDigits, low_digits), low_digits, Factor>(value, interval % coeff);
 		}
 	}

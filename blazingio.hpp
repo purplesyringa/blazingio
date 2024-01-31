@@ -142,21 +142,23 @@ struct blazingio_istream {
 #	ifdef AVX2
 		char* p = (char*)ptr;
 		__m256i vec;
-		do {
-			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((__m256i*)p));
+		while (
+			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((__m256i*)p)),
+			_mm256_testz_si256(vec, vec)
+		) {
 			p += 32;
-		} while (_mm256_testz_si256(vec, vec));
-		p -= 32;
+		}
 		p += __builtin_ctz(_mm256_movemask_epi8(vec));
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
 		char* p = (char*)ptr;
 		__m128i vec;
-		do {
-			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((__m128i*)p));
+		while (
+			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((__m128i*)p)),
+			_mm_testz_si128(vec, vec)
+		) {
 			p += 16;
-		} while (_mm_testz_si128(vec, vec));
-		p -= 16;
+		}
 		p += __builtin_ctz(_mm_movemask_epi8(vec));
 		ptr = (NonAliasingChar*)p;
 #	else
@@ -164,9 +166,6 @@ struct blazingio_istream {
 			ptr++;
 		}
 #	endif
-		// while (*ptr > ' ') {
-		// 	ptr++;
-		// }
 	}
 
 	SIMD void trace_line() {
@@ -176,28 +175,31 @@ struct blazingio_istream {
 #	ifdef AVX2
 		char* p = (char*)ptr;
 		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
-		__m256i vec1, vec2;
-		do {
-			__m256i vec = _mm256_loadu_si256((__m256i*)p);
-			vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec);
-			vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec);
+		__m256i vec, vec1, vec2;
+		while (
+			vec = _mm256_loadu_si256((__m256i*)p),
+			_mm256_testz_si256(
+				vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
+				vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
+			)
+		) {
 			p += 32;
-		} while (_mm256_testz_si256(vec1, vec2));
-		p -= 32;
-		p += __builtin_ctz(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
+		}
+		p += __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
 		char* p = (char*)ptr;
-		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
-		__m128i vec1, vec2;
-		do {
-			__m128i vec = _mm_loadu_si128((__m128i*)p);
-			vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec);
-			vec2 = _mm_shuffle_epi8(mask, vec);
+		__m128i vec, vec1, vec2;
+		while (
+			vec = _mm_loadu_si128((__m128i*)p),
+			_mm_testz_si128(
+				vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
+				vec2 = _mm_shuffle_epi8(_mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1), vec)
+			)
+		) {
 			p += 16;
-		} while (_mm_testz_si128(vec1, vec2));
-		p -= 16;
-		p += __builtin_ctz(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
+		}
+		p += __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
 		ptr = (NonAliasingChar*)p;
 #	else
 		while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {

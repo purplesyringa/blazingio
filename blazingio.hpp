@@ -599,14 +599,14 @@ struct blazingio_ostream {
 		while (i % 32) {
 			*ptr++ = '0' + value[--i];
 		}
-		char* p = (char*)ptr;
+		__m256i* p = (__m256i*)ptr;
 		i /= 32;
 		// Actually 0x0101010101010101
 		long a = -1ULL / 255;
 		auto b = _mm256_set1_epi64x(0x0102040810204080);
 		while (i) {
 			_mm256_storeu_si256(
-				(__m256i*)p,
+				p++,
 				_mm256_sub_epi8(
 					_mm256_set1_epi8('0'),
 					_mm256_cmpeq_epi8(
@@ -618,19 +618,18 @@ struct blazingio_ostream {
 					)
 				)
 			);
-			p += 32;
 		}
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
 		while (i % 16) {
 			*ptr++ = '0' + value[--i];
 		}
-		char* p = (char*)ptr;
+		__m128i* p = (__m128i*)ptr;
 		i /= 16;
 		auto b = _mm_set1_epi64x(0x0102040810204080);
 		while (i) {
 			_mm_storeu_si128(
-				(__m128i*)p,
+				p++,
 				_mm_sub_epi8(
 					_mm_set1_epi8('0'),
 					_mm_cmpeq_epi8(
@@ -643,13 +642,20 @@ struct blazingio_ostream {
 					)
 				)
 			);
-			p += 16;
 		}
 		ptr = (NonAliasingChar*)p;
 #	else
-		while (i) {
+		while (i % 8) {
 			*ptr++ = '0' + value[--i];
 		}
+		long* p = (long*)ptr;
+		i /= 8;
+		while (i) {
+			// Actually a = 0x0101010101010101, b = 0x3030303030303030
+			long a = -1ULL / 255, b = a * 0x30;
+			*p++ = ((0x8040201008040201 * ((uint8_t*)&value)[--i]) >> 7) & a | b;
+		}
+		ptr = (NonAliasingChar*)p;
 #	endif
 		return *this;
 	}

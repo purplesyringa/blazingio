@@ -144,27 +144,25 @@ struct blazingio_istream {
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
 #	ifdef AVX2
-		char* p = (char*)ptr;
+		__m256i* p = (__m256i*)ptr;
 		__m256i vec;
 		while (
-			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((__m256i*)p)),
+			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256(p)),
 			_mm256_testz_si256(vec, vec)
 		) {
-			p += 32;
+			p++;
 		}
-		p += __builtin_ctz(_mm256_movemask_epi8(vec));
-		ptr = (NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
 #	elif defined(SSE41)
-		char* p = (char*)ptr;
+		__m128i* p = (__m128i*)ptr;
 		__m128i vec;
 		while (
-			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((__m128i*)p)),
+			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128(p)),
 			_mm_testz_si128(vec, vec)
 		) {
-			p += 16;
+			p++;
 		}
-		p += __builtin_ctz(_mm_movemask_epi8(vec));
-		ptr = (NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
 #	else
 		while (*ptr > ' ') {
 			ptr++;
@@ -177,34 +175,32 @@ struct blazingio_istream {
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
 #	ifdef AVX2
-		char* p = (char*)ptr;
+		__m256i* p = (__m256i*)ptr;
 		__m128i mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
 		__m256i vec, vec1, vec2;
 		while (
-			vec = _mm256_loadu_si256((__m256i*)p),
+			vec = _mm256_loadu_si256(p),
 			_mm256_testz_si256(
 				vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
 				vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
 			)
 		) {
-			p += 32;
+			p++;
 		}
-		p += __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-		ptr = (NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
 #	elif defined(SSE41)
-		char* p = (char*)ptr;
+		__m128i* p = (__m128i*)ptr;
 		__m128i vec, vec1, vec2;
 		while (
-			vec = _mm_loadu_si128((__m128i*)p),
+			vec = _mm_loadu_si128(p),
 			_mm_testz_si128(
 				vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
 				vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
 			)
 		) {
-			p += 16;
+			p++;
 		}
-		p += __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-		ptr = (NonAliasingChar*)p;
+		ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
 #	else
 		while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
 			ptr++;

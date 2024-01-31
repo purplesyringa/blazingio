@@ -219,7 +219,7 @@ struct blazingio_istream {
 	void read_arithmetic(T& x) {
 		bool negative = is_signed_v<T> && *ptr == '-';
 		ptr += negative;
-		collect_digits(x);
+		collect_digits(x = 0);
 		if (negative) {
 			x = -x;
 		}

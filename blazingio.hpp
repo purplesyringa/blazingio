@@ -18,6 +18,8 @@
 #define SIMD __attribute__((target("sse4.1")))
 #	endif
 
+#define ensure(x) if (!(x)) abort();
+
 namespace blazingio {
 
 using namespace std;
@@ -47,63 +49,41 @@ struct blazingio_istream {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
 		int fd_exe = open("/proc/self/exe", O_RDONLY);
-		if (fd_exe == -1) {
-			_exit(1);
-		}
+		ensure(fd_exe != -1);
 		base = (const char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, fd_exe, 0x1000000000);
-		if (base == MAP_FAILED) {
-			_exit(1);
-		}
+		ensure(base != MAP_FAILED);
 		close(fd_exe);
 		ptr = (NonAliasingChar*)base;
 	}
 
 	void init() {
 		struct stat statbuf;
-		if (fstat(fd, &statbuf) == -1) {
-			_exit(1);
-		}
+		ensure(fstat(fd, &statbuf) != -1);
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
 			file_size = statbuf.st_size;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end
 			// of file.
-			if (mmap((void*)base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0) == MAP_FAILED) {
-				_exit(1);
-			}
-			if (madvise((void*)base, file_size, MADV_POPULATE_READ) == -1) {
-				_exit(1);
-			}
+			ensure(mmap((void*)base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0) != MAP_FAILED);
+			ensure(madvise((void*)base, file_size, MADV_POPULATE_READ) != -1);
 		} else {
 			size_t alloc_size = 16384;
-			if (mmap((void*)base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) == MAP_FAILED) {
-				_exit(1);
-			}
+			ensure(mmap((void*)base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 			ssize_t n_read;
 			while ((n_read = read(0, (void*)(base + file_size), 0x1000000000 - file_size)) > 0) {
 				if ((file_size += n_read) == alloc_size) {
-					if (mmap((void*)(base + alloc_size), alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) == MAP_FAILED) {
-						_exit(1);
-					}
+					ensure(mmap((void*)(base + alloc_size), alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
 					alloc_size *= 2;
 				}
 			}
-			if (n_read == -1) {
-				_exit(1);
-			}
+			ensure(n_read != -1);
 			// We want file_size + 1 more page
 			size_t want_alloc_size = ((file_size + 4095) & ~4095) + 4096;
 			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end
 			int fd_exe = open("/proc/self/exe", O_RDONLY);
-			if (fd_exe == -1) {
-				_exit(1);
-			}
-			if (mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd_exe, 0x1000000000) == MAP_FAILED) {
-				_exit(1);
-			}
-			if (munmap((void*)(base + want_alloc_size), 0x1000000000 - want_alloc_size) == -1) {
-				_exit(1);
-			}
+			ensure(fd_exe != -1);
+			ensure(mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd_exe, 0x1000000000) != MAP_FAILED);
+			ensure(munmap((void*)(base + want_alloc_size), 0x1000000000 - want_alloc_size) != -1);
 			close(fd_exe);
 		}
 	}
@@ -116,9 +96,7 @@ struct blazingio_istream {
 		// stops (for instance) integer parsing immediately with a zero, and also stops whitespace
 		// parsing *soon*.
 		char* p = (char*)base + ((file_size + 4095) & ~4095);
-		if (mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED) {
-			_exit(1);
-		}
+		ensure(mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED);
 		p[1] = '0';
 		is_ok = false;
 	}
@@ -231,7 +209,7 @@ struct blazingio_istream {
 				collect_digits(n);
 				exponent = after_dot - ptr;
 			}
-			if (__builtin_expect(ptr - start >= 19, 0)) {
+			if (ptr - start >= 19) {
 				ptr = start;
 				x = 0;
 				collect_digits(x);
@@ -352,13 +330,9 @@ struct blazingio_ostream {
 		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
 		// freopen to work.
 		FILE *f = tmpfile();
-		if (!f) {
-			_exit(1);
-		}
+		ensure(f);
 		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, fileno(f), 0x1000000000);
-		if (base == MAP_FAILED) {
-			_exit(1);
-		}
+		ensure(base != MAP_FAILED);
 		fclose(f);
 		ptr = (NonAliasingChar*)base;
 	}
@@ -381,46 +355,32 @@ struct blazingio_ostream {
 
 	void init() {
 		struct stat statbuf;
-		if (fstat(fd, &statbuf) == -1) {
-			_exit(1);
-		}
+		ensure(fstat(fd, &statbuf) != -1);
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
 			file_size = 16384;
-			if (ftruncate(fd, file_size) == -1) {
-				_exit(1);
-			}
+			ensure(ftruncate(fd, file_size) != -1);
 			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
 			// reopen it via procfs.
 			char path[20];
 			sprintf(path, "/proc/self/fd/%d", fd);
 			fd = open(path, O_RDWR);
-			if (fd == -1) {
-				_exit(1);
-			}
-			if (mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) == MAP_FAILED) {
-				_exit(1);
-			}
+			ensure(fd != -1);
+			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
 		} else {
 			// Reserve however much space we need, but don't populate it. We'll rely on the kernel
 			// to manage it for us.
-			if (mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) == MAP_FAILED) {
-				_exit(1);
-			}
+			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 		}
 	}
 
 	void on_eof() {
 		// Attempt to write beyond end of stdout.
-		if (
-			// Double the size of the file
-			ftruncate(fd, file_size * 2) == -1
-			// If we want to populate the pages, we have to remap the area.
-			|| mmap(base + file_size, file_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, file_size) == MAP_FAILED
-			|| madvise(base + file_size, file_size, MADV_POPULATE_WRITE) == -1
-		) {
-			_exit(1);
-		}
+		// Double the size of the file
+		ensure(ftruncate(fd, file_size * 2) != -1);
+		// If we want to populate the pages, we have to remap the area.
+		ensure(mmap(base + file_size, file_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, file_size) != MAP_FAILED);
+		ensure(madvise(base + file_size, file_size, MADV_POPULATE_WRITE) != -1);
 		file_size *= 2;
 	}
 
@@ -669,14 +629,6 @@ namespace std {
 	}
 }
 
-#define cin blazingio_cin
-#define cout blazingio_cout
-
-#ifdef ONLINE_JUDGE
-#define cerr blazingio_cerr
-#define clog blazingio_cerr
-#endif
-
 struct init {
 	init() {
 		struct sigaction act;
@@ -687,18 +639,27 @@ struct init {
 	}
 
 	static void on_sigbus(int, siginfo_t* info, void*) {
-		if (info->si_addr == std::cin.base && std::cin.file_size == -1) {
-			std::cin.init();
-		} else if (info->si_addr == std::cin.base + ((std::cin.file_size + 4095) & ~4095)) {
-			std::cin.on_eof();
-		} else if ((uintptr_t)info->si_addr - (uintptr_t)(std::cout.base + std::cout.file_size) < 4096) {
-			if (std::cout.file_size == -1) {
-				std::cout.init();
+		using namespace std;
+		if (info->si_addr == blazingio_cin.base && blazingio_cin.file_size == -1) {
+			blazingio_cin.init();
+		} else if (info->si_addr == blazingio_cin.base + ((blazingio_cin.file_size + 4095) & ~4095)) {
+			blazingio_cin.on_eof();
+		} else if ((uintptr_t)info->si_addr - (uintptr_t)(blazingio_cout.base + blazingio_cout.file_size) < 4096) {
+			if (blazingio_cout.file_size == -1) {
+				blazingio_cout.init();
 			} else {
-				std::cout.on_eof();
+				blazingio_cout.on_eof();
 			}
 		} else {
-			_exit(1);
+			ensure(false);
 		}
 	}
 } blazingio_init;
+
+#define cin blazingio_cin
+#define cout blazingio_cout
+
+#ifdef ONLINE_JUDGE
+#define cerr blazingio_cerr
+#define clog blazingio_cerr
+#endif

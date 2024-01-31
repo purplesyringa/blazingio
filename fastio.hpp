@@ -312,22 +312,23 @@ struct fastio_istream {
 		if (N >= 4096 && !*this) {
 			return *this;
 		}
-		const char* p = (const char*)ptr;
 		size_t i = N;
+		while (i % 32 > 0) {
+			value[--i] = *ptr++ == '1';
+		}
+		const char* p = (const char*)ptr;
 #ifdef AVX2
 		while (i >= 32) {
 			((uint32_t*)&value)[(i -= 32) / 32] = __builtin_bswap32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_slli_epi16(_mm256_loadu_si256((const __m256i*)p), 7), _mm256_set_epi8(24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7))));
 			p += 32;
 		}
-#endif
+#else
 		while (i >= 16) {
 			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_slli_epi16(_mm_loadu_si128((const __m128i*)p), 7), _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)));
 			p += 16;
 		}
+#endif
 		ptr = (const NonAliasingChar*)p;
-		while (i > 0) {
-			value[--i] = *ptr++ == '1';
-		}
 		return *this;
 	}
 
@@ -554,9 +555,12 @@ struct fastio_ostream {
 
 	template<size_t N>
 	SIMD fastio_ostream& operator<<(const std::bitset<N>& value) {
-		char* p = (char*)ptr;
 		size_t i = N;
 #ifdef AVX2
+		while (i % 32 > 0) {
+			*ptr++ = '0' + value[--i];
+		}
+		char* p = (char*)ptr;
 		while (i >= 32) {
 			_mm256_storeu_si256(
 				(__m256i*)p,
@@ -576,7 +580,11 @@ struct fastio_ostream {
 			);
 			p += 32;
 		}
-#endif
+#else
+		while (i % 16 > 0) {
+			*ptr++ = '0' + value[--i];
+		}
+		char* p = (char*)ptr;
 		while (i >= 16) {
 			_mm_storeu_si128(
 				(__m128i*)p,
@@ -596,10 +604,8 @@ struct fastio_ostream {
 			);
 			p += 16;
 		}
+#endif
 		ptr = (NonAliasingChar*)p;
-		while (i > 0) {
-			*ptr++ = '0' + value[--i];
-		}
 		return *this;
 	}
 
@@ -677,10 +683,12 @@ struct init {
 			std::cin.init();
 		} else if (info->si_addr == std::cin.base + ((std::cin.file_size + 4095) & ~4095)) {
 			std::cin.on_eof();
-		} else if (info->si_addr == std::cout.base && std::cout.file_size == -1) {
-			std::cout.init();
 		} else if ((uintptr_t)info->si_addr - (uintptr_t)(std::cout.base + std::cout.file_size) < 4096) {
-			std::cout.on_eof();
+			if (std::cout.file_size == -1) {
+				std::cout.init();
+			} else {
+				std::cout.on_eof();
+			}
 		} else {
 			_exit(1);
 		}

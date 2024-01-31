@@ -359,24 +359,22 @@ struct blazingio_istream {
 		while (i % 32) {
 			value[--i] = *ptr++ == '1';
 		}
-		char* p = (char*)ptr;
+		__m256i* p = (__m256i*)ptr;
 		i /= 32;
 		while (i) {
 			// Actually, b = 0x0808080808080808
 			long a = 0x0001020304050607, b = -1ULL / 255 * 8;
-			((uint32_t*)&value)[--i] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256((__m256i*)p) << 7, _mm256_set_epi64x(a + 3 * b, a + 2 * b, a + b, a))));
-			p += 32;
+			((uint32_t*)&value)[--i] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256(p++) << 7, _mm256_set_epi64x(a + 3 * b, a + 2 * b, a + b, a))));
 		}
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
 		while (i % 16) {
 			value[--i] = *ptr++ == '1';
 		}
-		char* p = (char*)ptr;
+		__m128i* p = (__m128i*)ptr;
 		i /= 16;
 		while (i) {
-			((uint16_t*)&value)[--i] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_loadu_si128((__m128i*)p) << 7, _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f)));
-			p += 16;
+			((uint16_t*)&value)[--i] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_loadu_si128(p++) << 7, _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f)));
 		}
 		ptr = (NonAliasingChar*)p;
 #	else

@@ -83,9 +83,10 @@ struct blazingio_istream {
 #	ifdef PIPE
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
 #	endif
-			file_size = statbuf.st_size;
-			// Map one more page than necessary so that SIGBUS is triggered soon after the end
-			// of file.
+			// Round to page size.
+			file_size = (statbuf.st_size + 4095) & -4096;
+			// Map one more page than necessary so that SIGBUS is triggered soon after the end of
+			// file.
 			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED);
 			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1);
 #	ifdef PIPE
@@ -101,11 +102,11 @@ struct blazingio_istream {
 				}
 			}
 			ensure(n_read != -1);
-			// We want file_size + 1 more page
-			size_t want_alloc_size = ((file_size + 4095) & ~4095) + 4096;
-			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end
-			ensure(mmap(base + want_alloc_size - 4096, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED);
-			ensure(munmap(base + want_alloc_size, BIG - want_alloc_size) != -1);
+			// Round to page size.
+			(file_size += 4095) &= -4096;
+			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end.
+			ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED);
+			ensure(munmap(base + file_size + 4096, BIG - file_size - 4096) != -1);
 		}
 #	endif
 	}
@@ -117,7 +118,7 @@ struct blazingio_istream {
 		// the loop by encountering a space character. Something like "\00" works for both cases: it
 		// stops (for instance) integer parsing immediately with a zero, and also stops whitespace
 		// parsing *soon*.
-		char* p = base + ((file_size + 4095) & ~4095);
+		char* p = base + file_size;
 		ensure(mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED);
 		p[1] = '0';
 		is_ok = false;
@@ -725,7 +726,7 @@ struct init {
 		using namespace std;
 		if (info->si_addr == blazingio_cin.base && blazingio_cin.file_size == -1) {
 			blazingio_cin.init();
-		} else if (info->si_addr == blazingio_cin.base + ((blazingio_cin.file_size + 4095) & ~4095)) {
+		} else if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
 			blazingio_cin.on_eof();
 		} else if ((uintptr_t)info->si_addr - (uintptr_t)(blazingio_cout.base + blazingio_cout.file_size) < 4096) {
 			if (blazingio_cout.file_size == -1) {

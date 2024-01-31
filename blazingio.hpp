@@ -174,7 +174,7 @@ struct blazingio_istream {
 		// on every iteration.
 #	ifdef AVX2
 		char* p = (char*)ptr;
-		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
+		__m128i mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
 		__m256i vec, vec1, vec2;
 		while (
 			vec = _mm256_loadu_si256((__m256i*)p),
@@ -194,7 +194,7 @@ struct blazingio_istream {
 			vec = _mm_loadu_si128((__m128i*)p),
 			_mm_testz_si128(
 				vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
-				vec2 = _mm_shuffle_epi8(_mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1), vec)
+				vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
 			)
 		) {
 			p += 16;

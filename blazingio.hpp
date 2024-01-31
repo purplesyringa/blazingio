@@ -344,7 +344,7 @@ struct blazingio_istream {
 		}
 		char* p = (char*)ptr;
 		while (i >= 32) {
-			((uint32_t*)&value)[(i -= 32) / 32] = __builtin_bswap32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_slli_epi16(_mm256_loadu_si256((__m256i*)p), 7), _mm256_set_epi8(24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7))));
+			((uint32_t*)&value)[(i -= 32) / 32] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256((__m256i*)p) << 7, _mm256_set_epi64x(0x18191a1b1c1d1e1f, 0x1011121314151617, 0x08090a0b0c0d0e0f, 0x0001020304050607))));
 			p += 32;
 		}
 		ptr = (NonAliasingChar*)p;
@@ -354,7 +354,7 @@ struct blazingio_istream {
 		}
 		char* p = (char*)ptr;
 		while (i >= 16) {
-			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_slli_epi16(_mm_loadu_si128((__m128i*)p), 7), _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)));
+			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_loadu_si128((__m128i*)p) << 7, _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f)));
 			p += 16;
 		}
 		ptr = (NonAliasingChar*)p;
@@ -599,13 +599,10 @@ struct blazingio_ostream {
 				_mm256_sub_epi8(
 					_mm256_set1_epi8('0'),
 					_mm256_cmpeq_epi8(
-						_mm256_and_si256(
-							_mm256_shuffle_epi8(
-								_mm256_set1_epi32(((uint32_t*)&value)[(i -= 32) / 32]),
-								_mm256_set_epi64x(0x0000000000000000, 0x0101010101010101, 0x0202020202020202, 0x0303030303030303)
-							),
-							_mm256_set1_epi64x(0x0102040810204080)
-						),
+						_mm256_shuffle_epi8(
+							_mm256_set1_epi32(((uint32_t*)&value)[(i -= 32) / 32]),
+							_mm256_set_epi64x(0x0000000000000000, 0x0101010101010101, 0x0202020202020202, 0x0303030303030303)
+						) & _mm256_set1_epi64x(0x0102040810204080),
 						_mm256_set1_epi64x(0x0102040810204080)
 					)
 				)
@@ -624,13 +621,10 @@ struct blazingio_ostream {
 				_mm_sub_epi8(
 					_mm_set1_epi8('0'),
 					_mm_cmpeq_epi8(
-						_mm_and_si128(
-							_mm_shuffle_epi8(
-								_mm_set1_epi16(((uint16_t*)&value)[(i -= 16) / 16]),
-								_mm_set_epi64x(0x0000000000000000, 0x0101010101010101)
-							),
-							_mm_set1_epi64x(0x0102040810204080)
-						),
+						_mm_shuffle_epi8(
+							_mm_set1_epi16(((uint16_t*)&value)[(i -= 16) / 16]),
+							_mm_set_epi64x(0x0000000000000000, 0x0101010101010101)
+						) & _mm_set1_epi64x(0x0102040810204080),
 						_mm_set1_epi64x(0x0102040810204080)
 					)
 				)

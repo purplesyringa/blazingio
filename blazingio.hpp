@@ -55,7 +55,7 @@ struct NonAliasingChar {
 		c = Inner{x};
 		return *this;
 	}
-	operator char() const {
+	operator char() {
 		return (char)c;
 	}
 };
@@ -384,10 +384,10 @@ struct blazingio_istream {
 	}
 #	endif
 
-	operator bool() const {
+	operator bool() {
 		return is_ok;
 	}
-	bool operator!() const {
+	bool operator!() {
 		return !is_ok;
 	}
 };

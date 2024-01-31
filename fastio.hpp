@@ -35,65 +35,74 @@ struct NonAliasingChar {
 };
 
 struct fastio_istream {
-	off_t file_size;
+	off_t file_size = -1;
 	const char* base;
 	const NonAliasingChar* ptr;
 	std::atomic_bool is_ok = true;
+	int fd;
 
-	explicit fastio_istream(int fd) {
+	explicit fastio_istream(int fd) : fd(fd) {
+		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
+		// freopen to work.
+		int fd_exe = open("/proc/self/exe", O_RDONLY);
+		if (fd_exe == -1) {
+			throw std::invalid_argument("invalid io");
+		}
+		base = (const char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, fd_exe, 0x1000000000);
+		if (base == MAP_FAILED) {
+			throw std::invalid_argument("invalid io");
+		}
+		close(fd_exe);
+		ptr = (NonAliasingChar*)base;
+	}
+
+	void init() {
 		struct stat statbuf;
 		if (fstat(fd, &statbuf) == -1) {
-			throw std::invalid_argument("invalid io");
+			_exit(1);
 		}
 		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
 			file_size = statbuf.st_size;
-			// Map one more page than necessary so that SIGBUS is triggered soon after the end of
-			// file
-			base = (const char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, fd, 0);
-			if (base == MAP_FAILED) {
-				throw std::invalid_argument("invalid io");
+			// Map one more page than necessary so that SIGBUS is triggered soon after the end
+			// of file.
+			if (mmap((void*)base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0) == MAP_FAILED) {
+				_exit(1);
 			}
 			if (madvise((void*)base, file_size, MADV_POPULATE_READ) == -1) {
-				throw std::invalid_argument("invalid io");
+				_exit(1);
 			}
-			ptr = (NonAliasingChar*)base;
 		} else {
-			size_t alloc_size = 4096;
-			file_size = 0;
-			base = (const char*)mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-			if (base == MAP_FAILED) {
-				throw std::invalid_argument("invalid io");
+			size_t alloc_size = 16384;
+			if (mmap((void*)base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) == MAP_FAILED) {
+				_exit(1);
 			}
-
+			file_size = 0;
 			ssize_t n_read;
-			while ((n_read = read(0, (void*)(base + file_size), alloc_size - file_size)) > 0) {
+			while ((n_read = read(0, (void*)(base + file_size), 0x1000000000 - file_size)) > 0) {
 				if ((file_size += n_read) == alloc_size) {
-					base = (const char*)mremap((void*)base, alloc_size, alloc_size * 2, MREMAP_MAYMOVE);
+					if (mmap((void*)(base + alloc_size), alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) == MAP_FAILED) {
+						_exit(1);
+					}
 					alloc_size *= 2;
 				}
 			}
 			if (n_read < -1) {
-				throw std::invalid_argument("invalid io");
+				_exit(1);
 			}
-
 			// We want file_size + 1 more page
 			size_t want_alloc_size = ((file_size + 4095) & ~4095) + 4096;
-			if (alloc_size < want_alloc_size) {
-				base = (const char*)mremap((void*)base, alloc_size, want_alloc_size, MREMAP_MAYMOVE);
-				if (base == MAP_FAILED) {
-					throw std::invalid_argument("invalid io");
-				}
-			}
 			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end
-			int fd = open("/proc/self/exe", O_RDONLY);
-			if (fd == -1) {
-				throw std::invalid_argument("invalid io");
+			int fd_exe = open("/proc/self/exe", O_RDONLY);
+			if (fd_exe == -1) {
+				_exit(1);
 			}
-			if (mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0x1000000000) == MAP_FAILED) {
-				throw std::invalid_argument("invalid io");
+			if (mmap((void*)(base + want_alloc_size - 4096), 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd_exe, 0x1000000000) == MAP_FAILED) {
+				_exit(1);
 			}
-			close(fd);
-			ptr = (NonAliasingChar*)base;
+			if (munmap((void*)(base + want_alloc_size), 0x1000000000 - want_alloc_size) == -1) {
+				_exit(1);
+			}
+			close(fd_exe);
 		}
 	}
 
@@ -624,7 +633,9 @@ struct init {
 	}
 
 	static void on_sigbus(int, siginfo_t* info, void*) {
-		if (info->si_addr == std::cin.base + ((std::cin.file_size + 4095) & ~4095)) {
+		if (info->si_addr == std::cin.base && std::cin.file_size == -1) {
+			std::cin.init();
+		} else if (info->si_addr == std::cin.base + ((std::cin.file_size + 4095) & ~4095)) {
 			// Attempt to read beyond end of stdin. This happens either in skip_whitespace, or in a
 			// generic input procedure. In the former case, the right thing to do is stop the loop
 			// by encountering a non-space character; in the latter case, the right thing to do is

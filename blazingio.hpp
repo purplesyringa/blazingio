@@ -349,7 +349,7 @@ struct blazingio_istream {
 		}
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
-		while (i % 32 > 0) {
+		while (i % 16 > 0) {
 			value[--i] = *ptr++ == '1';
 		}
 		char* p = (char*)ptr;

@@ -28,6 +28,7 @@ def whitespace(s):
 	for _ in range(2):
 		s = re.sub(r"(\W)\s+(\S)", r"\1\2", s)
 		s = re.sub(r"(\S)\s+(\W)", r"\1\2", s)
+	s = s.replace("\n", " ")
 	s = s.replace("''", "' '")
 	s = s.strip()
 	if s:

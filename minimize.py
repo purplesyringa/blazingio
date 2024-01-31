@@ -103,6 +103,7 @@ def repl(s):
 		("fd", "q"),
 		("Inner", "q"),
 		("empty_fd", "U"),
+		("write8", "w"),
 		("NULL", "0"),
 		("false", "0"),
 		("true", "1"),

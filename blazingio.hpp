@@ -239,7 +239,7 @@ struct blazingio_istream {
 		ptr += negative;
 #	ifdef FLOAT
 		T x;
-		if (is_integral_v<T>) {
+		if constexpr (is_integral_v<T>) {
 			x = 0;
 			collect_digits(x);
 		} else {
@@ -468,7 +468,7 @@ struct blazingio_ostream {
 		return *this;
 	}
 
-	template<typename T, T Factor, int MinDigits, int MaxDigits>
+	template<typename T, int MinDigits, int MaxDigits, T Factor = 1>
 	void write_int_split(T value, T interval) {
 		if constexpr (MaxDigits == 1) {
 			if (MinDigits >= 1 || value >= Factor) {
@@ -495,67 +495,68 @@ struct blazingio_ostream {
 			}();
 			constexpr int low_digits = computed.first;
 			constexpr T coeff = computed.second;
-			write_int_split<T, (T)(Factor * coeff), max(0, MinDigits - low_digits), MaxDigits - low_digits>(value, interval / coeff);
-			write_int_split<T, Factor, min(MinDigits, low_digits), low_digits>(value, interval % coeff);
+			write_int_split<T, max(0, MinDigits - low_digits), MaxDigits - low_digits, (T)(Factor * coeff)>(value, interval / coeff);
+			write_int_split<T, min(MinDigits, low_digits), low_digits, Factor>(value, interval % coeff);
 		}
 	}
 
 	template<typename T, T = 1>
 	blazingio_ostream& operator<<(const T& value) {
-#	ifdef FLOAT
-		if constexpr (is_integral_v<T>) {
-#	endif
-			make_unsigned_t<T> abs = value;
-			if (value < 0) {
-				*ptr++ = '-';
-				abs = -abs;
-			}
-			write_int_split<
-				decltype(abs),
-				1, 1,
-				array{3, 5, 10, 20}[__builtin_ctz(sizeof(value))]
-			>(abs, abs);
-#	ifdef FLOAT
-		} else {
-			T abs = value;
-			if (value < 0) {
-				*ptr++ = '-';
-				abs = -abs;
-			}
-			if (!abs) {
-				return *this << '0';
-			}
-			if (abs >= 1e16) {
-				abs *= 1e-16;
-				int exponent = 16;
-				while (abs >= 1) {
-					abs *= .1;
-					exponent++;
-				}
-				*ptr++ = '0';
-				*ptr++ = '.';
-				unsigned n = abs * 1e8;
-				write_int_split<unsigned, 1, 8, 8>(n, n);
-				*ptr++ = 'e';
-				*this << exponent;
-			} else if (abs >= 1) {
-				uint64_t whole = abs;
-				*this << whole;
-				if (abs != whole) {
-					*ptr++ = '.';
-					unsigned n = (abs - whole) * 1e8;
-					write_int_split<unsigned, 1, 8, 8>(n, n);
-				}
-			} else {
-				*ptr++ = '0';
-				*ptr++ = '.';
-				unsigned n = abs * 1e8;
-				write_int_split<unsigned, 1, 8, 8>(n, n);
-			}
+		make_unsigned_t<T> abs = value;
+		if (value < 0) {
+			*ptr++ = '-';
+			abs = -abs;
 		}
-#	endif
+		write_int_split<
+			decltype(abs),
+			1,
+			array{3, 5, 10, 20}[__builtin_ctz(sizeof(value))]
+		>(abs, abs);
 		return *this;
 	}
+
+#	ifdef FLOAT
+	template<typename T, typename = enable_if_t<is_floating_point_v<T>>>
+	blazingio_ostream& operator<<(T value) {
+		if (value < 0) {
+			*ptr++ = '-';
+			value = -value;
+		}
+		// At least it isn't \write18...
+		auto write8 = [&] {
+			unsigned n = value * 1e8;
+			write_int_split<unsigned, 8, 8>(n, n);
+		};
+		if (!value) {
+			return *this << '0';
+		}
+		if (value >= 1e16) {
+			value *= 1e-16;
+			int exponent = 16;
+			while (value >= 1) {
+				value *= .1;
+				exponent++;
+			}
+			*ptr++ = '0';
+			*ptr++ = '.';
+			write8();
+			*ptr++ = 'e';
+			*this << exponent;
+		} else if (value >= 1) {
+			uint64_t whole = value;
+			*this << whole;
+			if (value -= whole) {
+				*ptr++ = '.';
+				write8();
+			}
+		} else {
+			*ptr++ = '0';
+			*ptr++ = '.';
+			write8();
+		}
+		return *this;
+	}
+#	endif
 
 	blazingio_ostream& operator<<(const char* const& value) {
 		// We'd prefer strcpy without null terminator here, but perhaps strcpy itself suffices. It's

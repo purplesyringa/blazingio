@@ -289,7 +289,7 @@ struct blazingio_istream {
 		return negative ? -x : x;
 	}
 
-	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
+	template<typename T, T = 1>
 	blazingio_istream& operator>>(T& value) {
 		skip_whitespace();
 		value = read_arithmetic<T>();
@@ -501,7 +501,7 @@ struct blazingio_ostream {
 		}
 	}
 
-	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
+	template<typename T, T = 1>
 	blazingio_ostream& operator<<(const T& value) {
 #	ifdef FLOAT
 		if (is_integral_v<T>) {

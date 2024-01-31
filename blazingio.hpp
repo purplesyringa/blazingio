@@ -61,6 +61,7 @@ struct NonAliasingChar {
 };
 
 int empty_fd = fileno(tmpfile());
+long BIG = 0x1000000000;
 
 struct blazingio_istream {
 	off_t file_size = -1;
@@ -71,7 +72,7 @@ struct blazingio_istream {
 	explicit blazingio_istream() {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
-		base = (char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, empty_fd, 0x1000000000);
+		base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, empty_fd, BIG);
 		ensure(base != MAP_FAILED);
 		ptr = (NonAliasingChar*)base;
 	}
@@ -93,7 +94,7 @@ struct blazingio_istream {
 			ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 			ssize_t n_read;
-			while ((n_read = read(0, base + file_size, 0x1000000000 - file_size)) > 0) {
+			while ((n_read = read(0, base + file_size, BIG - file_size)) > 0) {
 				if ((file_size += n_read) == alloc_size) {
 					ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
 					alloc_size *= 2;
@@ -103,8 +104,8 @@ struct blazingio_istream {
 			// We want file_size + 1 more page
 			size_t want_alloc_size = ((file_size + 4095) & ~4095) + 4096;
 			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end
-			ensure(mmap(base + want_alloc_size - 4096, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0x1000000000) != MAP_FAILED);
-			ensure(munmap(base + want_alloc_size, 0x1000000000 - want_alloc_size) != -1);
+			ensure(mmap(base + want_alloc_size - 4096, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED);
+			ensure(munmap(base + want_alloc_size, BIG - want_alloc_size) != -1);
 		}
 #	endif
 	}
@@ -403,7 +404,7 @@ struct blazingio_ostream {
 	blazingio_ostream() {
 		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
 		// freopen to work.
-		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, empty_fd, 0x1000000000);
+		base = (char*)mmap(NULL, BIG, PROT_READ | PROT_WRITE, MAP_SHARED, empty_fd, BIG);
 		ensure(base != MAP_FAILED);
 		ptr = (NonAliasingChar*)base;
 
@@ -439,12 +440,12 @@ struct blazingio_ostream {
 			// reopen it via procfs.
 			fd = open("/dev/stdout", O_RDWR);
 			ensure(fd != -1);
-			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
+			ensure(mmap(base, BIG, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
 #	ifdef PIPE
 		} else {
 			// Likely a pipe. Reserve however much space we need, but don't populate it. We'll rely on the
 			// kernel to manage it for us.
-			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) != MAP_FAILED);
+			ensure(mmap(base, BIG, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 		}
 #	endif

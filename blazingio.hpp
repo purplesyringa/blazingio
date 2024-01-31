@@ -1,6 +1,4 @@
-#pragma once
-
-#define AVX2
+#	define AVX2
 
 #include <array>
 #include <atomic>
@@ -13,11 +11,11 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#ifdef AVX2
+#	ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
-#else
+#	else
 #define SIMD __attribute__((target("sse4.1")))
-#endif
+#	endif
 
 namespace blazingio {
 
@@ -142,7 +140,7 @@ struct blazingio_istream {
 		// interleave ptr modification with SIMD loading, there's going to be an extra memory write
 		// on every iteration.
 		const char* p = (const char*)ptr;
-#ifdef AVX2
+#	ifdef AVX2
 		__m256i vec;
 		do {
 			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((const __m256i*)p));
@@ -150,7 +148,7 @@ struct blazingio_istream {
 		} while (_mm256_testz_si256(vec, vec));
 		p -= 32;
 		p += __builtin_ctz(_mm256_movemask_epi8(vec));
-#else
+#	else
 		__m128i vec;
 		do {
 			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((const __m128i*)p));
@@ -158,7 +156,7 @@ struct blazingio_istream {
 		} while (_mm_testz_si128(vec, vec));
 		p -= 16;
 		p += __builtin_ctz(_mm_movemask_epi8(vec));
-#endif
+#	endif
 		ptr = (const NonAliasingChar*)p;
 		// while (*ptr > ' ') {
 		// 	ptr++;
@@ -171,7 +169,7 @@ struct blazingio_istream {
 		// on every iteration.
 		const char* p = (const char*)ptr;
 		__m128i mask = _mm_set_epi8(0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
-#ifdef AVX2
+#	ifdef AVX2
 		__m256i vec1, vec2;
 		do {
 			__m256i vec = _mm256_loadu_si256((const __m256i*)p);
@@ -181,7 +179,7 @@ struct blazingio_istream {
 		} while (_mm256_testz_si256(vec1, vec2));
 		p -= 32;
 		p += __builtin_ctz(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
-#else
+#	else
 		__m128i vec1, vec2;
 		do {
 			__m128i vec = _mm_loadu_si128((const __m128i*)p);
@@ -191,7 +189,7 @@ struct blazingio_istream {
 		} while (_mm_testz_si128(vec1, vec2));
 		p -= 16;
 		p += __builtin_ctz(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
-#endif
+#	endif
 		ptr = (const NonAliasingChar*)p;
 		// while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
 		// 	ptr++;
@@ -320,17 +318,17 @@ struct blazingio_istream {
 			value[--i] = *ptr++ == '1';
 		}
 		const char* p = (const char*)ptr;
-#ifdef AVX2
+#	ifdef AVX2
 		while (i >= 32) {
 			((uint32_t*)&value)[(i -= 32) / 32] = __builtin_bswap32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_slli_epi16(_mm256_loadu_si256((const __m256i*)p), 7), _mm256_set_epi8(24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7))));
 			p += 32;
 		}
-#else
+#	else
 		while (i >= 16) {
 			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_slli_epi16(_mm_loadu_si128((const __m128i*)p), 7), _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)));
 			p += 16;
 		}
-#endif
+#	endif
 		ptr = (const NonAliasingChar*)p;
 		return *this;
 	}
@@ -560,7 +558,7 @@ struct blazingio_ostream {
 	template<size_t N>
 	SIMD blazingio_ostream& operator<<(const bitset<N>& value) {
 		size_t i = N;
-#ifdef AVX2
+#	ifdef AVX2
 		while (i % 32 > 0) {
 			*ptr++ = '0' + value[--i];
 		}
@@ -584,7 +582,7 @@ struct blazingio_ostream {
 			);
 			p += 32;
 		}
-#else
+#	else
 		while (i % 16 > 0) {
 			*ptr++ = '0' + value[--i];
 		}
@@ -608,7 +606,7 @@ struct blazingio_ostream {
 			);
 			p += 16;
 		}
-#endif
+#	endif
 		ptr = (NonAliasingChar*)p;
 		return *this;
 	}

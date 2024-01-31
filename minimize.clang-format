@@ -1,0 +1,4 @@
+ColumnLimit: 0
+RemoveBracesLLVM: true
+RemoveSemicolon: true
+SkipMacroDefinitionBody: true

@@ -12,7 +12,7 @@ blazingio = proc.stdout.decode()
 blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 
 # Remove unnecessary parentheses
-proc = subprocess.run(["clang-format-16", "--style=file:minimize.clang-format"], input=blazingio.encode(), capture_output=True, check=True)
+proc = subprocess.run(["clang-format-18", "--style=file:minimize.clang-format"], input=blazingio.encode(), capture_output=True, check=True)
 blazingio = proc.stdout.decode()
 
 # Strip out comments
@@ -20,6 +20,11 @@ blazingio = re.sub(r"//.*", "", blazingio)
 
 # Remove unnecessary whitespace
 def whitespace(s):
+	if s.startswith("#"):
+		s, *rest = s.split(None, 1)
+		if rest:
+			s += " " + whitespace(rest[0])
+		return s
 	for _ in range(2):
 		s = re.sub(r"(\W)\s+(\S)", r"\1\2", s)
 		s = re.sub(r"(\S)\s+(\W)", r"\1\2", s)

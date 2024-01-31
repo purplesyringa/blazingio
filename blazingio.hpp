@@ -17,7 +17,9 @@
 #	endif
 #include <cstring>
 #include <fcntl.h>
+#	if defined(AVX2) || defined(SSE41)
 #include <immintrin.h>
+#	endif
 #include <signal.h>
 #include <sys/mman.h>
 

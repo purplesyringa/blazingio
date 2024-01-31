@@ -580,7 +580,8 @@ struct blazingio_ostream {
 #	ifdef COMPLEX
 	template<typename T>
 	blazingio_ostream& operator<<(const complex<T>& value) {
-		return *this << '(' << ' ' << value.real() << ',' << ' ' << value.imag() << ')';
+		*this << '(' << value.real() << ',' << value.imag() << ')';
+		return *this;
 	}
 #	endif
 

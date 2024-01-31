@@ -96,7 +96,7 @@ def repl(s):
 		("vec", "s"),
 		("mask", "t"),
 		("fd_exe", "u"),
-		("want_alloc_size", "v"),
+		("iov", "v"),
 		("alloc_size", "w"),
 		("n_read", "y"),
 		("fd", "q"),
@@ -129,7 +129,8 @@ def repl(s):
 		"SA_SIGINFO": 4,
 		"STDIN_FILENO": 0,
 		"STDOUT_FILENO": 1,
-		"SEEK_END": 2
+		"SEEK_END": 2,
+		"SPLICE_F_GIFT": 8
 	}
 	const = "(" + "|".join(consts) + ")"
 	s = re.sub(const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s)

@@ -421,10 +421,10 @@ struct blazingio_ostream {
 	}
 	~blazingio_ostream() {
 		if (!file_size) {
-			char* p = (char*)ptr;
-			ssize_t n_written = 0;
-			while (n_written != -1 && base < p) {
-				base += (n_written = write(STDOUT_FILENO, base, p - base));
+			ssize_t n_written = 1;
+			while (n_written > 0) {
+				iovec iov{base, (size_t)ptr - (size_t)base};
+				base += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
 			}
 			ensure(n_written != -1);
 		} else if (file_size != -1) {

@@ -398,7 +398,7 @@ struct blazingio_ostream {
 	off_t file_size = -1;
 	char* base;
 	NonAliasingChar* ptr;
-	int fd;
+	int fd = -1;
 
 #	ifdef LUT
 	inline static char decimal_lut[200];
@@ -433,24 +433,34 @@ struct blazingio_ostream {
 	}
 
 	void init() {
+		// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so reopen it
+		// via procfs.
+#	define COND ftruncate(STDOUT_FILENO, file_size = 16384) != -1 && (fd = open("/dev/stdout", O_RDWR)) != -1
 #	ifdef PIPE
-		if (ftruncate(STDOUT_FILENO, file_size = 16384) != -1) {
-#	else
-		ensure(ftruncate(STDOUT_FILENO, file_size = 16384) != -1);
-#	endif
-			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
-			// reopen it via procfs.
-			fd = open("/dev/stdout", O_RDWR);
-			ensure(fd != -1);
-			ensure(mmap(base, BIG, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
-#	ifdef PIPE
-		} else {
-			// Likely a pipe. Reserve however much space we need, but don't populate it. We'll rely on the
-			// kernel to manage it for us.
-			ensure(mmap(base, BIG, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) != MAP_FAILED);
+		if (!(COND)) {
+			// Likely a pipe. Reserve however much space we need, but don't populate it. We'll rely
+			// on the kernel to manage it for us.
 			file_size = 0;
 		}
+#	else
+		ensure(COND);
 #	endif
+		ensure(
+			mmap(
+				base,
+				BIG,
+				PROT_READ | PROT_WRITE,
+#	ifdef PIPE
+				file_size ?
+#	endif
+				MAP_SHARED | MAP_FIXED | MAP_POPULATE
+#	ifdef PIPE
+				: MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE
+#	endif
+				, fd,
+				0
+			) != MAP_FAILED
+		);
 	}
 
 	void on_eof() {

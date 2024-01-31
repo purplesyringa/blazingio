@@ -381,12 +381,24 @@ struct blazingio_ostream {
 	NonAliasingChar* ptr;
 	int fd;
 
+#	ifdef LUT
+	inline static char decimal_lut[200];
+#	endif
+
 	blazingio_ostream() {
 		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
 		// freopen to work.
 		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, empty_fd, 0x1000000000);
 		ensure(base != MAP_FAILED);
 		ptr = (NonAliasingChar*)base;
+
+#	ifdef LUT
+		// The code gets shorter if we initialize LUT here as opposed to during compile time.
+		for (int i = 0; i < 100; i++) {
+			decimal_lut[i * 2] = '0' + i / 10;
+			decimal_lut[i * 2 + 1] = '0' + i % 10;
+		}
+#	endif
 	}
 	~blazingio_ostream() {
 		if (!file_size) {
@@ -452,10 +464,6 @@ struct blazingio_ostream {
 		*ptr++ = '0' + value;
 		return *this;
 	}
-
-#	ifdef LUT
-	static constexpr char decimal_lut[] = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
-#	endif
 
 	template<typename T, T Factor, int MinDigits, int MaxDigits>
 	void write_int_split(T value, T interval) {

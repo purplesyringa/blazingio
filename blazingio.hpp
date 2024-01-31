@@ -2,6 +2,7 @@
 
 #define AVX2
 
+#include <array>
 #include <atomic>
 #include <bitset>
 #include <complex>
@@ -18,7 +19,9 @@
 #define SIMD __attribute__((target("sse4.1")))
 #endif
 
-namespace fastio {
+namespace blazingio {
+
+using namespace std;
 
 struct UninitChar { UninitChar& operator=(const UninitChar&) { return *this; } };
 
@@ -34,23 +37,23 @@ struct NonAliasingChar {
 	}
 };
 
-struct fastio_istream {
+struct blazingio_istream {
 	off_t file_size = -1;
 	const char* base;
 	const NonAliasingChar* ptr;
-	std::atomic_bool is_ok = true;
+	atomic_bool is_ok = true;
 	int fd;
 
-	explicit fastio_istream(int fd) : fd(fd) {
+	explicit blazingio_istream(int fd) : fd(fd) {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
 		int fd_exe = open("/proc/self/exe", O_RDONLY);
 		if (fd_exe == -1) {
-			throw std::invalid_argument("invalid io");
+			_exit(1);
 		}
 		base = (const char*)mmap(NULL, 0x1000000000, PROT_READ, MAP_PRIVATE, fd_exe, 0x1000000000);
 		if (base == MAP_FAILED) {
-			throw std::invalid_argument("invalid io");
+			_exit(1);
 		}
 		close(fd_exe);
 		ptr = (NonAliasingChar*)base;
@@ -86,7 +89,7 @@ struct fastio_istream {
 					alloc_size *= 2;
 				}
 			}
-			if (n_read < -1) {
+			if (n_read == -1) {
 				_exit(1);
 			}
 			// We want file_size + 1 more page
@@ -122,8 +125,8 @@ struct fastio_istream {
 	}
 
 	// For people writing cie.tie(0);
-	void* tie(std::nullptr_t) {
-		return nullptr;
+	void* tie(nullptr_t) {
+		return NULL;
 	}
 
 	void skip_whitespace() {
@@ -142,7 +145,7 @@ struct fastio_istream {
 #ifdef AVX2
 		__m256i vec;
 		do {
-			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(' ' + 1), _mm256_loadu_si256((const __m256i*)p));
+			vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256((const __m256i*)p));
 			p += 32;
 		} while (_mm256_testz_si256(vec, vec));
 		p -= 32;
@@ -150,7 +153,7 @@ struct fastio_istream {
 #else
 		__m128i vec;
 		do {
-			vec = _mm_cmpgt_epi8(_mm_set1_epi8(' ' + 1), _mm_loadu_si128((const __m128i*)p));
+			vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128((const __m128i*)p));
 			p += 16;
 		} while (_mm_testz_si128(vec, vec));
 		p -= 16;
@@ -211,18 +214,18 @@ struct fastio_istream {
 
 	template<typename T>
 	T read_arithmetic() {
-		if constexpr (std::is_same_v<T, char> || std::is_same_v<T, unsigned char> || std::is_same_v<T, signed char>) {
+		if constexpr (is_same_v<T, char> || is_same_v<T, unsigned char> || is_same_v<T, signed char>) {
 			return *ptr++;
-		} else if constexpr (std::is_same_v<T, bool>) {
+		} else if constexpr (is_same_v<T, bool>) {
 			return *ptr++ == '1';
 		}
-		bool negative = std::is_signed_v<T> && *ptr == '-';
+		bool negative = is_signed_v<T> && *ptr == '-';
 		ptr += negative;
 		T x;
-		if constexpr (std::is_floating_point_v<T>) {
+		if constexpr (is_floating_point_v<T>) {
 			ptr += *ptr == '+';
 			auto start = ptr;
-			auto n = read_arithmetic<unsigned long long>();
+			auto n = read_arithmetic<uint64_t>();
 			int exponent = 0;
 			if (*ptr == '.') {
 				auto after_dot = ++ptr;
@@ -254,7 +257,7 @@ struct fastio_istream {
 				}
 				while (exponent < 0) {
 					exponent++;
-					x *= 0.1;
+					x *= .1;
 				}
 			}
 			return negative ? -x : x;
@@ -265,37 +268,37 @@ struct fastio_istream {
 		return negative ? -x : x;
 	}
 
-	template<typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-	fastio_istream& operator>>(T& value) {
+	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
+	blazingio_istream& operator>>(T& value) {
 		skip_whitespace();
 		value = read_arithmetic<T>();
 		return *this;
 	}
 
-	fastio_istream& operator>>(std::string& value) {
+	blazingio_istream& operator>>(string& value) {
 		skip_whitespace();
 		auto start = ptr;
 		trace_non_whitespace();
 		// We know there's no overlap, so avoid doing this for a little bit of performance:
 		// value.assign((const char*)start, ptr - start);
-		((std::basic_string<UninitChar>&)value).resize(ptr - start);
-		std::memcpy(value.data(), (const char*)start, ptr - start);
+		((basic_string<UninitChar>&)value).resize(ptr - start);
+		memcpy(value.data(), (const char*)start, ptr - start);
 		return *this;
 	}
 
 	template<typename T>
-	fastio_istream& operator>>(std::complex<T>& value) {
+	blazingio_istream& operator>>(complex<T>& value) {
 		skip_whitespace();
 		if (*ptr == '(') {
 			ptr++;
-			T real = read_arithmetic<T>();
-			T imag{};
+			T re = read_arithmetic<T>();
+			T im{};
 			if (*ptr++ == ',') {
 				skip_whitespace();
-				imag = read_arithmetic<T>();
+				im = read_arithmetic<T>();
 				ptr++;
 			}
-			value = {real, imag};
+			value = {re, im};
 		} else {
 			value = read_arithmetic<T>();
 		}
@@ -303,7 +306,7 @@ struct fastio_istream {
 	}
 
 	template<size_t N>
-	SIMD fastio_istream& operator>>(std::bitset<N>& value) {
+	SIMD blazingio_istream& operator>>(bitset<N>& value) {
 		skip_whitespace();
 		// As we always read N bytes, we might read past the end of the file in case EOF happens.
 		// Luckily, we are allowed to overread up to 4095 bytes after EOF (because there's a
@@ -340,39 +343,39 @@ struct fastio_istream {
 	}
 };
 
-struct fastio_ostream {
+struct blazingio_ostream {
 	off_t file_size = -1;
 	char* base;
 	NonAliasingChar* ptr;
 	int fd;
 
-	fastio_ostream(int fd) : fd(fd) {
+	blazingio_ostream(int fd) : fd(fd) {
 		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
 		// freopen to work.
 		FILE *f = tmpfile();
-		if (f == NULL) {
-			throw std::invalid_argument("invalid io");
+		if (!f) {
+			_exit(1);
 		}
 		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, fileno(f), 0x1000000000);
 		if (base == MAP_FAILED) {
-			throw std::invalid_argument("invalid io");
+			_exit(1);
 		}
 		fclose(f);
 		ptr = (NonAliasingChar*)base;
 	}
-	~fastio_ostream() {
-		if (file_size == 0) {
+	~blazingio_ostream() {
+		if (!file_size) {
 			const char* p = (const char*)ptr;
 			ssize_t n_written = 0;
 			while (n_written != -1 && base < p) {
 				base += (n_written = write(fd, base, p - base));
 			}
 			if (n_written == -1) {
-				std::terminate();
+				terminate();
 			}
 		} else if (file_size != -1) {
 			if (ftruncate(fd, (char*)ptr - base) == -1) {
-				std::terminate();
+				terminate();
 			}
 		}
 	}
@@ -390,7 +393,7 @@ struct fastio_ostream {
 			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
 			// reopen it via procfs.
 			char path[20];
-			std::sprintf(path, "/proc/self/fd/%d", fd);
+			sprintf(path, "/proc/self/fd/%d", fd);
 			fd = open(path, O_RDWR);
 			if (fd == -1) {
 				_exit(1);
@@ -422,19 +425,19 @@ struct fastio_ostream {
 		file_size *= 2;
 	}
 
-	fastio_ostream& operator<<(const char& value) {
+	blazingio_ostream& operator<<(const char& value) {
 		*ptr++ = value;
 		return *this;
 	}
-	fastio_ostream& operator<<(const unsigned char& value) {
+	blazingio_ostream& operator<<(const unsigned char& value) {
 		*ptr++ = value;
 		return *this;
 	}
-	fastio_ostream& operator<<(const signed char& value) {
+	blazingio_ostream& operator<<(const signed char& value) {
 		*ptr++ = value;
 		return *this;
 	}
-	fastio_ostream& operator<<(const bool& value) {
+	blazingio_ostream& operator<<(const bool& value) {
 		*ptr++ = '0' + value;
 		return *this;
 	}
@@ -455,106 +458,107 @@ struct fastio_ostream {
 				*ptr++ = decimal_lut[interval * 2 + 1];
 			}
 		} else {
-			auto compute = [] {
+			constexpr auto computed = [] {
 				int low_digits = 1;
 				T coeff = 10;
 				while (low_digits * 2 < MaxDigits) {
 					low_digits *= 2;
 					coeff *= coeff;
 				}
-				return std::make_pair(low_digits, coeff);
-			};
-			constexpr auto computed = compute();
+				return pair{low_digits, coeff};
+			}();
 			constexpr int low_digits = computed.first;
 			constexpr T coeff = computed.second;
-			write_int_split<T, (T)(Factor * coeff), std::max(0, MinDigits - low_digits), MaxDigits - low_digits>(value, interval / coeff);
-			write_int_split<T, Factor, std::min(MinDigits, low_digits), low_digits>(value, interval % coeff);
+			write_int_split<T, (T)(Factor * coeff), max(0, MinDigits - low_digits), MaxDigits - low_digits>(value, interval / coeff);
+			write_int_split<T, Factor, min(MinDigits, low_digits), low_digits>(value, interval % coeff);
 		}
 	}
 
-	template<typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-	fastio_ostream& operator<<(const T& value) {
-		if constexpr (std::is_integral_v<T>) {
-			std::make_unsigned_t<T> abs = value;
+	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
+	blazingio_ostream& operator<<(const T& value) {
+		if constexpr (is_integral_v<T>) {
+			make_unsigned_t<T> abs = value;
 			if (value < 0) {
 				*ptr++ = '-';
 				abs = -abs;
 			}
-			constexpr int decimal_lengths[] = {3, 5, 10, 20};
-			constexpr int length = decimal_lengths[__builtin_ctz(sizeof(value))];
-			write_int_split<decltype(abs), 1, 1, length>(abs, abs);
+			write_int_split<
+				decltype(abs),
+				1, 1,
+				array{3, 5, 10, 20}[__builtin_ctz(sizeof(value))]
+			>(abs, abs);
 		} else {
 			T abs = value;
 			if (value < 0) {
 				*ptr++ = '-';
 				abs = -abs;
 			}
-			if (abs == 0) {
+			if (!abs) {
 				return *this << '0';
 			}
 			if (abs >= 1e16) {
 				abs *= 1e-16;
-				int exp = 16;
+				int exponent = 16;
 				while (abs >= 1) {
-					abs *= 0.1;
-					exp++;
+					abs *= .1;
+					exponent++;
 				}
 				*ptr++ = '0';
 				*ptr++ = '.';
-				unsigned int n = abs * 1e8;
-				write_int_split<unsigned int, 1, 8, 8>(n, n);
+				unsigned n = abs * 1e8;
+				write_int_split<unsigned, 1, 8, 8>(n, n);
 				*ptr++ = 'e';
-				*this << exp;
+				*this << exponent;
 			} else if (abs >= 1) {
-				unsigned long long whole = abs;
+				uint64_t whole = abs;
 				*this << whole;
 				if (abs != whole) {
 					*ptr++ = '.';
-					unsigned int n = (abs - whole) * 1e8;
-					write_int_split<unsigned int, 1, 8, 8>(n, n);
+					unsigned n = (abs - whole) * 1e8;
+					write_int_split<unsigned, 1, 8, 8>(n, n);
 				}
 			} else {
 				*ptr++ = '0';
 				*ptr++ = '.';
-				unsigned int n = abs * 1e8;
-				write_int_split<unsigned int, 1, 8, 8>(n, n);
+				unsigned n = abs * 1e8;
+				write_int_split<unsigned, 1, 8, 8>(n, n);
 			}
 		}
 		return *this;
 	}
 
-	fastio_ostream& operator<<(const char* const& value) {
+	blazingio_ostream& operator<<(const char* const& value) {
 		// We'd prefer strcpy without null terminator here, but perhaps strcpy itself suffices. It's
 		// also a builtin in GCC, which means outputting a constant string is going to be optimized
 		// into a mov or two!
 		ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
 		return *this;
 	}
-	fastio_ostream& operator<<(const unsigned char* const& value) {
+	blazingio_ostream& operator<<(const unsigned char* const& value) {
 		return *this << (const char*)value;
 	}
-	fastio_ostream& operator<<(const signed char* const& value) {
+	blazingio_ostream& operator<<(const signed char* const& value) {
 		return *this << (const char*)value;
 	}
 
-	fastio_ostream& operator<<(const std::string& value) {
-		std::memcpy(ptr, value.data(), value.size());
+	blazingio_ostream& operator<<(const string& value) {
+		memcpy(ptr, value.data(), value.size());
 		ptr += value.size();
 		return *this;
 	}
-	fastio_ostream& operator<<(const std::string_view& value) {
-		std::memcpy(ptr, value.data(), value.size());
+	blazingio_ostream& operator<<(const string_view& value) {
+		memcpy(ptr, value.data(), value.size());
 		ptr += value.size();
 		return *this;
 	}
 
 	template<typename T>
-	fastio_ostream& operator<<(const std::complex<T>& value) {
+	blazingio_ostream& operator<<(const complex<T>& value) {
 		return *this << '(' << ' ' << value.real() << ',' << ' ' << value.imag() << ')';
 	}
 
 	template<size_t N>
-	SIMD fastio_ostream& operator<<(const std::bitset<N>& value) {
+	SIMD blazingio_ostream& operator<<(const bitset<N>& value) {
 		size_t i = N;
 #ifdef AVX2
 		while (i % 32 > 0) {
@@ -609,17 +613,17 @@ struct fastio_ostream {
 		return *this;
 	}
 
-	fastio_ostream& operator<<(fastio_ostream& (*func)(fastio_ostream&)) {
+	blazingio_ostream& operator<<(blazingio_ostream& (*func)(blazingio_ostream&)) {
 		return func(*this);
 	}
 };
 
-struct fastio_ignoreostream {
+struct blazingio_ignoreostream {
 	template<typename T>
-	fastio_ignoreostream& operator<<(const T& value) {
+	blazingio_ignoreostream& operator<<(const T& value) {
 		return *this;
 	}
-	fastio_ignoreostream& operator<<(fastio_ignoreostream& (*func)(fastio_ignoreostream&)) {
+	blazingio_ignoreostream& operator<<(blazingio_ignoreostream& (*func)(blazingio_ignoreostream&)) {
 		return func(*this);
 	}
 };
@@ -627,12 +631,12 @@ struct fastio_ignoreostream {
 }
 
 namespace std {
-	fastio::fastio_istream fastio_cin(0);
-	fastio::fastio_ostream fastio_cout(1);
-	fastio::fastio_ignoreostream fastio_cerr;
+	blazingio::blazingio_istream blazingio_cin(0);
+	blazingio::blazingio_ostream blazingio_cout(1);
+	blazingio::blazingio_ignoreostream blazingio_cerr;
 
-	fastio::fastio_istream& getline(fastio::fastio_istream& in, std::string& value, char delim = '\n') {
-		if (*in.ptr == '\0') {
+	blazingio::blazingio_istream& getline(blazingio::blazingio_istream& in, string& value) {
+		if (!*in.ptr) {
 			in.is_ok = false;
 			return in;
 		}
@@ -640,34 +644,34 @@ namespace std {
 		in.trace_line();
 		// We know there's no overlap, so avoid doing this for a little bit of performance:
 		// value.assign((const char*)start, in.ptr - start);
-		((std::basic_string<fastio::UninitChar>&)value).resize(in.ptr - start);
-		std::memcpy(value.data(), (const char*)start, in.ptr - start);
+		((basic_string<blazingio::UninitChar>&)value).resize(in.ptr - start);
+		memcpy(value.data(), (const char*)start, in.ptr - start);
 		in.ptr += *in.ptr == '\r';
 		in.ptr++;
 		return in;
 	}
 
-	fastio::fastio_ostream& endl(fastio::fastio_ostream& stream) {
+	blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
 		return stream << '\n';
 	}
-	fastio::fastio_ostream& flush(fastio::fastio_ostream& stream) {
+	blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
 		return stream;
 	}
 
-	fastio::fastio_ignoreostream& endl(fastio::fastio_ignoreostream& stream) {
+	blazingio::blazingio_ignoreostream& endl(blazingio::blazingio_ignoreostream& stream) {
 		return stream << '\n';
 	}
-	fastio::fastio_ignoreostream& flush(fastio::fastio_ignoreostream& stream) {
+	blazingio::blazingio_ignoreostream& flush(blazingio::blazingio_ignoreostream& stream) {
 		return stream;
 	}
 }
 
-#define cin fastio_cin
-#define cout fastio_cout
+#define cin blazingio_cin
+#define cout blazingio_cout
 
 #ifdef ONLINE_JUDGE
-#define cerr fastio_cerr
-#define clog fastio_cerr
+#define cerr blazingio_cerr
+#define clog blazingio_cerr
 #endif
 
 struct init {
@@ -694,4 +698,4 @@ struct init {
 			_exit(1);
 		}
 	}
-} fastio_init;
+} blazingio_init;

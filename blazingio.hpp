@@ -500,11 +500,7 @@ struct blazingio_ostream {
 	}
 #	endif
 
-	blazingio_ostream& operator<<(const string& value) {
-		memcpy(ptr, value.data(), value.size());
-		ptr += value.size();
-		return *this;
-	}
+	// std::string is inferred from this:
 	blazingio_ostream& operator<<(const string_view& value) {
 		memcpy(ptr, value.data(), value.size());
 		ptr += value.size();

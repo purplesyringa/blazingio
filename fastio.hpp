@@ -106,6 +106,21 @@ struct fastio_istream {
 		}
 	}
 
+	void on_eof() {
+		// Attempt to read beyond end of stdin. This happens either in skip_whitespace, or in a
+		// generic input procedure. In the former case, the right thing to do is stop the loop by
+		// encountering a non-space character; in the latter case, the right thing to do is to stop
+		// the loop by encountering a space character. Something like "\00" works for both cases: it
+		// stops (for instance) integer parsing immediately with a zero, and also stops whitespace
+		// parsing *soon*.
+		char* p = (char*)base + ((file_size + 4095) & ~4095);
+		if (mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED) {
+			_exit(1);
+		}
+		p[1] = '0';
+		is_ok = false;
+	}
+
 	// For people writing cie.tie(0);
 	void* tie(std::nullptr_t) {
 		return nullptr;
@@ -325,43 +340,23 @@ struct fastio_istream {
 };
 
 struct fastio_ostream {
-	off_t file_size;
+	off_t file_size = -1;
 	char* base;
 	NonAliasingChar* ptr;
-	int fd_clone;
+	int fd;
 
-	fastio_ostream(int fd) {
-		struct stat statbuf;
-		if (fstat(fd, &statbuf) == -1) {
+	fastio_ostream(int fd) : fd(fd) {
+		// Reserve some memory, but delay actual write until first SIGBUS. This is because we want
+		// freopen to work.
+		FILE *f = tmpfile();
+		if (f == NULL) {
 			throw std::invalid_argument("invalid io");
 		}
-		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
-			file_size = 16384;
-			if (ftruncate(fd, file_size) == -1) {
-				throw std::invalid_argument("invalid io");
-			}
-			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
-			// reopen it via procfs.
-			char path[20];
-			std::sprintf(path, "/proc/self/fd/%d", fd);
-			fd_clone = open(path, O_RDWR);
-			if (fd_clone == -1) {
-				throw std::invalid_argument("invalid io");
-			}
-			// Reserve space: we want ptr to stay valid upon file resize.
-			base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd_clone, 0);
-			if (base == MAP_FAILED) {
-				throw std::invalid_argument("invalid io");
-			}
-		} else {
-			// Reserve however much space we need, but don't populate it.
-			base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-			if (base == MAP_FAILED) {
-				throw std::invalid_argument("invalid io");
-			}
-			file_size = 0;
-			fd_clone = fd;
+		base = (char*)mmap(NULL, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED, fileno(f), 0x1000000000);
+		if (base == MAP_FAILED) {
+			throw std::invalid_argument("invalid io");
 		}
+		fclose(f);
 		ptr = (NonAliasingChar*)base;
 	}
 	~fastio_ostream() {
@@ -369,16 +364,61 @@ struct fastio_ostream {
 			const char* p = (const char*)ptr;
 			ssize_t n_written = 0;
 			while (n_written != -1 && base < p) {
-				base += (n_written = write(fd_clone, base, p - base));
+				base += (n_written = write(fd, base, p - base));
 			}
 			if (n_written == -1) {
 				std::terminate();
 			}
-		} else {
-			if (ftruncate(fd_clone, (char*)ptr - base) == -1) {
+		} else if (file_size != -1) {
+			if (ftruncate(fd, (char*)ptr - base) == -1) {
 				std::terminate();
 			}
 		}
+	}
+
+	void init() {
+		struct stat statbuf;
+		if (fstat(fd, &statbuf) == -1) {
+			_exit(1);
+		}
+		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
+			file_size = 16384;
+			if (ftruncate(fd, file_size) == -1) {
+				_exit(1);
+			}
+			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
+			// reopen it via procfs.
+			char path[20];
+			std::sprintf(path, "/proc/self/fd/%d", fd);
+			fd = open(path, O_RDWR);
+			if (fd == -1) {
+				_exit(1);
+			}
+			if (mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) == MAP_FAILED) {
+				_exit(1);
+			}
+		} else {
+			// Reserve however much space we need, but don't populate it. We'll rely on the kernel
+			// to manage it for us.
+			if (mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) == MAP_FAILED) {
+				_exit(1);
+			}
+			file_size = 0;
+		}
+	}
+
+	void on_eof() {
+		// Attempt to write beyond end of stdout.
+		if (
+			// Double the size of the file
+			ftruncate(fd, file_size * 2) == -1
+			// If we want to populate the pages, we have to remap the area.
+			|| mmap(base + file_size, file_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, file_size) == MAP_FAILED
+			|| madvise(base + file_size, file_size, MADV_POPULATE_WRITE) == -1
+		) {
+			_exit(1);
+		}
+		file_size *= 2;
 	}
 
 	fastio_ostream& operator<<(const char& value) {
@@ -636,30 +676,11 @@ struct init {
 		if (info->si_addr == std::cin.base && std::cin.file_size == -1) {
 			std::cin.init();
 		} else if (info->si_addr == std::cin.base + ((std::cin.file_size + 4095) & ~4095)) {
-			// Attempt to read beyond end of stdin. This happens either in skip_whitespace, or in a
-			// generic input procedure. In the former case, the right thing to do is stop the loop
-			// by encountering a non-space character; in the latter case, the right thing to do is
-			// to stop the loop by encountering a space character. Something like "\00" works for
-			// both cases: it stops (for instance) integer parsing immediately with a zero, and also
-			// stops whitespace parsing *soon*.
-			if (mmap(info->si_addr, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED) {
-				_exit(1);
-			}
-			((char*)info->si_addr)[1] = '0';
-			std::cin.is_ok = false;
+			std::cin.on_eof();
+		} else if (info->si_addr == std::cout.base && std::cout.file_size == -1) {
+			std::cout.init();
 		} else if ((uintptr_t)info->si_addr - (uintptr_t)(std::cout.base + std::cout.file_size) < 4096) {
-			// Attempt to write beyond end of stdout. Double the size of the file.
-			if (ftruncate(std::cout.fd_clone, std::cout.file_size * 2) == -1) {
-				_exit(1);
-			}
-			// If we want to populate the pages, we have to remap the area.
-			if (mmap(std::cout.base + std::cout.file_size, std::cout.file_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, std::cout.fd_clone, std::cout.file_size) == MAP_FAILED) {
-				_exit(1);
-			}
-			if (madvise(std::cout.base + std::cout.file_size, std::cout.file_size, MADV_POPULATE_WRITE) == -1) {
-				_exit(1);
-			}
-			std::cout.file_size *= 2;
+			std::cout.on_eof();
 		} else {
 			_exit(1);
 		}

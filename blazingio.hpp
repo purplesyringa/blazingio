@@ -1,5 +1,6 @@
 #	define AVX2
 // #	define LUT
+// #	define PRINT_SIGNED_CHAR_STRINGS
 
 #include <array>
 #include <atomic>
@@ -490,12 +491,14 @@ struct blazingio_ostream {
 		ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
 		return *this;
 	}
+#	ifdef PRINT_SIGNED_CHAR_STRINGS
 	blazingio_ostream& operator<<(const unsigned char* const& value) {
 		return *this << (char*)value;
 	}
 	blazingio_ostream& operator<<(const signed char* const& value) {
 		return *this << (char*)value;
 	}
+#	endif
 
 	blazingio_ostream& operator<<(const string& value) {
 		memcpy(ptr, value.data(), value.size());

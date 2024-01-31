@@ -215,80 +215,88 @@ struct blazingio_istream {
 		}
 	}
 
-#	ifdef FLOAT
-	template<typename T>
-	static const T exps[] = {
-		1e-15, 1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1,
-		1,
-		1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15
-	};
-#	endif
-
-	template<typename T>
+	template<typename T, T = 1>
 	T read_arithmetic() {
-#	ifdef CHAR_WITH_SIGN_IS_GLYPH
-		if (is_same_v<T, char> || is_same_v<T, unsigned char> || is_same_v<T, signed char>) {
-#	else
-		if (is_same_v<T, char>) {
-#	endif
-			return *ptr++;
-		} else if (is_same_v<T, bool>) {
-			return *ptr++ == '1';
-		}
 		bool negative = is_signed_v<T> && *ptr == '-';
 		ptr += negative;
-#	ifdef FLOAT
-		T x;
-		if constexpr (is_integral_v<T>) {
-			x = 0;
-			collect_digits(x);
-		} else {
-			ptr += *ptr == '+';
-			auto start = ptr;
-			auto n = read_arithmetic<uint64_t>();
-			int exponent = 0;
-			if (*ptr == '.') {
-				auto after_dot = ++ptr;
-				collect_digits(n);
-				exponent = after_dot - ptr;
-			}
-			if (ptr - start >= 19) {
-				ptr = start;
-				x = 0;
-				collect_digits(x);
-				if (*ptr == '.') {
-					ptr++;
-					collect_digits(n);
-				}
-			} else {
-				x = n;
-			}
-			if ((*ptr | 0x20) == 'e') {
-				ptr++;
-				ptr += *ptr == '+';
-				exponent += read_arithmetic<int>();
-			}
-			if (-15 <= exponent && exponent <= 15) {
-				x *= exps<T>[exponent + 15];
-			} else {
-				while (exponent > 0) {
-					exponent--;
-					x *= 10;
-				}
-				while (exponent < 0) {
-					exponent++;
-					x *= .1;
-				}
-			}
-		}
-#	else
 		T x = 0;
 		collect_digits(x);
-#	endif
 		return negative ? -x : x;
 	}
 
-	template<typename T, T = 1>
+#	ifdef FLOAT
+	template<typename T, typename = decltype(T{1.})>
+	T read_arithmetic() {
+		bool negative = *ptr == '-';
+		ptr += negative;
+		ptr += *ptr == '+';
+		auto start = ptr;
+		auto n = read_arithmetic<uint64_t>();
+		int exponent = 0;
+		if (*ptr == '.') {
+			auto after_dot = ++ptr;
+			collect_digits(n);
+			exponent = after_dot - ptr;
+		}
+		T x;
+		if (ptr - start >= 19) {
+			ptr = start;
+			x = 0;
+			collect_digits(x);
+			if (*ptr == '.') {
+				ptr++;
+				collect_digits(n);
+			}
+		} else {
+			x = n;
+		}
+		if ((*ptr | 0x20) == 'e') {
+			ptr++;
+			ptr += *ptr == '+';
+			exponent += read_arithmetic<int>();
+		}
+		if (-15 <= exponent && exponent <= 15) {
+			static const T exps[] = {
+				1e-15, 1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1,
+				1,
+				1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15
+			};
+			x *= exps[exponent + 15];
+		} else {
+			while (exponent > 0) {
+				exponent--;
+				x *= 10;
+			}
+			while (exponent < 0) {
+				exponent++;
+				x *= .1;
+			}
+		}
+		return negative ? -x : x;
+	}
+#	endif
+
+	template<>
+	bool read_arithmetic<bool>() {
+		return *ptr++ == '1';
+	}
+
+	template<>
+	char read_arithmetic<char>() {
+		return *ptr++;
+	}
+#	ifdef CHAR_WITH_SIGN_IS_GLYPH
+	template<>
+	auto read_arithmetic<unsigned char>() {
+		return *ptr++;
+	}
+	template<>
+	auto read_arithmetic<signed char>() {
+		return *ptr++;
+	}
+#	endif
+
+	template<typename T, typename = enable_if_t<is_arithmetic_v<T>>>
 	blazingio_istream& operator>>(T& value) {
 		skip_whitespace();
 		value = read_arithmetic<T>();
@@ -516,7 +524,7 @@ struct blazingio_ostream {
 	}
 
 #	ifdef FLOAT
-	template<typename T, typename = enable_if_t<is_floating_point_v<T>>>
+	template<typename T, typename = decltype(T{1.})>
 	blazingio_ostream& operator<<(T value) {
 		if (value < 0) {
 			*ptr++ = '-';

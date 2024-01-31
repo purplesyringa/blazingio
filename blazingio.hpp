@@ -362,7 +362,9 @@ struct blazingio_istream {
 		char* p = (char*)ptr;
 		i /= 32;
 		while (i) {
-			((uint32_t*)&value)[--i] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256((__m256i*)p) << 7, _mm256_set_epi64x(0x18191a1b1c1d1e1f, 0x1011121314151617, 0x08090a0b0c0d0e0f, 0x0001020304050607))));
+			// Actually, b = 0x0808080808080808
+			long a = 0x0001020304050607, b = -1ULL / 255 * 8;
+			((uint32_t*)&value)[--i] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256((__m256i*)p) << 7, _mm256_set_epi64x(a + 3 * b, a + 2 * b, a + b, a))));
 			p += 32;
 		}
 		ptr = (NonAliasingChar*)p;
@@ -595,6 +597,9 @@ struct blazingio_ostream {
 		}
 		char* p = (char*)ptr;
 		i /= 32;
+		// Actually 0x0101010101010101
+		long a = -1ULL / 255;
+		auto b = _mm256_set1_epi64x(0x0102040810204080);
 		while (i) {
 			_mm256_storeu_si256(
 				(__m256i*)p,
@@ -603,9 +608,9 @@ struct blazingio_ostream {
 					_mm256_cmpeq_epi8(
 						_mm256_shuffle_epi8(
 							_mm256_set1_epi32(((uint32_t*)&value)[--i]),
-							_mm256_set_epi64x(0x0000000000000000, 0x0101010101010101, 0x0202020202020202, 0x0303030303030303)
-						) & _mm256_set1_epi64x(0x0102040810204080),
-						_mm256_set1_epi64x(0x0102040810204080)
+							_mm256_set_epi64x(0, a, a * 2, a * 3)
+						) & b,
+						b
 					)
 				)
 			);
@@ -613,11 +618,12 @@ struct blazingio_ostream {
 		}
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
-		while (i % 16 > 0) {
+		while (i % 16) {
 			*ptr++ = '0' + value[--i];
 		}
 		char* p = (char*)ptr;
 		i /= 16;
+		auto b = _mm_set1_epi64x(0x0102040810204080);
 		while (i) {
 			_mm_storeu_si128(
 				(__m128i*)p,
@@ -626,9 +632,10 @@ struct blazingio_ostream {
 					_mm_cmpeq_epi8(
 						_mm_shuffle_epi8(
 							_mm_set1_epi16(((uint16_t*)&value)[--i]),
-							_mm_set_epi64x(0x0000000000000000, 0x0101010101010101)
-						) & _mm_set1_epi64x(0x0102040810204080),
-						_mm_set1_epi64x(0x0102040810204080)
+							// Actually (0x0000000000000000, 0x0101010101010101)
+							_mm_set_epi64x(0, -1ULL / 255)
+						) & b,
+						b
 					)
 				)
 			);

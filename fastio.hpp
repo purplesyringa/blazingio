@@ -667,6 +667,7 @@ namespace std {
 
 #ifdef ONLINE_JUDGE
 #define cerr fastio_cerr
+#define clog fastio_cerr
 #endif
 
 struct init {

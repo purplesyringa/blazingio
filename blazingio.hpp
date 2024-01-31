@@ -480,14 +480,12 @@ struct blazingio_ostream {
 					low_digits *= 2;
 					coeff *= coeff;
 				}
-				return array{low_digits, coeff};
+				return pair{low_digits, coeff};
 			}();
-#	define LOW_DIGITS computed[0]
-#	define COEFF computed[1]
-			write_int_split<T, (T)(Factor * COEFF), max(0, MinDigits - LOW_DIGITS), MaxDigits - LOW_DIGITS>(value, interval / COEFF);
-			write_int_split<T, Factor, min(MinDigits, LOW_DIGITS), LOW_DIGITS>(value, interval % COEFF);
-#	undef LOW_DIGITS
-#	undef COEFF
+			constexpr int low_digits = computed.first;
+			constexpr T coeff = computed.second;
+			write_int_split<T, (T)(Factor * coeff), max(0, MinDigits - low_digits), MaxDigits - low_digits>(value, interval / coeff);
+			write_int_split<T, Factor, min(MinDigits, low_digits), low_digits>(value, interval % coeff);
 		}
 	}
 

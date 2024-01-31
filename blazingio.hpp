@@ -1,10 +1,13 @@
 #	define AVX2
 // #	define LUT
 // #	define PRINT_SIGNED_CHAR_STRINGS
+// #	define BITSET
 
 #include <array>
 #include <atomic>
+#	ifdef BITSET
 #include <bitset>
+#	endif
 #include <complex>
 #include <cstring>
 #include <fcntl.h>
@@ -13,10 +16,18 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#	ifdef BITSET
 #	ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
 #	else
 #define SIMD __attribute__((target("sse4.1")))
+#	endif
+#	else
+#	ifdef AVX2
+#	define SIMD __attribute__((target("avx2")))
+#	else
+#	define SIMD __attribute__((target("sse4.1")))
+#	endif
 #	endif
 
 #define ensure(x) if (!(x)) abort();
@@ -279,6 +290,7 @@ struct blazingio_istream {
 		return *this;
 	}
 
+#	ifdef BITSET
 	template<size_t N>
 	SIMD blazingio_istream& operator>>(bitset<N>& value) {
 		skip_whitespace();
@@ -308,6 +320,7 @@ struct blazingio_istream {
 		ptr = (NonAliasingChar*)p;
 		return *this;
 	}
+#	endif
 
 	operator bool() const {
 		return is_ok;
@@ -512,6 +525,7 @@ struct blazingio_ostream {
 		return *this << '(' << ' ' << value.real() << ',' << ' ' << value.imag() << ')';
 	}
 
+#	ifdef BITSET
 	template<size_t N>
 	SIMD blazingio_ostream& operator<<(const bitset<N>& value) {
 		size_t i = N;
@@ -567,6 +581,7 @@ struct blazingio_ostream {
 		ptr = (NonAliasingChar*)p;
 		return *this;
 	}
+#	endif
 
 	blazingio_ostream& operator<<(blazingio_ostream& (*func)(blazingio_ostream&)) {
 		return func(*this);

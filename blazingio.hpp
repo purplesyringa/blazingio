@@ -341,27 +341,29 @@ struct blazingio_istream {
 		}
 		size_t i = N;
 #	ifdef AVX2
-		while (i % 32 > 0) {
+		while (i % 32) {
 			value[--i] = *ptr++ == '1';
 		}
 		char* p = (char*)ptr;
-		while (i >= 32) {
-			((uint32_t*)&value)[(i -= 32) / 32] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256((__m256i*)p) << 7, _mm256_set_epi64x(0x18191a1b1c1d1e1f, 0x1011121314151617, 0x08090a0b0c0d0e0f, 0x0001020304050607))));
+		i /= 32;
+		while (i) {
+			((uint32_t*)&value)[--i] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256((__m256i*)p) << 7, _mm256_set_epi64x(0x18191a1b1c1d1e1f, 0x1011121314151617, 0x08090a0b0c0d0e0f, 0x0001020304050607))));
 			p += 32;
 		}
 		ptr = (NonAliasingChar*)p;
 #	elif defined(SSE41)
-		while (i % 16 > 0) {
+		while (i % 16) {
 			value[--i] = *ptr++ == '1';
 		}
 		char* p = (char*)ptr;
-		while (i >= 16) {
-			((uint16_t*)&value)[(i -= 16) / 16] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_loadu_si128((__m128i*)p) << 7, _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f)));
+		i /= 16;
+		while (i) {
+			((uint16_t*)&value)[--i] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_loadu_si128((__m128i*)p) << 7, _mm_set_epi64x(0x0001020304050607, 0x08090a0b0c0d0e0f)));
 			p += 16;
 		}
 		ptr = (NonAliasingChar*)p;
 #	else
-		while (i > 0) {
+		while (i) {
 			value[--i] = *ptr++ == '1';
 		}
 #	endif
@@ -591,18 +593,19 @@ struct blazingio_ostream {
 	SIMD blazingio_ostream& operator<<(const bitset<N>& value) {
 		size_t i = N;
 #	ifdef AVX2
-		while (i % 32 > 0) {
+		while (i % 32) {
 			*ptr++ = '0' + value[--i];
 		}
 		char* p = (char*)ptr;
-		while (i >= 32) {
+		i /= 32;
+		while (i) {
 			_mm256_storeu_si256(
 				(__m256i*)p,
 				_mm256_sub_epi8(
 					_mm256_set1_epi8('0'),
 					_mm256_cmpeq_epi8(
 						_mm256_shuffle_epi8(
-							_mm256_set1_epi32(((uint32_t*)&value)[(i -= 32) / 32]),
+							_mm256_set1_epi32(((uint32_t*)&value)[--i]),
 							_mm256_set_epi64x(0x0000000000000000, 0x0101010101010101, 0x0202020202020202, 0x0303030303030303)
 						) & _mm256_set1_epi64x(0x0102040810204080),
 						_mm256_set1_epi64x(0x0102040810204080)
@@ -617,14 +620,15 @@ struct blazingio_ostream {
 			*ptr++ = '0' + value[--i];
 		}
 		char* p = (char*)ptr;
-		while (i >= 16) {
+		i /= 16;
+		while (i) {
 			_mm_storeu_si128(
 				(__m128i*)p,
 				_mm_sub_epi8(
 					_mm_set1_epi8('0'),
 					_mm_cmpeq_epi8(
 						_mm_shuffle_epi8(
-							_mm_set1_epi16(((uint16_t*)&value)[(i -= 16) / 16]),
+							_mm_set1_epi16(((uint16_t*)&value)[--i]),
 							_mm_set_epi64x(0x0000000000000000, 0x0101010101010101)
 						) & _mm_set1_epi64x(0x0102040810204080),
 						_mm_set1_epi64x(0x0102040810204080)
@@ -635,7 +639,7 @@ struct blazingio_ostream {
 		}
 		ptr = (NonAliasingChar*)p;
 #	else
-		while (i > 0) {
+		while (i) {
 			*ptr++ = '0' + value[--i];
 		}
 #	endif

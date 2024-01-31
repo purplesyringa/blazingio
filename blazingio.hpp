@@ -2,8 +2,8 @@
 // #	define SSE41
 // #	define LUT
 // #	define CHAR_WITH_SIGN_IS_GLYPH
-#	define BITSET
-// #	define FLOAT
+// #	define BITSET
+#	define FLOAT
 // #	define COMPLEX
 // #	define PIPE
 
@@ -232,43 +232,45 @@ struct blazingio_istream {
 		ptr += *ptr == '+';
 		auto start = ptr;
 		auto n = read_arithmetic<uint64_t>();
-		int exponent = 0;
+		int exponent = 20;  // Offset by 20, for reasons
 		if (*ptr == '.') {
 			auto after_dot = ++ptr;
 			collect_digits(n);
-			exponent = after_dot - ptr;
+			exponent += after_dot - ptr;
 		}
-		T x;
+		T x = n;
 		if (ptr - start >= 19) {
 			ptr = start;
 			x = 0;
 			collect_digits(x);
 			if (*ptr == '.') {
 				ptr++;
-				collect_digits(n);
+				collect_digits(x);
 			}
-		} else {
-			x = n;
 		}
 		if ((*ptr | 0x20) == 'e') {
 			ptr++;
 			ptr += *ptr == '+';
 			exponent += read_arithmetic<int>();
 		}
-		if (-15 <= exponent && exponent <= 15) {
-			static const T exps[] = {
-				1e-15, 1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1,
-				1,
-				1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15
-			};
-			x *= exps[exponent + 15];
+		if (0 <= exponent && exponent < 41) {
+			// This generates {1e-20, 1e-14, ..., 1e14, 1e20}
+			constexpr auto exps = [] {
+				array<T, 41> exps{};
+				T x = 1;
+				for (int i = 21; i--; ) {
+					exps[40 - i] = x;
+					exps[i] = 1 / x;
+					x *= 10;
+				}
+				return exps;
+			}();
+			x *= exps[exponent];
 		} else {
-			while (exponent > 0) {
-				exponent--;
+			while (exponent-- > 20) {
 				x *= 10;
 			}
-			while (exponent < 0) {
-				exponent++;
+			while (++exponent < 20) {
 				x *= .1;
 			}
 		}

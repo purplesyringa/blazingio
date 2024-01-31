@@ -296,10 +296,10 @@ struct blazingio_istream {
 	}
 
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-	void read_arithmetic(unsigned char& x) {
+	void read_arithmetic(uint8_t& x) {
 		x = *ptr++;
 	}
-	void read_arithmetic(signed char& x) {
+	void read_arithmetic(int8_t& x) {
 		x = *ptr++;
 	}
 #	endif
@@ -447,11 +447,11 @@ struct blazingio_ostream {
 		return *this;
 	}
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-	blazingio_ostream& operator<<(const unsigned char& value) {
+	blazingio_ostream& operator<<(const uint8_t& value) {
 		*ptr++ = value;
 		return *this;
 	}
-	blazingio_ostream& operator<<(const signed char& value) {
+	blazingio_ostream& operator<<(const int8_t& value) {
 		*ptr++ = value;
 		return *this;
 	}
@@ -560,11 +560,11 @@ struct blazingio_ostream {
 		return *this;
 	}
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-	blazingio_ostream& operator<<(const unsigned char* const& value) {
+	blazingio_ostream& operator<<(const uint8_t* const& value) {
 		*this << (char*)value;
 		return *this;
 	}
-	blazingio_ostream& operator<<(const signed char* const& value) {
+	blazingio_ostream& operator<<(const int8_t* const& value) {
 		*this << (char*)value;
 		return *this;
 	}

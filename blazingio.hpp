@@ -448,21 +448,21 @@ struct blazingio_ostream {
 #	endif
 	}
 
-	blazingio_ostream& operator<<(const char& value) {
+	blazingio_ostream& operator<<(char value) {
 		*ptr++ = value;
 		return *this;
 	}
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-	blazingio_ostream& operator<<(const uint8_t& value) {
+	blazingio_ostream& operator<<(uint8_t value) {
 		*ptr++ = value;
 		return *this;
 	}
-	blazingio_ostream& operator<<(const int8_t& value) {
+	blazingio_ostream& operator<<(int8_t value) {
 		*ptr++ = value;
 		return *this;
 	}
 #	endif
-	blazingio_ostream& operator<<(const bool& value) {
+	blazingio_ostream& operator<<(bool value) {
 		*ptr++ = '0' + value;
 		return *this;
 	}
@@ -499,7 +499,7 @@ struct blazingio_ostream {
 	}
 
 	template<typename T, T = 1>
-	blazingio_ostream& operator<<(const T& value) {
+	blazingio_ostream& operator<<(T value) {
 		make_unsigned_t<T> abs = value;
 		if (value < 0) {
 			*ptr++ = '-';
@@ -556,7 +556,7 @@ struct blazingio_ostream {
 	}
 #	endif
 
-	blazingio_ostream& operator<<(const char* const& value) {
+	blazingio_ostream& operator<<(const char* value) {
 		// We'd prefer strcpy without null terminator here, but perhaps strcpy itself suffices. It's
 		// also a builtin in GCC, which means outputting a constant string is going to be optimized
 		// into a mov or two!
@@ -564,18 +564,18 @@ struct blazingio_ostream {
 		return *this;
 	}
 #	ifdef CHAR_WITH_SIGN_IS_GLYPH
-	blazingio_ostream& operator<<(const uint8_t* const& value) {
+	blazingio_ostream& operator<<(const uint8_t* value) {
 		*this << (char*)value;
 		return *this;
 	}
-	blazingio_ostream& operator<<(const int8_t* const& value) {
+	blazingio_ostream& operator<<(const int8_t* value) {
 		*this << (char*)value;
 		return *this;
 	}
 #	endif
 
 	// std::string is inferred from this:
-	blazingio_ostream& operator<<(const string_view& value) {
+	blazingio_ostream& operator<<(string_view value) {
 		memcpy(ptr, value.data(), value.size());
 		ptr += value.size();
 		return *this;
@@ -583,7 +583,7 @@ struct blazingio_ostream {
 
 #	ifdef COMPLEX
 	template<typename T>
-	blazingio_ostream& operator<<(const complex<T>& value) {
+	blazingio_ostream& operator<<(complex<T> value) {
 		*this << '(' << value.real() << ',' << value.imag() << ')';
 		return *this;
 	}

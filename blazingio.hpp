@@ -41,7 +41,7 @@
 #	endif
 #	endif
 
-#define ensure(x) if (!(x)) abort();
+#define ensure(x) if (!(x)) abort()
 
 namespace blazingio {
 

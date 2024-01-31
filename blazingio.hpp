@@ -522,8 +522,7 @@ struct blazingio_ostream {
 		}
 		// At least it isn't \write18...
 		auto write8 = [&] {
-			unsigned n = value * 1e8;
-			write_int_split<unsigned, 8, 8>(n, n);
+			write_int_split<unsigned, 8, 8>(value * 1e8, value * 1e8);
 		};
 		if (!value) {
 			*ptr++ = '0';

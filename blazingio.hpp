@@ -431,11 +431,10 @@ struct blazingio_ostream {
 	}
 
 	void init() {
-		file_size = 16384;
 #	ifdef PIPE
-		if (ftruncate(STDOUT_FILENO, file_size) != -1) {
+		if (ftruncate(STDOUT_FILENO, file_size = 16384) != -1) {
 #	else
-		ensure(ftruncate(STDOUT_FILENO, file_size) != -1);
+		ensure(ftruncate(STDOUT_FILENO, file_size = 16384) != -1);
 #	endif
 			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
 			// reopen it via procfs.

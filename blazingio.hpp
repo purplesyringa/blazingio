@@ -5,7 +5,7 @@
 // #	define BITSET
 #	define FLOAT
 // #	define COMPLEX
-// #	define PIPE
+#	define PIPE
 
 #include <array>
 #include <atomic>
@@ -429,13 +429,12 @@ struct blazingio_ostream {
 	}
 
 	void init() {
+		file_size = 16384;
 #	ifdef PIPE
-		struct stat statbuf;
-		ensure(fstat(STDOUT_FILENO, &statbuf) != -1);
-		if ((statbuf.st_mode & S_IFMT) == S_IFREG) {
+		if (ftruncate(STDOUT_FILENO, file_size) != -1) {
+#	else
+		ensure(ftruncate(STDOUT_FILENO, file_size) != -1);
 #	endif
-			file_size = 16384;
-			ensure(ftruncate(STDOUT_FILENO, file_size) != -1);
 			// We want the file in O_RDWR mode as opposed to O_WRONLY for mmap(MAP_SHARED), so
 			// reopen it via procfs.
 			fd = open("/dev/stdout", O_RDWR);
@@ -443,8 +442,8 @@ struct blazingio_ostream {
 			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0) != MAP_FAILED);
 #	ifdef PIPE
 		} else {
-			// Reserve however much space we need, but don't populate it. We'll rely on the kernel
-			// to manage it for us.
+			// Likely a pipe. Reserve however much space we need, but don't populate it. We'll rely on the
+			// kernel to manage it for us.
 			ensure(mmap(base, 0x1000000000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE, -1, 0) != MAP_FAILED);
 			file_size = 0;
 		}

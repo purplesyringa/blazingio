@@ -10,7 +10,7 @@ You don't. For the love of god, don't use this anywhere but for programming comp
 
 ## I'm really just a Codeforces participant, how do I use this?
 
-Copy-paste `blazingio.min.hpp` from this repository into your working program, right after all your includes. You're all set now.
+Copy-paste [blazingio.min.hpp](blazingio.min.hpp) from this repository into your working program, right after all your includes. You're all set now.
 
 Yes, really. The selling point is you don't have to re-learn I/O. It's just magically optimized.
 

@@ -158,6 +158,10 @@ elif "_mm_" in blazingio:
 	blazingio = "#define M$(x,...)_mm_##x##_epi8(__VA_ARGS__)\n" + re.sub(r"_mm_(\w+)_epi8\(", r"M$(\1,", blazingio)
 	blazingio = "#define L$(x)_mm_loadu_si128(x)\n" + blazingio.replace("_mm_loadu_si128(", "L$(")
 
+blazingio = blazingio.strip()
+
+# Add comments
+blazingio = f"// The mess that follows is a compressed build of https://github.com/purplesyringa/blazingio.\n// Refer to the repository for a human-readable version and documentation.\n{blazingio}\n// End of blazingio\n"
 
 open("blazingio.min.hpp", "w").write(blazingio)
 

@@ -13,6 +13,7 @@
 #   if defined(AVX2) || defined(SSE41)
 #include <immintrin.h>
 #   endif
+#include <limits>
 #   if defined(STDIN_EOF) || defined(LATE_BINDING)
 #include <signal.h>
 #   endif

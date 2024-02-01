@@ -144,7 +144,7 @@ def repl(s):
         ("fd", "q"),
         ("Inner", "q"),
         ("empty_fd", "U"),
-        ("write8", "w"),
+        ("write12", "w"),
         ("new_exponent", "k"),
         ("real_part", "w"),
         ("imag_part", "q"),

@@ -171,7 +171,7 @@ Failures are not handled in any way, i.e. they may cause UB. The only handled co
 
 Similar considerations apply to `std::cout`. Most types can be written, although the exact format may differ from the one produced by std:
 
-- Floating-point numbers less than 1e16 are formatted with exactly 8 digits after the decimal separator: `0.10000000`, `0.01230000`, `0.33333333`, `123456789123456.12500000`. Floating-point numbers greater than 1e16 are formatted in scientific-like notation: `0.12345678e17`. This notably differs from std, which uses scientific notation for numbers less than 1 too, but this use case is rather uncommon.
+- Floating-point numbers less than 1e16 are formatted with exactly 12 digits after the decimal separator: `0.100000000000`, `0.012300000000`, `0.333333333333`, `123456789123456.125000000000`. Floating-point numbers greater than 1e16 are formatted in scientific-like notation: `0.123456789012e17`. This notably differs from std, which uses scientific notation for numbers less than 1 too, but this use case is rather uncommon.
 - Parameters of PRNGs (`std::linear_congruential_engine` and `std::uniform_int_distribution`) cannot be formatted.
 - Pointers (`const void*` and `std::nullptr_t`) cannot be written. (There's no compelling reason to.)
 - `precision` and `width` are not handled.

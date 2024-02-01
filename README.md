@@ -140,7 +140,7 @@ sys	0m0,005s
 
 ## `.min.hpp`? What's that JSism doing in my C++?
 
-Certain programming competitions impose a limit on the source code size, often 64 KiB or 256 KiB. Regardless of how minimal the library is by C++ standards, anything larger than 5 KiB in source code is likely to hinder its use by the competitive programming community.
+Certain programming competitions impose a limit on the source code size, often 64 KiB or 256 KiB. Regardless of how minimal the library is by C++ standards, anything larger than a few kilobytes in source code is likely to hinder its use by the competitive programming community.
 
 Additionally, participants may be expected to read each other's code during a hack session, and while it's typically useful to be able to read algorithms themselves, such meager things as optimized I/O are just clutter. Indeed, blazingio can handle anything [testlib](https://github.com/MikeMirzayanov/testlib) accepts, so it can be thought of as "obviously correct" if you're looking for a logic error, just like libstdc++.
 

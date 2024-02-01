@@ -1,3 +1,5 @@
+#   ifndef NO_BLAZINGIO
+
 #include <array>
 #   ifdef STDIN_EOF
 #include <atomic>
@@ -783,4 +785,6 @@ struct init {
 #define cerr blazingio_cerr
 #define clog blazingio_cerr
 #endif
+#   endif
+
 #   endif

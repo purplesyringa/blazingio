@@ -1,0 +1,4 @@
+type: round-trip
+config:
+  # Make sure overloads don't resolve to floats
+  float: [y, n]

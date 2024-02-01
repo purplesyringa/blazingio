@@ -1,0 +1,6 @@
+type: round-trip
+config:
+  # Make sure overloads don't resolve to floats
+  float: [y, n]
+  # Make sure char is not resovled to (un)signed char
+  char_with_sign_is_glyph: [y, n]

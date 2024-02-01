@@ -1,42 +1,17 @@
 import re
 import subprocess
 
-
-config_opts = {
-    "simd=none": "",
-    "simd=sse4.1": "SSE41",
-    "simd=avx2": "AVX2",
-    "lut=n": "",
-    "lut=y": "LUT",
-    "char_with_sign_is_glyph=n": "",
-    "char_with_sign_is_glyph=y": "CHAR_WITH_SIGN_IS_GLYPH",
-    "lut=n": "",
-    "lut=y": "LUT",
-    "bitset=n": "",
-    "bitset=y": "BITSET",
-    "float=n": "",
-    "float=y": "FLOAT",
-    "complex=n": "",
-    "complex=y": "COMPLEX",
-    "pipe=n": "",
-    "pipe=y": "PIPE",
-    "stdin_eof=n": "",
-    "stdin_eof=y": "STDIN_EOF",
-    "late_binding=n": "",
-    "late_binding=y": "LATE_BINDING",
-    "cerr=n": "",
-    "cerr=y": "CERR",
-}
+from common import CONFIG_OPTS
 
 
 opts = []
 for line in open("config"):
     line = line.strip()
     if line and not line.startswith("#"):
-        if line not in config_opts:
+        if line not in CONFIG_OPTS:
             print(f"Invalid key-value combination {line}")
             raise SystemExit(1)
-        opt = config_opts[line]
+        opt = CONFIG_OPTS[line]
         if opt:
             opts.append(opt)
 
@@ -46,12 +21,22 @@ blazingio = open("blazingio.hpp").read()
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
 blazingio = re.sub(r"^cpp#   ", "#", blazingio, flags=re.M)
-proc = subprocess.run(["cpp", "-P", "-DMINIMIZE"] + [f"-D{opt}" for opt in opts], input=blazingio.encode(), capture_output=True, check=True)
+proc = subprocess.run(
+    ["cpp", "-P", "-DMINIMIZE"] + [f"-D{opt}" for opt in opts],
+    input=blazingio.encode(),
+    capture_output=True,
+    check=True,
+)
 blazingio = proc.stdout.decode()
 blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 
 # Remove unnecessary parentheses
-proc = subprocess.run(["clang-format-18", "--style=file:minimize.clang-format"], input=blazingio.encode(), capture_output=True, check=True)
+proc = subprocess.run(
+    ["clang-format-18", "--style=file:minimize.clang-format"],
+    input=blazingio.encode(),
+    capture_output=True,
+    check=True,
+)
 blazingio = proc.stdout.decode()
 
 # Replace "return *this;"
@@ -62,6 +47,7 @@ blazingio = "#define $O operator\n" + blazingio.replace("operator", "$O")
 
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)
+
 
 # Remove unnecessary whitespace
 def whitespace(s):
@@ -80,11 +66,13 @@ def whitespace(s):
         s += "\n"
     return s
 
+
 blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
+
 
 def repl(s):
     # Replace identifiers
-    for (old, new) in [
+    for old, new in [
         ("blazingio_istream", "$i"),
         ("blazingio_ostream", "$o"),
         ("blazingio_ignoreostream", "$e"),
@@ -154,7 +142,7 @@ def repl(s):
         ("NULL", "0"),
         ("false", "0"),
         ("true", "1"),
-        ("MAP_FAILED", "(void*)-1")
+        ("MAP_FAILED", "(void*)-1"),
     ]:
         s = re.sub(r"\b" + re.escape(old) + r"\b", new, s)
 
@@ -176,28 +164,49 @@ def repl(s):
         "STDIN_FILENO": 0,
         "STDOUT_FILENO": 1,
         "SEEK_END": 2,
-        "SPLICE_F_GIFT": 8
+        "SPLICE_F_GIFT": 8,
     }
     const = "(" + "|".join(consts) + ")"
-    s = re.sub(const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s)
+    s = re.sub(
+        const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s
+    )
 
     return s
 
-blazingio = "".join(repl(part) if part[0] != "\"" else part for part in re.split(r"(\".*?\")", blazingio))
+
+blazingio = "".join(
+    repl(part) if part[0] != '"' else part for part in re.split(r"(\".*?\")", blazingio)
+)
 
 # Replace character literals with their values
-blazingio = re.sub(r"(?<!<<)('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio)
+blazingio = re.sub(
+    r"(?<!<<)('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
+)
 
 # Replace hexadecimal integer literals
-blazingio = re.sub(r"0x([0-9a-f]+)", lambda match: str(int(match[0], 16)) if len(str(int(match[0], 16))) < 2 + len(match[1].lstrip("0")) else "0x" + match[1].lstrip("0"), blazingio)
+blazingio = re.sub(
+    r"0x([0-9a-f]+)",
+    lambda match: str(int(match[0], 16))
+    if len(str(int(match[0], 16))) < 2 + len(match[1].lstrip("0"))
+    else "0x" + match[1].lstrip("0"),
+    blazingio,
+)
 
 # Replace SIMD intrinsics
 if "_mm256_" in blazingio:
-    blazingio = "#define M$(x,...)_mm256_##x##_epi8(__VA_ARGS__)\n" + re.sub(r"_mm256_(\w+)_epi8\(", r"M$(\1,", blazingio)
-    blazingio = "#define L$(x)_mm256_loadu_si256(x)\n" + blazingio.replace("_mm256_loadu_si256(", "L$(")
+    blazingio = "#define M$(x,...)_mm256_##x##_epi8(__VA_ARGS__)\n" + re.sub(
+        r"_mm256_(\w+)_epi8\(", r"M$(\1,", blazingio
+    )
+    blazingio = "#define L$(x)_mm256_loadu_si256(x)\n" + blazingio.replace(
+        "_mm256_loadu_si256(", "L$("
+    )
 elif "_mm_" in blazingio:
-    blazingio = "#define M$(x,...)_mm_##x##_epi8(__VA_ARGS__)\n" + re.sub(r"_mm_(\w+)_epi8\(", r"M$(\1,", blazingio)
-    blazingio = "#define L$(x)_mm_loadu_si128(x)\n" + blazingio.replace("_mm_loadu_si128(", "L$(")
+    blazingio = "#define M$(x,...)_mm_##x##_epi8(__VA_ARGS__)\n" + re.sub(
+        r"_mm_(\w+)_epi8\(", r"M$(\1,", blazingio
+    )
+    blazingio = "#define L$(x)_mm_loadu_si128(x)\n" + blazingio.replace(
+        "_mm_loadu_si128(", "L$("
+    )
 
 blazingio = blazingio.strip()
 

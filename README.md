@@ -3,7 +3,12 @@
 **blazingio** is a performant minimal drop-in replacement for C++ standard input and output facilities. It's stupid, doesn't guard against invalid data and can't do much, but it can read/write integers, strings, and other primitives 10x faster than libstdc++, and that's what matters in areas like competitive programming.
 
 
-## Cut straight to the chase, how do I use it?
+## How do I use this in produciton?
+
+You don't. For the love of god, don't use this anywhere but for programming competitions. If "**IT CAN TRIGGER ANY SORT OF UB ON INVALID INPUT, INCLUDING SECURITY VULNERABILITIES**" was not obvious enough, maybe consider that it overrides signal handlers by design.
+
+
+## I'm really just a Codeforces participant, how do I use this?
 
 Copy-paste `blazingio.min.hpp` from this repository into your working program, right after all your includes. You're all set now.
 
@@ -174,11 +179,6 @@ Similar considerations apply to `std::cout`. Most types can be written, although
 It also goes without saying that you won't be able to use this library if you can't or aren't allowed to use external code.
 
 Finally, this library overrides SIGBUS handler in some cases (namely, if `stdin_eof` or `late_binding` are set in config), so if you rely on that signal, you'll need to patch blazingio.
-
-
-## How do I use this in produciton?
-
-You don't. For the love of god, don't use this anywhere but for programming competitions. If "**IT CAN TRIGGER ANY SORT OF UB ON INVALID INPUT, INCLUDING SECURITY VULNERABILITIES**" was not obvious enough, maybe consider that it overrides signal handlers by design.
 
 
 ## Other features

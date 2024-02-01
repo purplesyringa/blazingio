@@ -7,6 +7,7 @@
 // #	define COMPLEX
 #	define PIPE
 #	define STDIN_EOF
+#	define LATE_BINDING
 
 #include <array>
 #	ifdef STDIN_EOF
@@ -23,7 +24,9 @@
 #	if defined(AVX2) || defined(SSE41)
 #include <immintrin.h>
 #	endif
+#	if defined(STDIN_EOF) || defined(LATE_BINDING)
 #include <signal.h>
+#	endif
 #include <sys/mman.h>
 
 #	if !defined(AVX2) && !defined(SSE41)
@@ -80,6 +83,7 @@ struct blazingio_istream {
 #	endif
 
 	explicit blazingio_istream() {
+#	ifdef LATE_BINDING
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
 		base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, empty_fd, BIG);
@@ -88,6 +92,7 @@ struct blazingio_istream {
 	}
 
 	void init() {
+#	endif
 		file_size = lseek(STDIN_FILENO, 0, SEEK_END);
 #	ifdef PIPE
 		if (file_size != -1) {
@@ -98,12 +103,22 @@ struct blazingio_istream {
 			(file_size += 4095) &= -4096;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end of
 			// file.
+#	ifdef LATE_BINDING
 			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED)
+#	else
+			base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
+			ensure(base != MAP_FAILED)
+#	endif
 			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1)
 #	ifdef PIPE
 		} else {
 			size_t alloc_size = 16384;
+#	ifdef LATE_BINDING
 			ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
+#	else
+			base = (char*)mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+			ensure(base != MAP_FAILED)
+#	endif
 			file_size = 0;
 			ssize_t n_read;
 			while ((n_read = read(0, base + file_size, BIG - file_size)) > 0) {
@@ -722,6 +737,7 @@ namespace std {
 	}
 }
 
+#	if defined(LATE_BINDING) || defined(STDIN_EOF)
 struct init {
 	init() {
 		struct sigaction act;
@@ -733,9 +749,11 @@ struct init {
 
 	static void on_sigbus(int, siginfo_t* info, void*) {
 		using namespace std;
+#	ifdef LATE_BINDING
 		if (info->si_addr == blazingio_cin.base && blazingio_cin.file_size == -1) {
 			blazingio_cin.init();
 		} else
+#	endif
 #	ifdef STDIN_EOF
 		if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
 			blazingio_cin.on_eof();
@@ -746,6 +764,7 @@ struct init {
 		}
 	}
 } blazingio_init;
+#	endif
 
 #define cin blazingio_cin
 #define cout blazingio_cout

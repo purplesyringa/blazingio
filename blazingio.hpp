@@ -57,9 +57,12 @@ struct NonAliasingChar {
 };
 
 int empty_fd = fileno(tmpfile());
-long BIG = 0x1000000000, ONE_BYTES = -1ULL / 255
+long BIG = 0x1000000000
+#	ifdef BITSET
+, ONE_BYTES = -1ULL / 255
 #	if !defined(AVX2) && !defined(SSE41)
 , ASCII_ZEROS = ONE_BYTES * 0x30, BITSET_SHIFT = 0x8040201008040201
+#	endif
 #	endif
 ;
 

@@ -14,6 +14,8 @@ Copy-paste [blazingio.min.hpp](blazingio.min.hpp) from this repository into your
 
 Yes, really. The selling point is you don't have to re-learn I/O. It's just magically optimized.
 
+One thing needs to be stressed: this library **doesn't work with interactive problems**. You're likely to encounter TL1 if you attempt to use it in an interactive problem. This also means that you have to end the input stream when running the program directly from terminal, typically via ^D on Unix and ^Z on Windows. Otherwise the program will appear to hang.
+
 
 ## Back up, back up. Just how good is this?
 
@@ -155,6 +157,8 @@ So here's a compromise: I compress the library so that it's so small and tidy th
 
 
 ## What are the limitations?
+
+First and foremost, it can't be used in interactive problems because it reads out all input at the start of the program and writes out all the output at the end. Interactive problems are typically not bound by performance of I/O itself, so any room for improvement is unlikely anyway.
 
 blazingio's mocked `std::cin` can read most types `std::iostream` can via `operator>>`, but other methods are not supported. `std::getline` is available, though.
 

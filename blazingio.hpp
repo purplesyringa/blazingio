@@ -133,6 +133,8 @@ struct blazingio_istream {
             ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED)
             ensure(munmap(base + file_size + 4096, BIG - file_size - 4096) != -1)
         }
+#   else
+        ptr = (NonAliasingChar*)base;
 #   endif
     }
 

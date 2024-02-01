@@ -6,9 +6,12 @@
 #	define FLOAT
 // #	define COMPLEX
 #	define PIPE
+#	define STDIN_EOF
 
 #include <array>
+#	ifdef STDIN_EOF
 #include <atomic>
+#	endif
 #	ifdef BITSET
 #include <bitset>
 #	endif
@@ -72,7 +75,9 @@ struct blazingio_istream {
 	off_t file_size = -1;
 	char* base;
 	NonAliasingChar* ptr;
+#	ifdef STDIN_EOF
 	atomic_bool is_ok = true;
+#	endif
 
 	explicit blazingio_istream() {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
@@ -117,6 +122,7 @@ struct blazingio_istream {
 #	endif
 	}
 
+#	ifdef STDIN_EOF
 	void on_eof() {
 		// Attempt to read beyond end of stdin. This happens either in skip_whitespace, or in a
 		// generic input procedure. In the former case, the right thing to do is stop the loop by
@@ -129,6 +135,7 @@ struct blazingio_istream {
 		p[1] = '0';
 		is_ok = false;
 	}
+#	endif
 
 	// For people writing cie.tie(0);
 	void* tie(nullptr_t) {
@@ -347,6 +354,7 @@ struct blazingio_istream {
 	template<size_t N>
 	SIMD blazingio_istream& operator>>(bitset<N>& value) {
 		skip_whitespace();
+#	ifdef STDIN_EOF
 		// As we always read N bytes, we might read past the end of the file in case EOF happens.
 		// Luckily, we are allowed to overread up to 4095 bytes after EOF (because there's a
 		// 4096-page and its second byte is non-whitespace). Therefore, we only have to check for
@@ -354,6 +362,7 @@ struct blazingio_istream {
 		if (N >= 4096 && !*this) {
 			return *this;
 		}
+#	endif
 		auto i = N;
 #	ifdef AVX2
 		while (i % 32) {
@@ -392,12 +401,14 @@ struct blazingio_istream {
 	}
 #	endif
 
+#	ifdef STDIN_EOF
 	operator bool() {
 		return is_ok;
 	}
 	bool operator!() {
 		return !is_ok;
 	}
+#	endif
 };
 
 struct blazingio_ostream {
@@ -677,7 +688,9 @@ namespace std {
 	blazingio::blazingio_ignoreostream blazingio_cerr;
 
 	blazingio::blazingio_istream& getline(blazingio::blazingio_istream& in, string& value) {
+#	ifdef STDIN_EOF
 		if (*in.ptr) {
+#	endif
 			auto start = in.ptr;
 			in.trace_line();
 			// We know there's no overlap, so avoid doing this for a little bit of performance:
@@ -686,9 +699,11 @@ namespace std {
 			memcpy(value.data(), (char*)start, in.ptr - start);
 			in.ptr += *in.ptr == '\r';
 			in.ptr++;
+#	ifdef STDIN_EOF
 		} else {
 			in.is_ok = false;
 		}
+#	endif
 		return in;
 	}
 
@@ -720,9 +735,13 @@ struct init {
 		using namespace std;
 		if (info->si_addr == blazingio_cin.base && blazingio_cin.file_size == -1) {
 			blazingio_cin.init();
-		} else if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
+		} else
+#	ifdef STDIN_EOF
+		if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
 			blazingio_cin.on_eof();
-		} else {
+		} else
+#	endif
+		{
 			ensure(false)
 		}
 	}

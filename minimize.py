@@ -55,7 +55,7 @@ proc = subprocess.run(["clang-format-18", "--style=file:minimize.clang-format"],
 blazingio = proc.stdout.decode()
 
 # Replace "return *this;"
-blazingio = "#define $r return*this;}\n" + re.sub(r"return\s*\*this;\s*}", "$r", blazingio)
+blazingio = "#define $r return*this;\n" + re.sub(r"return\s*\*this;", "$r", blazingio)
 
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)

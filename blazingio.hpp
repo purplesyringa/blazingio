@@ -8,6 +8,7 @@
 #	define PIPE
 #	define STDIN_EOF
 #	define LATE_BINDING
+#	define CERR
 
 #include <array>
 #	ifdef STDIN_EOF
@@ -685,6 +686,7 @@ struct blazingio_ostream {
 	}
 };
 
+#	ifdef CERR
 struct blazingio_ignoreostream {
 	template<typename T>
 	blazingio_ignoreostream& operator<<(const T& value) {
@@ -694,13 +696,16 @@ struct blazingio_ignoreostream {
 		return func(*this);
 	}
 };
+#	endif
 
 }
 
 namespace std {
 	blazingio::blazingio_istream blazingio_cin;
 	blazingio::blazingio_ostream blazingio_cout;
+#	ifdef CERR
 	blazingio::blazingio_ignoreostream blazingio_cerr;
+#	endif
 
 	blazingio::blazingio_istream& getline(blazingio::blazingio_istream& in, string& value) {
 #	ifdef STDIN_EOF
@@ -729,12 +734,14 @@ namespace std {
 		return stream;
 	}
 
+#	ifdef CERR
 	blazingio::blazingio_ignoreostream& endl(blazingio::blazingio_ignoreostream& stream) {
 		return stream;
 	}
 	blazingio::blazingio_ignoreostream& flush(blazingio::blazingio_ignoreostream& stream) {
 		return stream;
 	}
+#	endif
 }
 
 #	if defined(LATE_BINDING) || defined(STDIN_EOF)
@@ -769,7 +776,9 @@ struct init {
 #define cin blazingio_cin
 #define cout blazingio_cout
 
+#	ifdef CERR
 #ifdef ONLINE_JUDGE
 #define cerr blazingio_cerr
 #define clog blazingio_cerr
 #endif
+#	endif

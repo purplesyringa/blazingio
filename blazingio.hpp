@@ -85,7 +85,7 @@ struct blazingio_istream {
 #   ifdef LATE_BINDING
         // Reserve some memory, but delay actual read until first SIGBUS. This is because we want
         // freopen to work.
-        base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, empty_fd, BIG);
+        base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, empty_fd, 0);
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
     }

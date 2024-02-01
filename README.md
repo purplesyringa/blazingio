@@ -137,6 +137,8 @@ user	0m0,150s
 sys	0m0,005s
 ```
 
+Moreover, it's even faster than a typical custom `getc`-based parser!
+
 
 ## `.min.hpp`? What's that JSism doing in my C++?
 
@@ -145,11 +147,6 @@ Certain programming competitions impose a limit on the source code size, often 6
 Additionally, participants may be expected to read each other's code during a hack session, and while it's typically useful to be able to read algorithms themselves, such meager things as optimized I/O are just clutter. Indeed, blazingio can handle anything [testlib](https://github.com/MikeMirzayanov/testlib) accepts, so it can be thought of as "obviously correct" if you're looking for a logic error, just like libstdc++.
 
 So here's a compromise: I compress the library so that it's so small and tidy there are no downsides in copy-pasting it straight to your template. The compressed version also includes a link to this repository so that the code is not considered obfuscated.
-
-
-## How do I use this in produciton?
-
-You don't. For the love of god, don't use this anywhere but for programming competitions. If "**IT CAN TRIGGER ANY SORT OF UB ON INVALID INPUT, INCLUDING SECURITY VULNERABILITIES**" was not obvious enough, maybe consider that it overrides signal handlers by design.
 
 
 ## What are the limitations?
@@ -177,9 +174,18 @@ Similar considerations apply to `std::cout`. Most types can be written, although
 
 It also goes without saying that you won't be able to use this library if you can't or aren't allowed to use external code.
 
+Finally, this library overrides SIGBUS handler in some cases (namely, if `stdin_eof` or `late_binding` are set in config), so if you rely on that signal, you'll need to patch blazingio.
+
+
+## How do I use this in produciton?
+
+You don't. For the love of god, don't use this anywhere but for programming competitions. If "**IT CAN TRIGGER ANY SORT OF UB ON INVALID INPUT, INCLUDING SECURITY VULNERABILITIES**" was not obvious enough, maybe consider that it overrides signal handlers by design.
+
 
 ## Other features
 
 With `-DONLINE_JUDGE` (enabled on Codeforces, among others), `std::cerr` is replaced with a mock that doesn't do anything. This means you don't have to comment out logs for performance.
 
 `freopen` works with blazingio's streams, provided that you call `freopen` before any other I/O.
+
+Here's a neat bonus: you can make your own slim build of blazingio, stripped of anything you don't need and thus much smaller, by editing the configuration file at `config` and running `python3 minimize.py`. You might need to patch the script by replacing the path to clang-format, though.

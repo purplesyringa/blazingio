@@ -161,7 +161,6 @@ The differences in format are:
 - `std::bitset<N>` can't handle input strings shorter than `N` (std would zero-pads them).
 - Parameters of PRNGs (`std::linear_congruential_engine` and `std::uniform_int_distribution`) cannot be loaded. (Did you even know these *can* be read?)
 - Pointers (`const void*`) cannot be read. (There's no compelling reason to.)
-- Anything outside 7-bit ASCII fails spectacularly.
 
 Failures are not handled in any way, i.e. they may cause UB. The only handled condition is EOF, which you can check via `if (std::cin)`, just like with std. You're supposed to stop reading input the moment this happens: if you keep reading, you'll trigger UB.
 

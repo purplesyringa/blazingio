@@ -159,7 +159,7 @@ struct blazingio_istream {
     void skip_whitespace() {
         // 0..' ' are not all whitespace, but we only care about well-formed input
         // We expect short runs here, hence no vectorization
-        while (*ptr <= ' ') {
+        while (0 <= *ptr && *ptr <= ' ') {
             ptr++;
         }
     }
@@ -170,9 +170,9 @@ struct blazingio_istream {
         // on every iteration.
 #   ifdef AVX2
         auto p = (__m256i*)ptr;
-        __m256i vec;
+        __m256i vec, space = _mm256_set1_epi8(' ');
         while (
-            vec = _mm256_cmpgt_epi8(_mm256_set1_epi8(0x21), _mm256_loadu_si256(p)),
+            vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
             _mm256_testz_si256(vec, vec)
         ) {
             p++;
@@ -180,16 +180,16 @@ struct blazingio_istream {
         ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
 #   elif defined(SSE41)
         auto p = (__m128i*)ptr;
-        __m128i vec;
+        __m128i vec, space = _mm_set1_epi8(' ');
         while (
-            vec = _mm_cmpgt_epi8(_mm_set1_epi8(0x21), _mm_loadu_si128(p)),
+            vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
             _mm_testz_si128(vec, vec)
         ) {
             p++;
         }
         ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
 #   else
-        while (*ptr > ' ') {
+        while (*ptr < 0 || *ptr > ' ') {
             ptr++;
         }
 #   endif
@@ -207,6 +207,7 @@ struct blazingio_istream {
             vec = _mm256_loadu_si256(p),
             _mm256_testz_si256(
                 vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
+                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                 vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
             )
         ) {
@@ -220,6 +221,7 @@ struct blazingio_istream {
             vec = _mm_loadu_si128(p),
             _mm_testz_si128(
                 vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
+                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                 vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
             )
         ) {

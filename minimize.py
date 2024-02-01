@@ -38,7 +38,7 @@ for line in open("config"):
 			raise SystemExit(1)
 		opt = config_opts[line]
 		if opt:
-			opts.append("-D" + opt)
+			opts.append(opt)
 
 
 blazingio = open("blazingio.hpp").read()
@@ -46,7 +46,7 @@ blazingio = open("blazingio.hpp").read()
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
 blazingio = re.sub(r"^cpp#\t", "#", blazingio, flags=re.M)
-proc = subprocess.run(["cpp", "-P"] + opts, input=blazingio.encode(), capture_output=True, check=True)
+proc = subprocess.run(["cpp", "-P"] + [f"-D{opt}" for opt in opts], input=blazingio.encode(), capture_output=True, check=True)
 blazingio = proc.stdout.decode()
 blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 
@@ -200,7 +200,7 @@ elif "_mm_" in blazingio:
 blazingio = blazingio.strip()
 
 # Add comments
-blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n{blazingio}\n// End of blazingio\n"
+blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Config options: {' '.join(opts) if opts else '(none)'}\n{blazingio}\n// End of blazingio\n"
 
 open("blazingio.min.hpp", "w").write(blazingio)
 

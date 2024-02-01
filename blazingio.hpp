@@ -41,7 +41,7 @@
 #	endif
 #	endif
 
-#define ensure(x) if (!(x)) abort()
+#define ensure(x) if (!(x)) abort();
 
 namespace blazingio {
 
@@ -78,7 +78,7 @@ struct blazingio_istream {
 		// Reserve some memory, but delay actual read until first SIGBUS. This is because we want
 		// freopen to work.
 		base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, empty_fd, BIG);
-		ensure(base != MAP_FAILED);
+		ensure(base != MAP_FAILED)
 		ptr = (NonAliasingChar*)base;
 	}
 
@@ -87,32 +87,32 @@ struct blazingio_istream {
 #	ifdef PIPE
 		if (file_size != -1) {
 #	else
-		ensure(file_size != -1);
+		ensure(file_size != -1)
 #	endif
 			// Round to page size.
 			(file_size += 4095) &= -4096;
 			// Map one more page than necessary so that SIGBUS is triggered soon after the end of
 			// file.
-			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED);
-			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1);
+			ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED)
+			ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1)
 #	ifdef PIPE
 		} else {
 			size_t alloc_size = 16384;
-			ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
+			ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
 			file_size = 0;
 			ssize_t n_read;
 			while ((n_read = read(0, base + file_size, BIG - file_size)) > 0) {
 				if ((file_size += n_read) == alloc_size) {
-					ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED);
+					ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
 					alloc_size *= 2;
 				}
 			}
-			ensure(n_read != -1);
+			ensure(n_read != -1)
 			// Round to page size.
 			(file_size += 4095) &= -4096;
 			// We want SIGBUS instead of SIGSEGV, so mmap a file past the end.
-			ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED);
-			ensure(munmap(base + file_size + 4096, BIG - file_size - 4096) != -1);
+			ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED)
+			ensure(munmap(base + file_size + 4096, BIG - file_size - 4096) != -1)
 		}
 #	endif
 	}
@@ -125,7 +125,7 @@ struct blazingio_istream {
 		// stops (for instance) integer parsing immediately with a zero, and also stops whitespace
 		// parsing *soon*.
 		char* p = base + file_size;
-		ensure(mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED);
+		ensure(mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
 		p[1] = '0';
 		is_ok = false;
 	}
@@ -413,7 +413,7 @@ struct blazingio_ostream {
 		// end. This also allows us to allocate memory immediately without waiting for freopen,
 		// because we'll only use the fd in the destructor.
 		base = (char*)mmap(NULL, BIG, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-		ensure(base != MAP_FAILED);
+		ensure(base != MAP_FAILED)
 		ptr = (NonAliasingChar*)base;
 
 #	ifdef LUT
@@ -437,14 +437,14 @@ struct blazingio_ostream {
 			do {
 				base += (n_written = write(STDOUT_FILENO, base, (char*)ptr - base));
 			} while (n_written > 0);
-			ensure(n_written != -1);
+			ensure(n_written != -1)
 		}
 #	else
 		ssize_t n_written = 1;
 		while (n_written > 0) {
 			base += (n_written = write(STDOUT_FILENO, base, (char*)ptr - base));
 		}
-		ensure(n_written != -1);
+		ensure(n_written != -1)
 #	endif
 	}
 
@@ -723,7 +723,7 @@ struct init {
 		} else if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
 			blazingio_cin.on_eof();
 		} else {
-			ensure(false);
+			ensure(false)
 		}
 	}
 } blazingio_init;

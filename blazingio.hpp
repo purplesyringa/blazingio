@@ -59,7 +59,11 @@ struct NonAliasingChar {
     }
 };
 
+#   if defined(PIPE) && defined(LATE_BINDING)
 int empty_fd = fileno(tmpfile());
+#   elif defined(PIPE) || defined(LATE_BINDING)
+#   define empty_fd fileno(tmpfile())
+#   endif
 long BIG = 0x1000000000
 #   ifdef BITSET
 , ONE_BYTES = -1ULL / 255

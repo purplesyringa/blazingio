@@ -50,7 +50,7 @@ sys	0m0,005s
 Now add just this one line after `#include <iostream>`:
 
 ```cpp
-#include "blazingio.hpp"
+#include "blazingio.min.hpp"
 ```
 
 Let's try it out again:

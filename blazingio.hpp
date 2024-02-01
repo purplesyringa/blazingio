@@ -68,7 +68,7 @@ long BIG = 0x1000000000
 #   ifdef BITSET
 , ONE_BYTES = -1ULL / 255
 #   if !defined(AVX2) && !defined(SSE41)
-, ASCII_ZEROS = ONE_BYTES * 0x30, BITSET_SHIFT = 0x8040201008040201
+, BITSET_SHIFT = 0x8040201008040201
 #   endif
 #   endif
 ;
@@ -407,7 +407,7 @@ struct blazingio_istream {
         auto p = (long*)ptr;
         i /= 8;
         while (i) {
-            ((char*)&value)[--i] = ((*p++ - ASCII_ZEROS) * BITSET_SHIFT) >> 56;
+            ((char*)&value)[--i] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
         }
         ptr = (NonAliasingChar*)p;
 #   endif
@@ -671,7 +671,7 @@ struct blazingio_ostream {
         auto p = (long*)ptr;
         i /= 8;
         while (i) {
-            *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | ASCII_ZEROS;
+            *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
         }
         ptr = (NonAliasingChar*)p;
 #   endif

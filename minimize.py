@@ -146,7 +146,6 @@ def repl(s):
         ("real_part", "w"),
         ("imag_part", "q"),
         ("ONE_BYTES", "Z"),
-        ("ASCII_ZEROS", "k"),
         ("BITSET_SHIFT", "q"),
         ("BIG", "k"),
         ("NULL", "0"),

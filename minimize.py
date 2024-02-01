@@ -2,12 +2,51 @@ import re
 import subprocess
 
 
+config_opts = {
+	"simd=none": "",
+	"simd=sse4.1": "SSE41",
+	"simd=avx2": "AVX2",
+	"lut=n": "",
+	"lut=y": "LUT",
+	"char_with_sign_is_glyph=n": "",
+	"char_with_sign_is_glyph=y": "CHAR_WITH_SIGN_IS_GLYPH",
+	"lut=n": "",
+	"lut=y": "LUT",
+	"bitset=n": "",
+	"bitset=y": "BITSET",
+	"float=n": "",
+	"float=y": "FLOAT",
+	"complex=n": "",
+	"complex=y": "COMPLEX",
+	"pipe=n": "",
+	"pipe=y": "PIPE",
+	"stdin_eof=n": "",
+	"stdin_eof=y": "STDIN_EOF",
+	"late_binding=n": "",
+	"late_binding=y": "LATE_BINDING",
+	"cerr=n": "",
+	"cerr=y": "CERR",
+}
+
+
+opts = []
+for line in open("config"):
+	line = line.strip()
+	if line and not line.startswith("#"):
+		if line not in config_opts:
+			print(f"Invalid key-value combination {line}")
+			raise SystemExit(1)
+		opt = config_opts[line]
+		if opt:
+			opts.append("-D" + opt)
+
+
 blazingio = open("blazingio.hpp").read()
 
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
 blazingio = re.sub(r"^cpp#\t", "#", blazingio, flags=re.M)
-proc = subprocess.run(["cpp", "-P"], input=blazingio.encode(), capture_output=True, check=True)
+proc = subprocess.run(["cpp", "-P"] + opts, input=blazingio.encode(), capture_output=True, check=True)
 blazingio = proc.stdout.decode()
 blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 
@@ -161,8 +200,8 @@ elif "_mm_" in blazingio:
 blazingio = blazingio.strip()
 
 # Add comments
-blazingio = f"// The mess that follows is a compressed build of https://github.com/purplesyringa/blazingio.\n// Refer to the repository for a human-readable version and documentation.\n{blazingio}\n// End of blazingio\n"
+blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n{blazingio}\n// End of blazingio\n"
 
 open("blazingio.min.hpp", "w").write(blazingio)
 
-print(blazingio, len(blazingio))
+print("Wrote", len(blazingio), "bytes to blazingio.min.hpp")

@@ -1,0 +1,48 @@
+# Which SIMD instruction sets to use for string and bitset I/O. Valid values: 'none', 'sse4.1',
+# 'avx2'. 'none' is the safest one, 'avx2' is present on most modern computers, including Codeforces
+# servers. 'sse4.1' is a middle-ground option available since Silvermont. Apart from better generic
+# CPU support, using 'none' or 'sse4.1' will reduce code size. Choose 'avx2' if unsure.
+simd=avx2
+
+# Whether to use a precomputed 200-byte lookup table for integer output. This typically increases
+# performance, but might affect cache negatively in cache-intensive tasks. Slightly increases code
+# size. Choose 'y' if unsure.
+lut=y
+
+# Whether to treat int8_t/signed char and uint8_t/unsigned char just like char, as a symbol as
+# opposed to an integer. This also enables printing of '(un)signed char*' strings in addition to the
+# 'char*' strings, which are enabled by default. This is mostly an STL compatibility option than
+# anything useful by itself. Choose 'y' if unsure.
+char_with_sign_is_glyph=y
+
+# Whether to support <bitset> I/O. This will benefit from using SIMD significantly. This also
+# increases code size significantly. Choose 'y' if unsure.
+bitset=y
+
+# Whether to support floating-point I/O. This increases code size significantly. Choose 'y' if
+# unsure.
+float=y
+
+# Whether to support <complex> I/O. Choose 'y' if unsure.
+complex=y
+
+# Whether to support test systems that don't redirect stdin/stdout from/to file, but use pipes.
+# Using 'y' makes I/O work in such environments, if somewhat slower than direct file I/O. Using 'n'
+# will trigger crashes in these environments. Choose 'y' if unsure.
+pipe=y
+
+# Whether to support graceful end-of-file handling on stdin. Namely, 'while (std::cin >> ...)'
+# syntax is only allowed with this option set. This EOF handling is not fully compatible with std:
+# reading from a EOF pipe twice will cause crashes, so you would need to terminate immediately.
+# Choose 'y' if unsure.
+stdin_eof=y
+
+# Whether to support freopen. If 'y', calling freopen on stdin or stdout before the first I/O
+# operation will successfully redirect the stream. If 'n', this may or may not work for cin/cout.
+# Choose 'y' if unsure.
+late_binding=y
+
+# Whether to replace std::cerr/std::clog with a /dev/null-like stream if ONLINE_JUDGE is set. This
+# enables logs like 'std::cerr << ...' to be zero-cost on environments such as Codeforces. Choose
+# 'y' if unsure.
+cerr=y

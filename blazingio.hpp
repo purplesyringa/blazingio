@@ -1,15 +1,3 @@
-// #	define AVX2
-// #	define SSE41
-// #	define LUT
-// #	define CHAR_WITH_SIGN_IS_GLYPH
-// #	define BITSET
-#	define FLOAT
-// #	define COMPLEX
-#	define PIPE
-#	define STDIN_EOF
-#	define LATE_BINDING
-#	define CERR
-
 #include <array>
 #	ifdef STDIN_EOF
 #include <atomic>

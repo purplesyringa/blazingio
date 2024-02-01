@@ -17,6 +17,9 @@
 #include <signal.h>
 #	endif
 #include <sys/mman.h>
+#	ifndef MINIMIZE
+#include <unistd.h>
+#	endif
 
 #	if !defined(AVX2) && !defined(SSE41)
 #	define SIMD

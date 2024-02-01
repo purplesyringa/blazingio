@@ -46,7 +46,7 @@ blazingio = open("blazingio.hpp").read()
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
 blazingio = re.sub(r"^cpp#\t", "#", blazingio, flags=re.M)
-proc = subprocess.run(["cpp", "-P"] + [f"-D{opt}" for opt in opts], input=blazingio.encode(), capture_output=True, check=True)
+proc = subprocess.run(["cpp", "-P", "-DMINIMIZE"] + [f"-D{opt}" for opt in opts], input=blazingio.encode(), capture_output=True, check=True)
 blazingio = proc.stdout.decode()
 blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 

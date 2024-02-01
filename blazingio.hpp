@@ -120,7 +120,7 @@ struct blazingio_istream {
 #   endif
             file_size = 0;
             ssize_t n_read;
-            while ((n_read = read(0, base + file_size, BIG - file_size)) > 0) {
+            while ((n_read = read(0, base + file_size, alloc_size - file_size)) > 0) {
                 if ((file_size += n_read) == alloc_size) {
                     ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
                     alloc_size *= 2;
@@ -130,12 +130,11 @@ struct blazingio_istream {
             // Round to page size.
             (file_size += 4095) &= -4096;
             // We want SIGBUS instead of SIGSEGV, so mmap a file past the end.
-            ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, BIG) != MAP_FAILED)
-            ensure(munmap(base + file_size + 4096, BIG - file_size - 4096) != -1)
+            ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0) != MAP_FAILED)
+            ensure(munmap(base + file_size + 4096, alloc_size - file_size - 4096) != -1)
         }
-#   else
-        ptr = (NonAliasingChar*)base;
 #   endif
+        ptr = (NonAliasingChar*)base;
     }
 
 #   ifdef STDIN_EOF

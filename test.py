@@ -61,3 +61,9 @@ for test_name in os.listdir("tests"):
             with open("/tmp/blazingio-out-blazingio", "rb") as f:
                 with open("/tmp/blazingio-out-std", "rb") as f2:
                     assert f.read() == f2.read()
+        elif manifest["type"] == "exit-code":
+            print("    Compiling")
+            subprocess.run(["g++", f"tests/{test_name}/source.cpp", "-iquote", "."] + [f"-D{prop}" for prop in props], check=True)
+            print("    Running")
+            with open("/tmp/blazingio-test", "rb") as f:
+                subprocess.run(["./a.out"], stdin=f, check=True)

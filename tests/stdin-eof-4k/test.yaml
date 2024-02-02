@@ -1,0 +1,3 @@
+type: exit-code
+config:
+  stdin_eof: y

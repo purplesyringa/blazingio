@@ -487,23 +487,19 @@ struct blazingio_ostream {
 #   endif
     }
 
-    blazingio_ostream& operator<<(char value) {
+    void print(char value) {
         *ptr++ = value;
-        return *this;
     }
 #   ifdef CHAR_WITH_SIGN_IS_GLYPH
-    blazingio_ostream& operator<<(uint8_t value) {
+    void print(uint8_t value) {
         *ptr++ = value;
-        return *this;
     }
-    blazingio_ostream& operator<<(int8_t value) {
+    void print(int8_t value) {
         *ptr++ = value;
-        return *this;
     }
 #   endif
-    blazingio_ostream& operator<<(bool value) {
+    void print(bool value) {
         *ptr++ = '0' + value;
-        return *this;
     }
 
     template<typename T, int MinDigits, int MaxDigits, T Factor = 1>
@@ -515,10 +511,10 @@ struct blazingio_ostream {
 #   ifdef LUT
         } else if constexpr (MaxDigits == 2) {
             if (MinDigits >= 2 || value >= 10 * Factor) {
-                *ptr++ = decimal_lut[interval * 2];
+                print(decimal_lut[interval * 2]);
             }
             if (MinDigits >= 1 || value >= Factor) {
-                *ptr++ = decimal_lut[interval * 2 + 1];
+                print(decimal_lut[interval * 2 + 1]);
             }
 #   endif
         } else {
@@ -538,10 +534,10 @@ struct blazingio_ostream {
     }
 
     template<typename T, T = 1>
-    blazingio_ostream& operator<<(T value) {
+    void print(T value) {
         make_unsigned_t<T> abs = value;
         if (value < 0) {
-            *ptr++ = '-';
+            print('-');
             abs = -abs;
         }
         write_int_split<
@@ -549,14 +545,13 @@ struct blazingio_ostream {
             1,
             array{3, 5, 10, 20}[__builtin_ctz(sizeof(value))]
         >(abs, abs);
-        return *this;
     }
 
 #   ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
-    blazingio_ostream& operator<<(T value) {
+    void print(T value) {
         if (value < 0) {
-            *ptr++ = '-';
+            print('-');
             value = -value;
         }
         // At least it isn't \write18...
@@ -564,8 +559,7 @@ struct blazingio_ostream {
             write_int_split<uint64_t, 12, 12>(value * 1e12, value * 1e12);
         };
         if (!value) {
-            *ptr++ = '0';
-            return *this;
+            return print('0');
         }
         if (value >= 1e16) {
             value *= 1e-16;
@@ -574,63 +568,55 @@ struct blazingio_ostream {
                 value *= .1;
                 exponent++;
             }
-            *ptr++ = '0';
-            *ptr++ = '.';
+            print("0.");
             write12();
-            *ptr++ = 'e';
-            *this << exponent;
+            print('e');
+            print(exponent);
         } else if (value >= 1) {
             uint64_t whole = value;
-            *this << whole;
+            print(whole);
             if (value -= whole) {
-                *ptr++ = '.';
+                print('.');
                 write12();
             }
         } else {
-            *ptr++ = '0';
-            *ptr++ = '.';
+            print("0.");
             write12();
         }
-        return *this;
     }
 #   endif
 
-    blazingio_ostream& operator<<(const char* value) {
+    void print(const char* value) {
         // We'd prefer strcpy without null terminator here, but perhaps strcpy itself suffices. It's
         // also a builtin in GCC, which means outputting a constant string is going to be optimized
         // into a mov or two!
         ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
-        return *this;
     }
 #   ifdef CHAR_WITH_SIGN_IS_GLYPH
-    blazingio_ostream& operator<<(const uint8_t* value) {
-        *this << (char*)value;
-        return *this;
+    void print(const uint8_t* value) {
+        print((char*)value);
     }
-    blazingio_ostream& operator<<(const int8_t* value) {
-        *this << (char*)value;
-        return *this;
+    void print(const int8_t* value) {
+        print((char*)value);
     }
 #   endif
 
     // std::string is inferred from this:
-    blazingio_ostream& operator<<(string_view value) {
+    void print(string_view value) {
         memcpy(ptr, value.data(), value.size());
         ptr += value.size();
-        return *this;
     }
 
 #   ifdef COMPLEX
     template<typename T>
-    blazingio_ostream& operator<<(complex<T> value) {
+    void print(complex<T> value) {
         *this << '(' << value.real() << ',' << value.imag() << ')';
-        return *this;
     }
 #   endif
 
 #   ifdef BITSET
     template<size_t N>
-    SIMD blazingio_ostream& operator<<(const bitset<N>& value) {
+    SIMD void print(const bitset<N>& value) {
         auto i = N;
 #   ifdef AVX2
         while (i % 32) {
@@ -689,9 +675,14 @@ struct blazingio_ostream {
         }
         ptr = (NonAliasingChar*)p;
 #   endif
-        return *this;
     }
 #   endif
+
+    template<typename T>
+    blazingio_ostream& operator<<(const T& value) {
+        print(value);
+        return *this;
+    }
 
     blazingio_ostream& operator<<(blazingio_ostream& (*func)(blazingio_ostream&)) {
         return func(*this);

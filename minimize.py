@@ -70,6 +70,12 @@ def whitespace(s):
 blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
 
 
+# Replace character literals with their values
+blazingio = re.sub(
+    r"(?<!<<)(?<!print\()('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
+)
+
+
 def repl(s):
     # Replace identifiers
     for old, new in [
@@ -89,7 +95,7 @@ def repl(s):
         ("trace_non_whitespace", "C"),
         ("trace_line", "D"),
         ("init", "E"),
-        ("on_eof", "F"),
+        ("print", "F"),
         ("skip_whitespace", "G"),
         ("collect_digits", "H"),
         ("read_arithmetic", "I"),
@@ -177,11 +183,6 @@ def repl(s):
 
 blazingio = "".join(
     repl(part) if part[0] != '"' else part for part in re.split(r"(\".*?\")", blazingio)
-)
-
-# Replace character literals with their values
-blazingio = re.sub(
-    r"(?<!<<)('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
 )
 
 # Replace hexadecimal integer literals

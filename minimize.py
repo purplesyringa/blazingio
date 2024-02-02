@@ -165,6 +165,7 @@ def repl(s):
         "STDOUT_FILENO": 1,
         "SEEK_END": 2,
         "SPLICE_F_GIFT": 8,
+        "SIGBUS": 7,
     }
     const = "(" + "|".join(consts) + ")"
     s = re.sub(

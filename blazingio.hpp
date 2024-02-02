@@ -21,22 +21,12 @@
 #include <unistd.h>
 #   endif
 
-#   if !defined(AVX2) && !defined(SSE41)
-#   define SIMD
-#   else
-#   ifdef BITSET
 #   ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
-#   else
+#   elif defined(SSE41)
 #define SIMD __attribute__((target("sse4.1")))
-#   endif
 #   else
-#   ifdef AVX2
-#   define SIMD __attribute__((target("avx2")))
-#   else
-#   define SIMD __attribute__((target("sse4.1")))
-#   endif
-#   endif
+#   define SIMD
 #   endif
 
 #define ensure(x) if (!(x)) abort();

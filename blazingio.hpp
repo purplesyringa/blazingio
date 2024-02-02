@@ -59,7 +59,7 @@ const long BIG = 0x1000000000
 ;
 
 struct blazingio_istream {
-    off_t file_size = -1;
+    off_t file_size = BIG;
     char* base;
     NonAliasingChar* ptr;
 
@@ -424,6 +424,9 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
+        // SIGBUS handler might have modified file_size. We don't want to sprink this all over the
+        // library because this is the only place where it matters.
+        asm volatile("" : "+m"(file_size));
         return (char*)ptr > base + file_size;
     }
 #   endif
@@ -750,7 +753,7 @@ struct init {
     }
 
     static void on_sigbus(int, siginfo_t* info, void*) {
-        ensure(info->si_addr == std::blazingio_cin.base && std::blazingio_cin.file_size == -1);
+        ensure(info->si_addr == std::blazingio_cin.base && std::blazingio_cin.file_size == blazingio::BIG);
         std::blazingio_cin.init();
     }
 } blazingio_init;

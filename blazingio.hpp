@@ -68,17 +68,10 @@ struct blazingio_istream {
     char* base;
     NonAliasingChar* ptr;
 
-    explicit blazingio_istream() {
 #   ifdef LATE_BINDING
-        // Reserve some memory so that initialization doesn't change base and ptr and those don't
-        // have to be spilled at every read.
-        base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, fileno(tmpfile()), 0);
-        ensure(base != MAP_FAILED)
-        ptr = (NonAliasingChar*)base;
-    }
-
     void init() {
 #   else
+    explicit blazingio_istream() {
 #   endif
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
 #   ifdef PIPE
@@ -88,22 +81,14 @@ struct blazingio_istream {
 #   endif
             // Round to page size.
             (file_size += 4095) &= -4096;
-#   ifdef LATE_BINDING
-            ensure(mmap(base, file_size, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED)
-#   else
             base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
             ensure(base != MAP_FAILED)
-#   endif
             ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1)
 #   ifdef PIPE
         } else {
             size_t alloc_size = 16384;
-#   ifdef LATE_BINDING
-            ensure(mmap(base, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
-#   else
             base = (char*)mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
             ensure(base != MAP_FAILED)
-#   endif
             file_size = 0;
             ssize_t n_read;
             while ((n_read = read(0, base + file_size, alloc_size - file_size)) > 0) {

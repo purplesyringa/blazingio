@@ -13,9 +13,6 @@
 #include <immintrin.h>
 #   endif
 #include <limits>
-#   ifdef LATE_BINDING
-#include <signal.h>
-#   endif
 #include <sys/mman.h>
 #   ifndef MINIMIZE
 #include <unistd.h>
@@ -58,21 +55,30 @@ const long BIG = 0x1000000000
 #   endif
 ;
 
+struct line_t {
+    std::string& value;
+};
+
 struct blazingio_istream {
-    off_t file_size = BIG;
+#   ifdef LATE_BINDING
+    off_t file_size = -1;
+#   else
+    off_t file_size;
+#   endif
     char* base;
     NonAliasingChar* ptr;
 
     explicit blazingio_istream() {
 #   ifdef LATE_BINDING
-        // Reserve some memory, but delay actual read until first SIGBUS. This is because we want
-        // freopen to work.
+        // Reserve some memory so that initialization doesn't change base and ptr and those don't
+        // have to be spilled at every read.
         base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, fileno(tmpfile()), 0);
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
     }
 
     void init() {
+#   else
 #   endif
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
 #   ifdef PIPE
@@ -407,12 +413,41 @@ struct blazingio_istream {
     }
 #   endif
 
+    void input(line_t& line) {
+#   ifdef STDIN_EOF
+        if (*ptr) {
+#   endif
+            auto start = ptr;
+            trace_line();
+            // We know there's no overlap, so avoid doing this for a little bit of performance:
+            // value.value.assign((const char*)start, ptr - start);
+            ((basic_string<UninitChar>&)line.value).resize(ptr - start);
+            memcpy(line.value.data(), (char*)start, ptr - start);
+            ptr += *ptr == '\r';
+#   ifdef STDIN_EOF
+        } else {
+            // If we're on the null byte, it's EOF and we should signal that by putting ptr past the
+            // start of the guard page.
+            ptr = (NonAliasingChar*)base + file_size;
+        }
+#   endif
+        ptr++;
+    }
+
     template<typename T>
     blazingio_istream& operator>>(T& value) {
-        // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
-        // We expect short runs here, hence no vectorization.
-        while (0 <= *ptr && *ptr <= ' ') {
-            ptr++;
+#   ifdef LATE_BINDING
+        if (__builtin_expect(file_size == -1, 0)) {
+            init();
+        }
+#   endif
+
+        if (!is_same_v<T, line_t>) {
+            // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
+            // We expect short runs here, hence no vectorization.
+            while (0 <= *ptr && *ptr <= ' ') {
+                ptr++;
+            }
         }
 
         input(value);
@@ -424,9 +459,6 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        // SIGBUS handler might have modified file_size. We don't want to sprink this all over the
-        // library because this is the only place where it matters.
-        asm volatile("" : "+m"(file_size));
         return (char*)ptr > base + file_size;
     }
 #   endif
@@ -703,26 +735,9 @@ namespace std {
     blazingio::blazingio_ignoreostream blazingio_cerr;
 #   endif
 
-    blazingio::blazingio_istream& getline(blazingio::blazingio_istream& in, string& value) {
-#   ifdef STDIN_EOF
-        if (*in.ptr) {
-#   endif
-            auto start = in.ptr;
-            in.trace_line();
-            // We know there's no overlap, so avoid doing this for a little bit of performance:
-            // value.assign((const char*)start, in.ptr - start);
-            ((basic_string<blazingio::UninitChar>&)value).resize(in.ptr - start);
-            memcpy(value.data(), (char*)start, in.ptr - start);
-            in.ptr += *in.ptr == '\r';
-#   ifdef STDIN_EOF
-        } else {
-            // If we're on the null byte, it's EOF and we should signal that by putting ptr past the
-            // start of the guard page.
-            in.ptr = (blazingio::NonAliasingChar*)in.base + in.file_size;
-        }
-#   endif
-        in.ptr++;
-        return in;
+    blazingio::blazingio_istream& getline(blazingio::blazingio_istream& stream, string& value) {
+        blazingio::line_t line{value};
+        return stream >> line;
     }
 
     blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
@@ -741,23 +756,6 @@ namespace std {
     }
 #   endif
 }
-
-#   ifdef LATE_BINDING
-struct init {
-    init() {
-        struct sigaction act;
-        act.sa_sigaction = on_sigbus;
-        sigemptyset(&act.sa_mask);
-        act.sa_flags = SA_SIGINFO;
-        sigaction(SIGBUS, &act, NULL);
-    }
-
-    static void on_sigbus(int, siginfo_t* info, void*) {
-        ensure(info->si_addr == std::blazingio_cin.base && std::blazingio_cin.file_size == blazingio::BIG);
-        std::blazingio_cin.init();
-    }
-} blazingio_init;
-#   endif
 
 #define cin blazingio_cin
 #define cout blazingio_cout

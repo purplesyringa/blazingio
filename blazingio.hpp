@@ -1,9 +1,6 @@
 #   ifndef NO_BLAZINGIO
 
 #include <array>
-#   ifdef STDIN_EOF
-#include <atomic>
-#   endif
 #   ifdef BITSET
 #include <bitset>
 #   endif
@@ -16,7 +13,7 @@
 #include <immintrin.h>
 #   endif
 #include <limits>
-#   if defined(STDIN_EOF) || defined(LATE_BINDING)
+#   ifdef LATE_BINDING
 #include <signal.h>
 #   endif
 #include <sys/mman.h>
@@ -62,11 +59,6 @@ struct NonAliasingChar {
     }
 };
 
-#   if defined(PIPE) && defined(LATE_BINDING)
-int empty_fd = fileno(tmpfile());
-#   elif defined(PIPE) || defined(LATE_BINDING)
-#   define empty_fd fileno(tmpfile())
-#   endif
 const long BIG = 0x1000000000
 #   ifdef BITSET
 , ONE_BYTES = -1ULL / 255
@@ -80,15 +72,12 @@ struct blazingio_istream {
     off_t file_size = -1;
     char* base;
     NonAliasingChar* ptr;
-#   ifdef STDIN_EOF
-    atomic_bool is_ok = true;
-#   endif
 
     explicit blazingio_istream() {
 #   ifdef LATE_BINDING
         // Reserve some memory, but delay actual read until first SIGBUS. This is because we want
         // freopen to work.
-        base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, empty_fd, 0);
+        base = (char*)mmap(NULL, BIG, PROT_READ, MAP_PRIVATE, fileno(tmpfile()), 0);
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
     }
@@ -103,10 +92,8 @@ struct blazingio_istream {
 #   endif
             // Round to page size.
             (file_size += 4095) &= -4096;
-            // Map one more page than necessary so that SIGBUS is triggered soon after the end of
-            // file.
 #   ifdef LATE_BINDING
-            ensure(mmap(base, file_size + 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED)
+            ensure(mmap(base, file_size, PROT_READ, MAP_PRIVATE | MAP_FIXED, STDIN_FILENO, 0) != MAP_FAILED)
 #   else
             base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
             ensure(base != MAP_FAILED)
@@ -124,7 +111,8 @@ struct blazingio_istream {
             file_size = 0;
             ssize_t n_read;
             while ((n_read = read(0, base + file_size, alloc_size - file_size)) > 0) {
-                if ((file_size += n_read) == alloc_size) {
+                // We always want at least 1 free page
+                if ((file_size += n_read) > alloc_size - 4096) {
                     ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
                     alloc_size *= 2;
                 }
@@ -132,28 +120,23 @@ struct blazingio_istream {
             ensure(n_read != -1)
             // Round to page size.
             (file_size += 4095) &= -4096;
-            // We want SIGBUS instead of SIGSEGV, so mmap a file past the end.
-            ensure(mmap(base + file_size, 4096, PROT_READ, MAP_PRIVATE | MAP_FIXED, empty_fd, 0) != MAP_FAILED)
             ensure(munmap(base + file_size + 4096, alloc_size - file_size - 4096) != -1)
         }
 #   endif
+        // Map one more anonymous page to handle attempts to read beyond EOF of stdin gracefully.
+        // This would happen either in skip_whitespace, or in a generic input procedure. In the
+        // former case, the right thing to do is stop the loop by encountering a non-space
+        // character; in the latter case, the right thing to do is to stop the loop by encountering
+        // a space character. Something like "\00" works for both cases: it stops (for instance)
+        // integer parsing immediately with a zero, and also stops whitespace parsing *soon*.
+        ensure(mmap(base + file_size, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
+#   ifdef STDIN_EOF
+        // We only really need to do this if we're willing to keep going "after" EOF, not just
+        // handle 4k-aligned non-whitespace-terminated input.
+        base[file_size + 1] = '0';
+#   endif
         ptr = (NonAliasingChar*)base;
     }
-
-#   ifdef STDIN_EOF
-    void on_eof() {
-        // Attempt to read beyond end of stdin. This happens either in skip_whitespace, or in a
-        // generic input procedure. In the former case, the right thing to do is stop the loop by
-        // encountering a non-space character; in the latter case, the right thing to do is to stop
-        // the loop by encountering a space character. Something like "\00" works for both cases: it
-        // stops (for instance) integer parsing immediately with a zero, and also stops whitespace
-        // parsing *soon*.
-        char* p = base + file_size;
-        ensure(mmap(p, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
-        p[1] = '0';
-        is_ok = false;
-    }
-#   endif
 
     // For people writing cie.tie(0);
     void* tie(nullptr_t) {
@@ -458,10 +441,10 @@ struct blazingio_istream {
 
 #   ifdef STDIN_EOF
     operator bool() {
-        return is_ok;
+        return !!*this;
     }
     bool operator!() {
-        return !is_ok;
+        return (char*)ptr > base + file_size;
     }
 #   endif
 };
@@ -757,12 +740,14 @@ namespace std {
             ((basic_string<blazingio::UninitChar>&)value).resize(in.ptr - start);
             memcpy(value.data(), (char*)start, in.ptr - start);
             in.ptr += *in.ptr == '\r';
-            in.ptr++;
 #   ifdef STDIN_EOF
         } else {
-            in.is_ok = false;
+            // If we're on the null byte, it's EOF and we should signal that by putting ptr past the
+            // start of the guard page.
+            in.ptr = (blazingio::NonAliasingChar*)in.base + in.file_size;
         }
 #   endif
+        in.ptr++;
         return in;
     }
 
@@ -783,7 +768,7 @@ namespace std {
 #   endif
 }
 
-#   if defined(LATE_BINDING) || defined(STDIN_EOF)
+#   ifdef LATE_BINDING
 struct init {
     init() {
         struct sigaction act;
@@ -794,20 +779,8 @@ struct init {
     }
 
     static void on_sigbus(int, siginfo_t* info, void*) {
-        using namespace std;
-#   ifdef LATE_BINDING
-        if (info->si_addr == blazingio_cin.base && blazingio_cin.file_size == -1) {
-            blazingio_cin.init();
-        } else
-#   endif
-#   ifdef STDIN_EOF
-        if (info->si_addr == blazingio_cin.base + blazingio_cin.file_size) {
-            blazingio_cin.on_eof();
-        } else
-#   endif
-        {
-            ensure(false)
-        }
+        ensure(info->si_addr == std::blazingio_cin.base && std::blazingio_cin.file_size == -1);
+        std::blazingio_cin.init();
     }
 } blazingio_init;
 #   endif

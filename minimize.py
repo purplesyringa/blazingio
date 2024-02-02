@@ -131,7 +131,7 @@ def repl(s):
         ("vec2", "r"),
         ("vec", "s"),
         ("mask", "t"),
-        ("fd_exe", "u"),
+        ("input", "u"),
         ("iov", "v"),
         ("alloc_size", "w"),
         ("n_read", "y"),

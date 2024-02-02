@@ -114,7 +114,7 @@ struct blazingio_istream {
         }
 #   endif
         // Map one more anonymous page to handle attempts to read beyond EOF of stdin gracefully.
-        // This would happen either in skip_whitespace, or in a generic input procedure. In the
+        // This would happen either in operator>> while skipping whitespace, or in input(). In the
         // former case, the right thing to do is stop the loop by encountering a non-space
         // character; in the latter case, the right thing to do is to stop the loop by encountering
         // a space character. Something like "\00" works for both cases: it stops (for instance)
@@ -131,14 +131,6 @@ struct blazingio_istream {
     // For people writing cie.tie(0);
     void* tie(nullptr_t) {
         return NULL;
-    }
-
-    void skip_whitespace() {
-        // 0..' ' are not all whitespace, but we only care about well-formed input
-        // We expect short runs here, hence no vectorization
-        while (0 <= *ptr && *ptr <= ' ') {
-            ptr++;
-        }
     }
 
     SIMD void trace_non_whitespace() {
@@ -255,7 +247,7 @@ struct blazingio_istream {
     }
 
     template<typename T, T = 1>
-    void read_arithmetic(T& x) {
+    void input(T& x) {
         bool negative = is_signed_v<T> && *ptr == '-';
         ptr += negative;
         collect_digits(x = 0);
@@ -266,13 +258,13 @@ struct blazingio_istream {
 
 #   ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
-    void read_arithmetic(T& x) {
+    void input(T& x) {
         bool negative = *ptr == '-';
         ptr += negative;
         ptr += *ptr == '+';
         auto start = ptr;
         uint64_t n;
-        read_arithmetic(n);
+        input(n);
         int exponent = 20;  // Offset by 20, for reasons
         if (*ptr == '.') {
             auto after_dot = ++ptr;
@@ -293,7 +285,7 @@ struct blazingio_istream {
             ptr++;
             ptr += *ptr == '+';
             int new_exponent;
-            read_arithmetic(new_exponent);
+            input(new_exponent);
             exponent += new_exponent;
         }
         if (0 <= exponent && exponent < 41) {
@@ -323,72 +315,59 @@ struct blazingio_istream {
     }
 #   endif
 
-    void read_arithmetic(bool& x) {
+    void input(bool& x) {
         x = *ptr++ == '1';
     }
-    void read_arithmetic(char& x) {
+    void input(char& x) {
         x = *ptr++;
     }
 
 #   ifdef CHAR_WITH_SIGN_IS_GLYPH
-    void read_arithmetic(uint8_t& x) {
+    void input(uint8_t& x) {
         x = *ptr++;
     }
-    void read_arithmetic(int8_t& x) {
+    void input(int8_t& x) {
         x = *ptr++;
     }
 #   endif
 
-    template<typename T, int = numeric_limits<T>::radix>
-    blazingio_istream& operator>>(T& value) {
-        skip_whitespace();
-        read_arithmetic(value);
-        return *this;
-    }
-
-    blazingio_istream& operator>>(string& value) {
-        skip_whitespace();
+    void input(string& value) {
         auto start = ptr;
         trace_non_whitespace();
         // We know there's no overlap, so avoid doing this for a little bit of performance:
         // value.assign((const char*)start, ptr - start);
         ((basic_string<UninitChar>&)value).resize(ptr - start);
         memcpy(value.data(), start, ptr - start);
-        return *this;
     }
 
 #   ifdef COMPLEX
     template<typename T>
-    blazingio_istream& operator>>(complex<T>& value) {
-        skip_whitespace();
+    void input(complex<T>& value) {
         T real_part, imag_part{};
         if (*ptr == '(') {
             ptr++;
-            read_arithmetic(real_part);
+            input(real_part);
             if (*ptr++ == ',') {
-                skip_whitespace();
-                read_arithmetic(imag_part);
+                *this >> imag_part;
                 ptr++;
             }
         } else {
-            read_arithmetic(real_part);
+            input(real_part);
         }
         value = {real_part, imag_part};
-        return *this;
     }
 #   endif
 
 #   ifdef BITSET
     template<size_t N>
-    SIMD blazingio_istream& operator>>(bitset<N>& value) {
-        skip_whitespace();
+    SIMD void input(bitset<N>& value) {
 #   ifdef STDIN_EOF
         // As we always read N bytes, we might read past the end of the file in case EOF happens.
         // Luckily, we are allowed to overread up to 4095 bytes after EOF (because there's a
         // 4096-page and its second byte is non-whitespace). Therefore, we only have to check for
         // EOF for large enough N, and in this case the overhead is small enough.
         if (N >= 4096 && !*this) {
-            return *this;
+            return;
         }
 #   endif
         auto i = N;
@@ -425,9 +404,20 @@ struct blazingio_istream {
         }
         ptr = (NonAliasingChar*)p;
 #   endif
-        return *this;
     }
 #   endif
+
+    template<typename T>
+    blazingio_istream& operator>>(T& value) {
+        // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
+        // We expect short runs here, hence no vectorization.
+        while (0 <= *ptr && *ptr <= ' ') {
+            ptr++;
+        }
+
+        input(value);
+        return *this;
+    }
 
 #   ifdef STDIN_EOF
     operator bool() {

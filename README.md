@@ -5,7 +5,7 @@
 
 ## How do I use this in produciton?
 
-You don't. For the love of god, don't use this anywhere but for programming competitions. If "**IT CAN TRIGGER ANY SORT OF UB ON INVALID INPUT, INCLUDING SECURITY VULNERABILITIES**" was not obvious enough, maybe consider that it overrides signal handlers by design.
+You don't. For the love of god, don't use this library anywhere but for programming competitions. **IT CAN TRIGGER ANY SORT OF UB ON INVALID INPUT, INCLUDING SECURITY VULNERABILITIES**.
 
 
 ## I'm really just a Codeforces participant, how do I use this?
@@ -181,8 +181,6 @@ Similar considerations apply to `std::cout`. Most types can be written, although
 - `precision` and `width` are not handled.
 
 It also goes without saying that you won't be able to use this library if you can't or aren't allowed to use external code.
-
-Finally, this library overrides SIGBUS handler in some cases (namely, if `stdin_eof` or `late_binding` are set in config), so if you rely on that signal, you'll need to patch blazingio.
 
 
 ## Other features

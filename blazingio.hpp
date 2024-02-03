@@ -15,6 +15,7 @@
 #include <limits>
 #include <sys/mman.h>
 #   ifndef MINIMIZE
+#include <sys/syscall.h>
 #include <unistd.h>
 #   endif
 
@@ -59,6 +60,8 @@ struct line_t {
     std::string& value;
 };
 
+static NonAliasingChar buffer[65536];
+
 #   ifdef INTERACTIVE
 template<bool Interactive>
 struct istream_impl {
@@ -100,7 +103,7 @@ struct blazingio_istream {
 #   ifdef INTERACTIVE
     void init_assume_interactive() {
         // Simulate non-empty file, as we don't yet know if we're at EOF
-        end = ptr = (NonAliasingChar*)malloc(65536) + 1;
+        end = ptr = buffer + 1;
         file_size = 1;
     }
 #   endif
@@ -117,16 +120,65 @@ struct blazingio_istream {
 
     void fetch() {
         if (Interactive && __builtin_expect(ptr == end, 0)) {
-            file_size = read(STDIN_FILENO, ptr = end - file_size, 65536);
+            // There's a bit of ridiculous code with questionable choices below. What we *want* is:
+            //     file_size = read(STDIN_FILENO, buffer, 65536);
+            // Unfortunately, read() is an external call, which means it can override globals. Even
+            // though blazingio_cin is static, there's no guarantee read() doesn't map to a symbol
+            // from the same translation unit, so GCC assumes read() may read or modify ptr, end, or
+            // file_size. This causes it to spill the values to memory in the hot loop, which is a
+            // bad-bad thing. Therefore we have to avoid the call to read() and roll our own inline
+            // assembly. The *obvious* way to write that is
+            //     file_size = SYS_read;
+            //     asm volatile(
+            //         "syscall"
+            //         : "+a"(file_size)
+            //         : "D"(STDIN_FILENO), "S"(buffer), "d"(65536)
+            //         : "rcx", "r11", "memory"
+            //     );
+            // ...but that suffers from the same consequences as the call to read() because of the
+            // memory clobber. The second-most obvious way to rewrite this is documented by GCC as
+            //     file_size = SYS_read;
+            //     asm volatile(
+            //         "syscall"
+            //         : "+a"(file_size), "+m"(buffer)
+            //         : "D"(STDIN_FILENO), "S"(buffer), "d"(65536)
+            //         : "rcx", "r11"
+            //     );
+            // ...which should theoretically be optimal because 'buffer' is of type
+            // NonAliasingChar[], meaning it can't alias with ptr and other fields. Unfortunately,
+            // that doesn't work *either* because of a missed optimization that hasn't been fixed
+            // for years (see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=63900), so we sort of
+            // have to resort to UB and compiler-specific optimizations here. We thus remove any
+            // mention of clobbering anything NonAliasingChar-related and simulate the behavior "as
+            // if" the buffer was *reallocated* on each read by telling GCC that the syscall might
+            // change 'ptr' (it actually won't, but GCC won't be able to misoptimize based on this):
+            //     ptr = buffer;
+            //     file_size = SYS_read;
+            //     asm volatile(
+            //         "syscall"
+            //         : "+a"(file_size), "+S"(ptr)
+            //         : "D"(STDIN_FILENO), "d"(65536)
+            //         : "rcx", "r11"
+            //     );
+            // UNFORTUNATELY, this doesn't work *either* due to *yet another* missed optimization:
+            // even though file_size and ptr are clearly loaded into registers, GCC assumes memory
+            // might still be modified, so we have to load file_size and ptr into local variables
+            // and then put them back, like this:
+            off_t rax = SYS_read;
+            NonAliasingChar* rsi = buffer;
+            asm volatile("syscall" : "+a"(rax), "+S"(rsi) : "D"(STDIN_FILENO), "d"(65536) : "rcx", "r11");
+            ensure(rax >= 0)
+            file_size = rax;
+            ptr = rsi;
             end = ptr + file_size;
 #   ifdef STDIN_EOF
             if (!file_size) {
                 // This is an attempt to read past EOF. Simulate this just like with files, with
-                // "\00".
-                *ptr = '0';
-                ptr[1] = 0;
-                // We want ptr == end to evaluate to false. Leaking a 64k buffer is not that big of
-                // a deal, so...
+                // "\00". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
+                // confuses GCC's optimizer for some reason.
+                buffer[0] = '0';
+                buffer[1] = 0;
+                // We want ptr == end to evaluate to false.
                 end = NULL;
             }
 #   endif

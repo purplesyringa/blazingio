@@ -59,14 +59,23 @@ struct line_t {
     std::string& value;
 };
 
+#   ifdef INTERACTIVE
+template<bool Interactive>
+struct istream_impl {
+#   else
 struct blazingio_istream {
+#   endif
     off_t file_size;
     char* base;
     NonAliasingChar* ptr;
 
+#   ifdef INTERACTIVE
+    void init_assume_file() {
+#   else
     explicit blazingio_istream() {
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(file_size != -1)
+#   endif
         // Round to page size.
         (file_size += 4095) &= -4096;
         base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
@@ -87,21 +96,55 @@ struct blazingio_istream {
         ptr = (NonAliasingChar*)base;
     }
 
+#   ifdef INTERACTIVE
+    void init_assume_interactive() {
+        base = (char*)malloc(65536);
+        // Simulate non-empty file, as we don't yet know if we're at EOF
+        ptr = (NonAliasingChar*)base + 1;
+        file_size = 1;
+    }
+#   endif
+
+#   ifndef INTERACTIVE
     // For people writing cie.tie(0);
     void* tie(nullptr_t) {
         return NULL;
     }
+#   endif
+
+#   ifdef INTERACTIVE
+#define FETCH fetch(),
+
+    void fetch() {
+        if (Interactive && __builtin_expect((char*)ptr == base + file_size, 0)) {
+            file_size = read(STDIN_FILENO, ptr = (NonAliasingChar*)base, 65536);
+#   ifdef STDIN_EOF
+            if (!file_size) {
+                // This is an attempt to read past EOF. Simulate this just like with files, with
+                // "\00".
+                *ptr = '0';
+                ptr[1] = 0;
+                // We want ptr == base + file_size to evaluate to false. Leaking a 64k buffer is not
+                // that big of a deal, so...
+                base = NULL;
+            }
+#   endif
+        }
+    }
+#   else
+#   define FETCH
+#   endif
 
     template<typename T>
     void collect_digits(T& x) {
-        while ((*ptr & 0xf0) == 0x30) {
+        while (FETCH (*ptr & 0xf0) == 0x30) {
             x = x * 10 + (*ptr++ - '0');
         }
     }
 
     template<typename T, T = 1>
     void input(T& x) {
-        bool negative = is_signed_v<T> && *ptr == '-';
+        bool negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
         if (negative) {
@@ -169,18 +212,18 @@ struct blazingio_istream {
 #   endif
 
     void input(bool& x) {
-        x = *ptr++ == '1';
+        x = FETCH *ptr++ == '1';
     }
     void input(char& x) {
-        x = *ptr++;
+        x = FETCH *ptr++;
     }
 
 #   ifdef CHAR_WITH_SIGN_IS_GLYPH
     void input(uint8_t& x) {
-        x = *ptr++;
+        x = FETCH *ptr++;
     }
     void input(int8_t& x) {
-        x = *ptr++;
+        x = FETCH *ptr++;
     }
 #   endif
 
@@ -226,10 +269,10 @@ struct blazingio_istream {
     template<typename T>
     void input(complex<T>& value) {
         T real_part, imag_part{};
-        if (*ptr == '(') {
+        if (FETCH *ptr == '(') {
             ptr++;
             input(real_part);
-            if (*ptr++ == ',') {
+            if (FETCH *ptr++ == ',') {
                 *this >> imag_part;
                 ptr++;
             }
@@ -255,7 +298,7 @@ struct blazingio_istream {
         auto i = N;
 #   ifdef AVX2
         while (i % 32) {
-            value[--i] = *ptr++ == '1';
+            value[--i] = FETCH *ptr++ == '1';
         }
         auto p = (__m256i*)ptr;
         i /= 32;
@@ -349,17 +392,23 @@ struct blazingio_istream {
     }
 
     template<typename T>
+#   ifdef INTERACTIVE
+    void rshift_impl(T& value) {
+#   else
     blazingio_istream& operator>>(T& value) {
+#   endif
         if (!is_same_v<T, line_t>) {
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
             // We expect short runs here, hence no vectorization.
-            while (0 <= *ptr && *ptr <= ' ') {
+            while (FETCH 0 <= *ptr && *ptr <= ' ') {
                 ptr++;
             }
         }
 
         input(value);
+#   ifndef INTERACTIVE
         return *this;
+#   endif
     }
 
 #   ifdef STDIN_EOF
@@ -371,6 +420,50 @@ struct blazingio_istream {
     }
 #   endif
 };
+
+#   ifdef INTERACTIVE
+struct blazingio_istream {
+    istream_impl<false> file;
+    istream_impl<true> interactive;
+
+    explicit blazingio_istream() {
+        file.file_size = lseek(STDIN_FILENO, 0, SEEK_END);
+        if (file.file_size == -1) {
+            interactive.init_assume_interactive();
+        } else {
+            file.init_assume_file();
+        }
+    }
+
+    // For people writing cie.tie(0);
+    void* tie(nullptr_t) {
+        return NULL;
+    }
+
+    template<typename T>
+    blazingio_istream& operator>>(T& value) {
+        if (__builtin_expect(file.file_size == -1, 0)) {
+            interactive.rshift_impl(value);
+        } else {
+            file.rshift_impl(value);
+        }
+        return *this;
+    }
+
+#   ifdef STDIN_EOF
+    operator bool() {
+        return !!*this;
+    }
+    bool operator!() {
+        if (__builtin_expect(file.file_size == -1, 0)) {
+            return !interactive;
+        } else {
+            return !file;
+        }
+    }
+#   endif
+};
+#   endif
 
 struct blazingio_ostream {
     char* base;

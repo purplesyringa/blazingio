@@ -104,7 +104,7 @@ def repl(s):
         ("space", "D"),
         ("init_assume_file", "E"),
         ("print", "F"),
-        ("again", "G"),
+        ("do_flush", "G"),
         ("collect_digits", "H"),
         ("do_init", "I"),
         ("stream", "J"),

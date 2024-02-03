@@ -543,26 +543,36 @@ struct blazingio_ostream {
 #   endif
     }
     ~blazingio_ostream() {
+#   ifdef INTERACTIVE
+        do_flush();
+    }
+
+    void do_flush() {
+#   endif
+        auto start = base;
 #   ifdef SPLICE
         ssize_t n_written = 1;
         while (n_written > 0) {
-            iovec iov{base, (size_t)ptr - (size_t)base};
-            base += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
+            iovec iov{start, (size_t)ptr - (size_t)start};
+            start += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
         }
         // Perhaps not a pipe?
         if (n_written) {
-            base++;
+            start++;
             do {
-                base += (n_written = write(STDOUT_FILENO, base, (char*)ptr - base));
+                start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
             } while (n_written > 0);
             ensure(~n_written)
         }
 #   else
         ssize_t n_written = 1;
         while (n_written > 0) {
-            base += (n_written = write(STDOUT_FILENO, base, (char*)ptr - base));
+            start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
         }
         ensure(~n_written)
+#   endif
+#   ifdef INTERACTIVE
+        ptr = (NonAliasingChar*)base;
 #   endif
     }
 
@@ -794,12 +804,24 @@ namespace std {
         return stream >> line;
     }
 
-    blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
-        return stream << '\n';
+#   ifdef INTERACTIVE
+    blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
+        if (__builtin_expect(blazingio_cin.file.file_size == -1, 0)) {
+            stream.do_flush();
+        }
+        return stream;
     }
+    blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
+        return stream << '\n' << flush;
+    }
+#   else
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
         return stream;
     }
+    blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
+        return stream << '\n';
+    }
+#   endif
 
 #   ifdef CERR
     blazingio::blazingio_ignoreostream& endl(blazingio::blazingio_ignoreostream& stream) {

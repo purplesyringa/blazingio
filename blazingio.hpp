@@ -214,31 +214,39 @@ struct blazingio_istream {
 #   ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
     INLINE void input(T& x) {
-        bool negative = *ptr == '-';
+        bool negative = (FETCH *ptr == '-');
         ptr += negative;
-        ptr += *ptr == '+';
-        auto start = ptr;
-        uint64_t n;
-        input(n);
+        FETCH ptr += *ptr == '+';
+
+        uint64_t n = 0;
+        int i = 0;
+        for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++) {
+            n = n * 10 + *ptr++ - '0';
+        }
         int exponent = 20;  // Offset by 20, for reasons
-        if (*ptr == '.') {
-            auto after_dot = ++ptr;
-            collect_digits(n);
-            exponent += after_dot - ptr;
+        bool has_dot = *ptr;
+        ptr += has_dot;
+        for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++) {
+            n = n * 10 + *ptr++ - '0';
+            exponent -= has_dot;
         }
         x = n;
-        if (ptr - start >= 19) {
-            ptr = start;
-            x = 0;
-            collect_digits(x);
-            if (*ptr == '.') {
-                ptr++;
-                collect_digits(x);
-            }
+        while ((FETCH *ptr & 0xf0) == 0x30) {
+            x = n * 10 + *ptr++ - '0';
+            exponent -= has_dot;
         }
+        if (*ptr == '.') {
+            ptr++;
+            has_dot = true;
+        }
+        while ((FETCH *ptr & 0xf0) == 0x30) {
+            x = n * 10 + *ptr++ - '0';
+            exponent -= has_dot;
+        }
+
         if ((*ptr | 0x20) == 'e') {
             ptr++;
-            ptr += *ptr == '+';
+            FETCH ptr += *ptr == '+';
             int new_exponent;
             input(new_exponent);
             exponent += new_exponent;

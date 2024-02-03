@@ -92,77 +92,6 @@ struct blazingio_istream {
         return NULL;
     }
 
-    SIMD void trace_non_whitespace() {
-        // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-        // interleave ptr modification with SIMD loading, there's going to be an extra memory write
-        // on every iteration.
-#   ifdef AVX2
-        auto p = (__m256i*)ptr;
-        __m256i vec, space = _mm256_set1_epi8(' ');
-        while (
-            vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
-            _mm256_testz_si256(vec, vec)
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
-#   elif defined(SSE41)
-        auto p = (__m128i*)ptr;
-        __m128i vec, space = _mm_set1_epi8(' ');
-        while (
-            vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
-            _mm_testz_si128(vec, vec)
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
-#   else
-        while (*ptr < 0 || *ptr > ' ') {
-            ptr++;
-        }
-#   endif
-    }
-
-    SIMD void trace_line() {
-        // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-        // interleave ptr modification with SIMD loading, there's going to be an extra memory write
-        // on every iteration.
-#   ifdef AVX2
-        auto p = (__m256i*)ptr;
-        auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
-        __m256i vec, vec1, vec2;
-        while (
-            vec = _mm256_loadu_si256(p),
-            _mm256_testz_si256(
-                vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
-                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
-            )
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-#   elif defined(SSE41)
-        auto p = (__m128i*)ptr;
-        __m128i vec, vec1, vec2;
-        while (
-            vec = _mm_loadu_si128(p),
-            _mm_testz_si128(
-                vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
-                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
-            )
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-#   else
-        while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
-            ptr++;
-        }
-#   endif
-    }
-
     template<typename T>
     void collect_digits(T& x) {
         while ((*ptr & 0xf0) == 0x30) {
@@ -255,9 +184,38 @@ struct blazingio_istream {
     }
 #   endif
 
-    void input(string& value) {
+    SIMD void input(string& value) {
         auto start = ptr;
-        trace_non_whitespace();
+
+        // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+        // interleave ptr modification with SIMD loading, there's going to be an extra memory write
+        // on every iteration.
+#   ifdef AVX2
+        auto p = (__m256i*)ptr;
+        __m256i vec, space = _mm256_set1_epi8(' ');
+        while (
+            vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
+            _mm256_testz_si256(vec, vec)
+        ) {
+            p++;
+        }
+        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
+#   elif defined(SSE41)
+        auto p = (__m128i*)ptr;
+        __m128i vec, space = _mm_set1_epi8(' ');
+        while (
+            vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
+            _mm_testz_si128(vec, vec)
+        ) {
+            p++;
+        }
+        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
+#   else
+        while (*ptr < 0 || *ptr > ' ') {
+            ptr++;
+        }
+#   endif
+
         // We know there's no overlap, so avoid doing this for a little bit of performance:
         // value.assign((const char*)start, ptr - start);
         ((basic_string<UninitChar>&)value).resize(ptr - start);
@@ -331,12 +289,50 @@ struct blazingio_istream {
     }
 #   endif
 
-    void input(line_t& line) {
+    SIMD void input(line_t& line) {
 #   ifdef STDIN_EOF
         if (*ptr) {
 #   endif
             auto start = ptr;
-            trace_line();
+
+            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+            // interleave ptr modification with SIMD loading, there's going to be an extra memory
+            // write on every iteration.
+#   ifdef AVX2
+            auto p = (__m256i*)ptr;
+            auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
+            __m256i vec, vec1, vec2;
+            while (
+                vec = _mm256_loadu_si256(p),
+                _mm256_testz_si256(
+                    vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
+                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                    vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
+                )
+            ) {
+                p++;
+            }
+            ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
+#   elif defined(SSE41)
+            auto p = (__m128i*)ptr;
+            __m128i vec, vec1, vec2;
+            while (
+                vec = _mm_loadu_si128(p),
+                _mm_testz_si128(
+                    vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
+                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                    vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
+                )
+            ) {
+                p++;
+            }
+            ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
+#   else
+            while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
+                ptr++;
+            }
+#   endif
+
             // We know there's no overlap, so avoid doing this for a little bit of performance:
             // value.value.assign((const char*)start, ptr - start);
             ((basic_string<UninitChar>&)line.value).resize(ptr - start);

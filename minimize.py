@@ -56,7 +56,7 @@ def whitespace(s):
         if rest:
             s += " " + whitespace(rest[0])
         return s
-    for _ in range(2):
+    for _ in range(3):
         s = re.sub(r"([^a-zA-Z0-9_$])\s+(\S)", r"\1\2", s)
         s = re.sub(r"(\S)\s+([^a-zA-Z0-9_$])", r"\1\2", s)
     s = s.replace("\n", " ")
@@ -89,21 +89,24 @@ def repl(s):
         ("ensure", "E$"),
         ("blazingio", "$f"),
         ("SIMD", "$s"),
+        ("INLINE", "$I"),
+        ("FETCH", "$F"),
         ("typename", "class"),
         ("UninitChar", "A"),
         ("NonAliasingChar", "B"),
-        ("trace_non_whitespace", "C"),
-        ("trace_line", "D"),
-        ("init", "E"),
+        ("buffer", "C"),
+        ("space", "D"),
+        ("init_assume_file", "E"),
         ("print", "F"),
         ("again", "G"),
         ("collect_digits", "H"),
         ("do_init", "I"),
         ("stream", "J"),
         ("ptr", "K"),
-        ("on_sigbus", "L"),
+        ("init_assume_interactive", "L"),
         ("file_size", "M"),
         ("base", "N"),
+        ("end", "l"),
         ("value", "O"),
         ("abs", "P"),
         ("coeff", "Q"),
@@ -133,15 +136,20 @@ def repl(s):
         ("mask", "t"),
         ("input", "u"),
         ("iov", "v"),
-        ("alloc_size", "w"),
+        ("Interactive", "w"),
         ("n_read", "y"),
-        ("fd", "q"),
+        ("rax", "q"),
         ("Inner", "q"),
         ("empty_fd", "U"),
         ("write12", "w"),
         ("new_exponent", "k"),
+        ("rsi", "k"),
+        ("file", "k"),
+        ("interactive", "w"),
+        ("rshift_impl", "t"),
         ("real_part", "w"),
         ("imag_part", "q"),
+        ("istream_impl", "q"),
         ("ONE_BYTES", "Z"),
         ("BITSET_SHIFT", "q"),
         ("BIG", "k"),
@@ -172,6 +180,7 @@ def repl(s):
         "SEEK_END": 2,
         "SPLICE_F_GIFT": 8,
         "SIGBUS": 7,
+        "SYS_read": 0,
     }
     const = "(" + "|".join(consts) + ")"
     s = re.sub(

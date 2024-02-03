@@ -31,6 +31,11 @@ complex=y
 # unsure.
 splice=y
 
+# Whether to support inputs other than regular files, mostly useful for interactive tasks and local
+# debugging. Using 'n' will cause the program to crash unless run with redirected input. Using 'y'
+# will increase code size significantly. Choose 'y' if unsure.
+interactive=y
+
 # Whether to support graceful end-of-file handling on stdin. Namely, 'while (std::cin >> ...)'
 # syntax is only allowed with this option set. This EOF handling is not fully compatible with std:
 # reading from a EOF pipe twice will cause crashes, so you would need to terminate immediately.

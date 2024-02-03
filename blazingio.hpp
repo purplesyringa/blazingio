@@ -31,6 +31,10 @@
 // otherwise it resorts to way too many memory accesses.
 #define INLINE __attribute__((always_inline))
 
+#   ifdef INTERACTIVE
+#define FETCH fetch(),
+#   endif
+
 #define ensure(x) if (!(x)) abort();
 
 namespace blazingio {
@@ -64,9 +68,9 @@ struct line_t {
     std::string& value;
 };
 
+#   ifdef INTERACTIVE
 static NonAliasingChar buffer[65536];
 
-#   ifdef INTERACTIVE
 template<bool Interactive>
 struct istream_impl {
 #   else
@@ -120,8 +124,6 @@ struct blazingio_istream {
 #   endif
 
 #   ifdef INTERACTIVE
-#define FETCH fetch(),
-
     INLINE void fetch() {
         if (Interactive && __builtin_expect(ptr == end, 0)) {
             // There's a bit of ridiculous code with questionable choices below. What we *want* is:

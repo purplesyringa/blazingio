@@ -42,8 +42,11 @@ blazingio = proc.stdout.decode()
 # Replace "return *this;"
 blazingio = "#define $r return*this;\n" + re.sub(r"return\s*\*this;", "$r", blazingio)
 
-# Replace "operator"
+# Replace various common keywords
 blazingio = "#define $O operator\n" + blazingio.replace("operator", "$O")
+blazingio = "#define $R return\n" + blazingio.replace("return", "$R")
+blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
+blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)

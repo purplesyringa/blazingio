@@ -19,9 +19,12 @@
 
 #   ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
+#   define SIMD_SIZE 32
 #   elif defined(SSE41)
 #define SIMD __attribute__((target("sse4.1")))
+#   define SIMD_SIZE 16
 #   else
+#   define SIMD_SIZE 8
 #   define SIMD
 #   endif
 
@@ -356,40 +359,54 @@ struct blazingio_istream {
             return;
         }
 #   endif
-        auto i = N;
-#   ifdef AVX2
-        while (i % 32) {
-            value[--i] = FETCH *ptr++ == '1';
-        }
-        auto p = (__m256i*)ptr;
-        i /= 32;
+        ssize_t i = N;
         while (i) {
-            long a = 0x0001020304050607;
-            ((uint32_t*)&value)[--i] = __bswap_32(_mm256_movemask_epi8(_mm256_shuffle_epi8(_mm256_loadu_si256(p++) << 7, _mm256_set_epi64x(a + ONE_BYTES * 24, a + ONE_BYTES * 16, a + ONE_BYTES * 8, a))));
-        }
-        ptr = (NonAliasingChar*)p;
-#   elif defined(SSE41)
-        while (i % 16) {
-            value[--i] = *ptr++ == '1';
-        }
-        auto p = (__m128i*)ptr;
-        i /= 16;
-        while (i) {
-            long a = 0x0001020304050607;
-            ((uint16_t*)&value)[--i] = _mm_movemask_epi8(_mm_shuffle_epi8(_mm_loadu_si128(p++) << 7, _mm_set_epi64x(a, a + ONE_BYTES * 8)));
-        }
-        ptr = (NonAliasingChar*)p;
-#   else
-        while (i % 8) {
-            value[--i] = *ptr++ == '1';
-        }
-        auto p = (long*)ptr;
-        i /= 8;
-        while (i) {
-            ((char*)&value)[--i] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
-        }
-        ptr = (NonAliasingChar*)p;
+#   ifdef INTERACTIVE
+            fetch();
 #   endif
+            if (i % SIMD_SIZE || end - ptr < SIMD_SIZE) {
+                value[--i] = *ptr++ == '1';
+            } else {
+                long a = 0x0001020304050607;
+#   ifdef AVX2
+                auto p = (__m256i*)ptr;
+                for (size_t j = 0; j < min(i, end - ptr) / 32; j++) {
+                    i -= 32;
+                    ((uint32_t*)&value)[i / 32] = __bswap_32(
+                        _mm256_movemask_epi8(
+                            _mm256_shuffle_epi8(
+                                _mm256_loadu_si256(p++) << 7,
+                                _mm256_set_epi64x(
+                                    a + ONE_BYTES * 24,
+                                    a + ONE_BYTES * 16,
+                                    a + ONE_BYTES * 8,
+                                    a
+                                )
+                            )
+                        )
+                    );
+                }
+#   elif defined(SSE41)
+                auto p = (__m128i*)ptr;
+                for (size_t j = 0; j < min(i, end - ptr) / 16; j++) {
+                    i -= 16;
+                    ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
+                        _mm_shuffle_epi8(
+                            _mm_loadu_si128(p++) << 7,
+                            _mm_set_epi64x(a, a + ONE_BYTES * 8)
+                        )
+                    );
+                }
+#   else
+                auto p = (uint64_t*)ptr;
+                for (size_t j = 0; j < min(i, end - ptr) / 8; j++) {
+                    i -= 8;
+                    ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
+                }
+#   endif
+                ptr = (NonAliasingChar*)p;
+            }
+        }
     }
 #   endif
 

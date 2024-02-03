@@ -27,6 +27,10 @@
 #   define SIMD
 #   endif
 
+// This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
+// otherwise it resorts to way too many memory accesses.
+#define INLINE __attribute__((always_inline))
+
 #define ensure(x) if (!(x)) abort();
 
 namespace blazingio {
@@ -118,7 +122,7 @@ struct blazingio_istream {
 #   ifdef INTERACTIVE
 #define FETCH fetch(),
 
-    void fetch() {
+    INLINE void fetch() {
         if (Interactive && __builtin_expect(ptr == end, 0)) {
             // There's a bit of ridiculous code with questionable choices below. What we *want* is:
             //     file_size = read(STDIN_FILENO, buffer, 65536);
@@ -189,14 +193,14 @@ struct blazingio_istream {
 #   endif
 
     template<typename T>
-    void collect_digits(T& x) {
+    INLINE void collect_digits(T& x) {
         while (FETCH (*ptr & 0xf0) == 0x30) {
             x = x * 10 + (*ptr++ - '0');
         }
     }
 
     template<typename T, T = 1>
-    void input(T& x) {
+    INLINE void input(T& x) {
         bool negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
@@ -207,7 +211,7 @@ struct blazingio_istream {
 
 #   ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
-    void input(T& x) {
+    INLINE void input(T& x) {
         bool negative = *ptr == '-';
         ptr += negative;
         ptr += *ptr == '+';
@@ -264,18 +268,18 @@ struct blazingio_istream {
     }
 #   endif
 
-    void input(bool& x) {
+    INLINE void input(bool& x) {
         x = FETCH *ptr++ == '1';
     }
-    void input(char& x) {
+    INLINE void input(char& x) {
         x = FETCH *ptr++;
     }
 
 #   ifdef CHAR_WITH_SIGN_IS_GLYPH
-    void input(uint8_t& x) {
+    INLINE void input(uint8_t& x) {
         x = FETCH *ptr++;
     }
-    void input(int8_t& x) {
+    INLINE void input(int8_t& x) {
         x = FETCH *ptr++;
     }
 #   endif
@@ -320,7 +324,7 @@ struct blazingio_istream {
 
 #   ifdef COMPLEX
     template<typename T>
-    void input(complex<T>& value) {
+    INLINE void input(complex<T>& value) {
         T real_part, imag_part{};
         if (FETCH *ptr == '(') {
             ptr++;
@@ -446,9 +450,9 @@ struct blazingio_istream {
 
     template<typename T>
 #   ifdef INTERACTIVE
-    void rshift_impl(T& value) {
+    INLINE void rshift_impl(T& value) {
 #   else
-    blazingio_istream& operator>>(T& value) {
+    INLINE blazingio_istream& operator>>(T& value) {
 #   endif
         if (!is_same_v<T, line_t>) {
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
@@ -494,7 +498,7 @@ struct blazingio_istream {
     }
 
     template<typename T>
-    blazingio_istream& operator>>(T& value) {
+    INLINE blazingio_istream& operator>>(T& value) {
         if (__builtin_expect(file.file_size == -1, 0)) {
             interactive.rshift_impl(value);
         } else {

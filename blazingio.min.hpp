@@ -10,9 +10,7 @@
 #include<bitset>
 #include<complex>
 #include<cstring>
-#include<fcntl.h>
 #include<immintrin.h>
-#include<limits>
 #include<sys/mman.h>
 #define $s __attribute__((target("avx2")))
 #define $I __attribute__((always_inline))

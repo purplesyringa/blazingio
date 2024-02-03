@@ -37,11 +37,6 @@ splice=y
 # Choose 'y' if unsure.
 stdin_eof=y
 
-# Whether to support freopen. If 'y', calling freopen on stdin or stdout before the first I/O
-# operation will successfully redirect the stream. If 'n', this may or may not work for cin/cout.
-# Choose 'y' if unsure.
-late_binding=y
-
 # Whether to replace std::cerr/std::clog with a /dev/null-like stream if ONLINE_JUDGE is set. This
 # enables logs like 'std::cerr << ...' to be zero-cost on environments such as Codeforces. Choose
 # 'y' if unsure.

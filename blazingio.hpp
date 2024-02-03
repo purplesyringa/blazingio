@@ -60,19 +60,11 @@ struct line_t {
 };
 
 struct blazingio_istream {
-#   ifdef LATE_BINDING
-    off_t file_size = -1;
-#   else
     off_t file_size;
-#   endif
     char* base;
     NonAliasingChar* ptr;
 
-#   ifdef LATE_BINDING
-    void init() {
-#   else
     explicit blazingio_istream() {
-#   endif
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(file_size != -1)
         // Round to page size.
@@ -397,12 +389,6 @@ struct blazingio_istream {
 
     template<typename T>
     blazingio_istream& operator>>(T& value) {
-#   ifdef LATE_BINDING
-        if (__builtin_expect(file_size == -1, 0)) {
-            init();
-        }
-#   endif
-
         if (!is_same_v<T, line_t>) {
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
             // We expect short runs here, hence no vectorization.

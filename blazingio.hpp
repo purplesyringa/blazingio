@@ -66,7 +66,7 @@ struct istream_impl {
 struct blazingio_istream {
 #   endif
     off_t file_size;
-    char* base;
+    NonAliasingChar* end;
     NonAliasingChar* ptr;
 
 #   ifdef INTERACTIVE
@@ -78,7 +78,7 @@ struct blazingio_istream {
 #   endif
         // Round to page size.
         (file_size += 4095) &= -4096;
-        base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
+        char* base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
         ensure(base != MAP_FAILED)
         ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1)
         // Map one more anonymous page to handle attempts to read beyond EOF of stdin gracefully.
@@ -87,20 +87,20 @@ struct blazingio_istream {
         // character; in the latter case, the right thing to do is to stop the loop by encountering
         // a space character. Something like "\00" works for both cases: it stops (for instance)
         // integer parsing immediately with a zero, and also stops whitespace parsing *soon*.
-        ensure(mmap(base + file_size, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
+        end = (NonAliasingChar*)base + file_size;
+        ensure(mmap(end, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
 #   ifdef STDIN_EOF
         // We only really need to do this if we're willing to keep going "after" EOF, not just
         // handle 4k-aligned non-whitespace-terminated input.
-        base[file_size + 1] = '0';
+        end[1] = '0';
 #   endif
         ptr = (NonAliasingChar*)base;
     }
 
 #   ifdef INTERACTIVE
     void init_assume_interactive() {
-        base = (char*)malloc(65536);
         // Simulate non-empty file, as we don't yet know if we're at EOF
-        ptr = (NonAliasingChar*)base + 1;
+        end = ptr = (NonAliasingChar*)malloc(65536) + 1;
         file_size = 1;
     }
 #   endif
@@ -116,17 +116,18 @@ struct blazingio_istream {
 #define FETCH fetch(),
 
     void fetch() {
-        if (Interactive && __builtin_expect((char*)ptr == base + file_size, 0)) {
-            file_size = read(STDIN_FILENO, ptr = (NonAliasingChar*)base, 65536);
+        if (Interactive && __builtin_expect(ptr == end, 0)) {
+            file_size = read(STDIN_FILENO, ptr = end - file_size, 65536);
+            end = ptr + file_size;
 #   ifdef STDIN_EOF
             if (!file_size) {
                 // This is an attempt to read past EOF. Simulate this just like with files, with
                 // "\00".
                 *ptr = '0';
                 ptr[1] = 0;
-                // We want ptr == base + file_size to evaluate to false. Leaking a 64k buffer is not
-                // that big of a deal, so...
-                base = NULL;
+                // We want ptr == end to evaluate to false. Leaking a 64k buffer is not that big of
+                // a deal, so...
+                end = NULL;
             }
 #   endif
         }
@@ -385,7 +386,7 @@ struct blazingio_istream {
         } else {
             // If we're on the null byte, it's EOF and we should signal that by putting ptr past the
             // start of the guard page.
-            ptr = (NonAliasingChar*)base + file_size;
+            ptr = end;
         }
 #   endif
         ptr++;
@@ -416,7 +417,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return (char*)ptr > base + file_size;
+        return ptr > end;
     }
 #   endif
 };

@@ -46,6 +46,7 @@ blazingio = "#define $r return*this;\n" + re.sub(r"return\s*\*this;", "$r", blaz
 blazingio = "#define $O operator\n" + blazingio.replace("operator", "$O")
 blazingio = "#define $R return\n" + blazingio.replace("return", "$R")
 blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
+blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typename", "$c")
 blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 # Strip out comments
@@ -97,7 +98,6 @@ def repl(s):
         ("SIMD", "$s"),
         ("INLINE", "$I"),
         ("FETCH", "$F"),
-        ("typename", "class"),
         ("UninitChar", "A"),
         ("NonAliasingChar", "B"),
         ("buffer", "C"),

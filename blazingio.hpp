@@ -253,7 +253,7 @@ struct blazingio_istream {
         }
         if (0 <= exponent && exponent < 41) {
             // This generates {1e-20, 1e-14, ..., 1e14, 1e20}
-            constexpr auto exps = [] {
+            static constexpr auto exps = [] {
                 array<T, 41> exps{};
                 T x = 1;
                 for (int i = 21; i--; ) {

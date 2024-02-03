@@ -81,7 +81,7 @@ struct blazingio_istream {
 #   ifdef INTERACTIVE
     void init_assume_file() {
 #   else
-    explicit blazingio_istream() {
+    blazingio_istream() {
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
 #   endif
@@ -487,7 +487,7 @@ struct blazingio_istream {
     istream_impl<false> file;
     istream_impl<true> interactive;
 
-    explicit blazingio_istream() {
+    blazingio_istream() {
         file.file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         file.file_size == -1
             ? interactive.init_assume_interactive()

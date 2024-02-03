@@ -220,7 +220,7 @@ struct blazingio_istream {
             n = n * 10 + *ptr++ - '0';
         }
         int exponent = 20;  // Offset by 20, for reasons
-        bool has_dot = *ptr;
+        bool has_dot = *ptr == '.';
         ptr += has_dot;
         for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++) {
             n = n * 10 + *ptr++ - '0';

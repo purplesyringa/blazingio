@@ -26,10 +26,10 @@ float=y
 # Whether to support <complex> I/O. Choose 'y' if unsure.
 complex=y
 
-# Whether to support test systems that don't redirect stdin/stdout from/to file, but use pipes.
-# Using 'y' makes I/O work in such environments, if somewhat slower than direct file I/O. Using 'n'
-# will trigger crashes in these environments. Choose 'y' if unsure.
-pipe=y
+# Whether to use a more optimal implementation in environments which redirect stdout to a pipe.
+# Using 'y' increases performance in this case, increasing code size in return. Choose 'y' if
+# unsure.
+splice=y
 
 # Whether to support graceful end-of-file handling on stdin. Namely, 'while (std::cin >> ...)'
 # syntax is only allowed with this option set. This EOF handling is not fully compatible with std:

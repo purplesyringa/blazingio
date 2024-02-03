@@ -74,36 +74,12 @@ struct blazingio_istream {
     explicit blazingio_istream() {
 #   endif
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
-#   ifdef PIPE
-        if (file_size != -1) {
-#   else
         ensure(file_size != -1)
-#   endif
-            // Round to page size.
-            (file_size += 4095) &= -4096;
-            base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
-            ensure(base != MAP_FAILED)
-            ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1)
-#   ifdef PIPE
-        } else {
-            size_t alloc_size = 16384;
-            base = (char*)mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
-            ensure(base != MAP_FAILED)
-            file_size = 0;
-            ssize_t n_read;
-            while ((n_read = read(0, base + file_size, alloc_size - file_size)) > 0) {
-                // We always want at least 1 free page
-                if ((file_size += n_read) > alloc_size - 4096) {
-                    ensure(mmap(base + alloc_size, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE, -1, 0) != MAP_FAILED)
-                    alloc_size *= 2;
-                }
-            }
-            ensure(n_read != -1)
-            // Round to page size.
-            (file_size += 4095) &= -4096;
-            ensure(munmap(base + file_size + 4096, alloc_size - file_size - 4096) != -1)
-        }
-#   endif
+        // Round to page size.
+        (file_size += 4095) &= -4096;
+        base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
+        ensure(base != MAP_FAILED)
+        ensure(madvise(base, file_size, MADV_POPULATE_READ) != -1)
         // Map one more anonymous page to handle attempts to read beyond EOF of stdin gracefully.
         // This would happen either in operator>> while skipping whitespace, or in input(). In the
         // former case, the right thing to do is stop the loop by encountering a non-space
@@ -474,7 +450,7 @@ struct blazingio_ostream {
 #   endif
     }
     ~blazingio_ostream() {
-#   ifdef PIPE
+#   ifdef SPLICE
         ssize_t n_written = 1;
         while (n_written > 0) {
             iovec iov{base, (size_t)ptr - (size_t)base};

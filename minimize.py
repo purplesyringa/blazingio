@@ -69,6 +69,9 @@ def whitespace(s):
 
 blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
 
+# Remove whitespace after "#include"
+blazingio = re.sub(r"#include\s+", "#include", blazingio)
+
 
 # Replace character literals with their values
 blazingio = re.sub(

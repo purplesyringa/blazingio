@@ -204,9 +204,7 @@ struct blazingio_istream {
         bool negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
-        if (negative) {
-            x = -x;
-        }
+        x = negative ? -x : x;
     }
 
 #   ifdef FLOAT
@@ -270,9 +268,7 @@ struct blazingio_istream {
                 x *= .1;
             }
         }
-        if (negative) {
-            x = -x;
-        }
+        x = negative ? -x : x;
     }
 #   endif
 
@@ -493,11 +489,9 @@ struct blazingio_istream {
 
     explicit blazingio_istream() {
         file.file_size = lseek(STDIN_FILENO, 0, SEEK_END);
-        if (file.file_size == -1) {
-            interactive.init_assume_interactive();
-        } else {
-            file.init_assume_file();
-        }
+        file.file_size == -1
+            ? interactive.init_assume_interactive()
+            : file.init_assume_file();
     }
 
     // For people writing cie.tie(0);
@@ -507,11 +501,9 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        if (__builtin_expect(file.file_size == -1, 0)) {
-            interactive.rshift_impl(value);
-        } else {
-            file.rshift_impl(value);
-        }
+        __builtin_expect(file.file_size == -1, 0)
+            ? interactive.rshift_impl(value)
+            : file.rshift_impl(value);
         return *this;
     }
 
@@ -520,11 +512,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        if (__builtin_expect(file.file_size == -1, 0)) {
-            return !interactive;
-        } else {
-            return !file;
-        }
+        return __builtin_expect(file.file_size == -1, 0) ? !interactive : !file;
     }
 #   endif
 };

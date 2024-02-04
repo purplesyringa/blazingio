@@ -116,9 +116,7 @@ struct blazingio_istream {
 
 #   ifdef INTERACTIVE
     void init_assume_interactive() {
-        // Simulate non-empty file, as we don't yet know if we're at EOF
-        end = ptr = buffer + 1;
-        file_size = 1;
+        end = ptr = buffer;
     }
 #   endif
 

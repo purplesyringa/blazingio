@@ -68,6 +68,9 @@ const long BIG = 0x1000000000
 #   endif
 ;
 
+// Actually 0x0102040810204080
+#   define POWERS_OF_TWO -3ULL / 254
+
 struct line_t {
     std::string& value;
 };
@@ -469,7 +472,10 @@ struct istream_impl {
             value[--i] = *ptr++ == '1';
         }
 #   endif
-                long a = 0x0001020304050607;
+#   if defined(AVX2) || defined(SSE41)
+                // This is actually 0x0001020304050607
+                long a = -1ULL / 65025;
+#   endif
                 auto p = (SIMD_TYPE*)ptr;
 #   ifdef INTERACTIVE
                 for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
@@ -772,7 +778,7 @@ struct blazingio_ostream {
         }
         auto p = (__m256i*)ptr;
         i /= 32;
-        auto b = _mm256_set1_epi64x(0x0102040810204080);
+        auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
         while (i) {
             _mm256_storeu_si256(
                 p++,
@@ -795,7 +801,7 @@ struct blazingio_ostream {
         }
         auto p = (__m128i*)ptr;
         i /= 16;
-        auto b = _mm_set1_epi64x(0x0102040810204080);
+        auto b = _mm_set1_epi64x(POWERS_OF_TWO);
         while (i) {
             _mm_storeu_si128(
                 p++,

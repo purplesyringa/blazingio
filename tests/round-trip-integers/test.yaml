@@ -4,3 +4,4 @@ config:
   lut: [y, n]
   # Make sure overloads don't resolve to floats
   float: [y, n]
+  interactive: [y, n]

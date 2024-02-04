@@ -1,3 +1,4 @@
 type: round-trip
 config:
   complex: y
+  interactive: [y, n]

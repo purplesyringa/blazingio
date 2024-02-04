@@ -2,3 +2,4 @@ type: round-trip
 config:
   simd: [none, sse4.1, avx2]
   bitset: y
+  interactive: [y, n]

@@ -1,3 +1,4 @@
 type: compare-std
 config:
   stdin_eof: y
+  interactive: [y, n]

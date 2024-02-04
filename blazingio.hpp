@@ -72,16 +72,18 @@ struct line_t {
     std::string& value;
 };
 
+#   ifndef INTERACTIVE
+#   define istream_impl blazingio_istream
+#   endif
+
 #   ifdef INTERACTIVE
 // Allocate one more byte for null terminator as used by parsing routines. We might want to
 // lookahead over this byte though, so add 32 instead of 1.
 static NonAliasingChar buffer[65568];
 
 template<bool Interactive>
-struct istream_impl {
-#   else
-struct blazingio_istream {
 #   endif
+struct istream_impl {
     NonAliasingChar* end;
     NonAliasingChar* ptr;
 
@@ -370,9 +372,9 @@ struct blazingio_istream {
 #   endif
     }
 
-    SIMD void input(string& value) {
+    SIMD void input_string_like(string& value, void (istream_impl::*trace)()) {
         auto start = ptr;
-        trace_non_whitespace();
+        (this->*trace)();
 
         // We know there's no overlap, so avoid doing this for a little bit of performance:
         // value.assign((const char*)start, ptr - start);
@@ -390,10 +392,14 @@ struct blazingio_istream {
             }
             // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
             // start.
-            trace_non_whitespace();
+            (this->*trace)();
             value.append(buffer, ptr);
         }
 #   endif
+    }
+
+    SIMD void input(string& value) {
+        input_string_like(value, &istream_impl::trace_non_whitespace);
     }
 
     SIMD void input(line_t& line) {
@@ -408,30 +414,7 @@ struct blazingio_istream {
         }
 #   endif
 
-        auto start = ptr;
-        trace_line();
-
-        // We know there's no overlap, so avoid doing this for a little bit of performance:
-        // line.value.assign((const char*)start, ptr - start);
-        ((basic_string<UninitChar>&)line.value).resize(ptr - start);
-        memcpy(line.value.data(), start, ptr - start);
-
-#   ifdef INTERACTIVE
-        while (Interactive && ptr == end) {
-            // We have read *some* data, but stumbled upon an unfetched chunk and thus have to load
-            // more. We can't reuse the same code as we want to append to the string instead of
-            // replacing it.
-            fetch();
-            if (ptr == end) {
-                // EOF condition, will be reported on next read.
-                return;
-            }
-            // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
-            // start.
-            trace_line();
-            line.value.append(buffer, ptr);
-        }
-#   endif
+        input_string_like(line.value, &istream_impl::trace_line);
 
         // Skip \n, \r\n, or \0
         ptr += *ptr == '\r';

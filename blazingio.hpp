@@ -13,6 +13,7 @@
 #   endif
 #include <sys/mman.h>
 #   ifndef MINIMIZE
+#include <fcntl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #   endif

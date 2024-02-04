@@ -20,6 +20,8 @@ CONFIG_OPTS = {
     "interactive=y": "INTERACTIVE",
     "stdin_eof=n": "",
     "stdin_eof=y": "STDIN_EOF",
+    "late_binding=n": "",
+    "late_binding=y": "LATE_BINDING",
     "cerr=n": "",
     "cerr=y": "CERR",
 }

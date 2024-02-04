@@ -892,6 +892,10 @@ namespace std {
 #   endif
 }
 
+#   ifdef LATE_BINDING
+#define freopen(...) if (freopen(__VA_ARGS__) == stdin) std::blazingio_cin = blazingio::blazingio_istream{}
+#   endif
+
 #define cin blazingio_cin
 #define cout blazingio_cout
 

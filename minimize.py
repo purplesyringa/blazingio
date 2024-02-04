@@ -93,6 +93,7 @@ def repl(s):
         ("blazingio_cout", "o$"),
         ("blazingio_cerr", "e$"),
         ("blazingio_init", "t$"),
+        ("blazingio_freopen", "f$"),
         ("ensure", "E$"),
         ("blazingio", "$f"),
         ("SIMD", "$s"),

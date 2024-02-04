@@ -59,6 +59,8 @@ def whitespace(s):
         s, *rest = s.split(None, 1)
         if rest:
             s += " " + whitespace(rest[0])
+        else:
+            s += "\n"
         return s
     for _ in range(3):
         s = re.sub(r"([^a-zA-Z0-9_$])\s+(\S)", r"\1\2", s)
@@ -146,15 +148,18 @@ def repl(s):
         ("trace", "t"),
         ("input", "u"),
         ("iov", "v"),
+        ("x2", "v"),
         ("Interactive", "w"),
         ("n_read", "y"),
         ("rax", "q"),
+        ("w8", "q"),
         ("Inner", "q"),
         ("empty_fd", "U"),
         ("write12", "w"),
         ("new_exponent", "k"),
         ("input_string_like", "k"),
         ("rsi", "k"),
+        ("x1", "k"),
         ("file", "k"),
         ("interactive", "w"),
         ("rshift_impl", "t"),

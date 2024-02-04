@@ -177,18 +177,45 @@ struct istream_impl {
             // even though ptr is clearly loaded into a register, GCC assumes memory might still be
             // modified, so we have to load ptr into a local variable and then put it back, like
             // this:
-            off_t n_read = SYS_read;
-            NonAliasingChar* rsi = buffer;
-            asm volatile(
-                // Put a 0 byte after data for convenience of parsing routines. No, I don't know why
-                // doing this in an asm statement results in better performance.
-                "syscall; movb $0, (%%rsi,%%rax);"
-                : "+a"(n_read), "+S"(rsi)
-                : "D"(STDIN_FILENO), "d"(65536)
-                : "rcx", "r11"
-            );
-            ensure(n_read >= 0)
+#   define AARCH64 \
+            register long \
+                n_read asm("x0") = STDIN_FILENO, \
+                x1 asm("x1") = (long)buffer, \
+                x2 asm("x2") = 65536, \
+                w8 asm("x8") = SYS_read; \
+            asm volatile( \
+                "svc 0; strb wzr, [x1, x0]" \
+                : "+r"(n_read) \
+                : "r"(w8), "r"(x1), "r"(x2) \
+            ); \
+            ptr = (NonAliasingChar*)x1;
+#   define X64 \
+            off_t n_read = SYS_read; \
+            NonAliasingChar* rsi = buffer; \
+            asm volatile( \
+                /* Put a 0 byte after data for convenience of parsing routines. No, I don't know why
+                   doing this in an asm statement results in better performance. */ \
+                "syscall; movb $0, (%%rsi,%%rax);" \
+                : "+a"(n_read), "+S"(rsi) \
+                : "D"(STDIN_FILENO), "d"(65536) \
+                : "rcx", "r11" \
+            ); \
             ptr = rsi;
+
+#   ifdef MULTIARCH
+#ifdef __aarch64__
+            AARCH64
+#else
+            X64
+#endif
+#   else
+#   ifdef __aarch64__
+            AARCH64
+#   else
+            X64
+#   endif
+#   endif
+            ensure(n_read >= 0)
             end = ptr + n_read;
 #   ifdef STDIN_EOF
             if (!n_read) {

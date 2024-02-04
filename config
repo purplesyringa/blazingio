@@ -58,3 +58,9 @@ cerr=y
 # might deny allocation. UB will happen upon attempt to write more than the limit. Choose 'n' if
 # unsure.
 large_output=n
+
+# Whether to build a version that works on all architectures as opposed to just the architecture the
+# minimized program was built on. For instance, if you're using M1 and the judge server is using
+# x64, setting this option to 'y' will enable you to use the same blazingio code for both
+# environments. Choose 'n' if unsure.
+multiarch=n

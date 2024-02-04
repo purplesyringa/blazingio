@@ -26,4 +26,6 @@ CONFIG_OPTS = {
     "cerr=y": "CERR",
     "large_output=n": "",
     "large_output=y": "LARGE_OUTPUT",
+    "multiarch=n": "",
+    "multiarch=y": "MULTIARCH",
 }

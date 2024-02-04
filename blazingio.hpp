@@ -191,8 +191,8 @@ struct blazingio_istream {
                 // This is an attempt to read past EOF. Simulate this just like with files, with
                 // "\00". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
-                buffer[0] = '0';
-                buffer[1] = 0;
+                buffer[0] = 0;
+                buffer[1] = '0';
                 // We want ptr == end to evaluate to false.
                 end = NULL;
             }

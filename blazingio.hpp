@@ -330,6 +330,46 @@ struct blazingio_istream {
 #   endif
     }
 
+    SIMD void trace_line() {
+        // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+        // interleave ptr modification with SIMD loading, there's going to be an extra memory write
+        // on every iteration.
+#   ifdef AVX2
+        auto p = (__m256i*)ptr;
+        auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
+        __m256i vec, vec1, vec2;
+        while (
+            vec = _mm256_loadu_si256(p),
+            _mm256_testz_si256(
+                vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
+                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
+            )
+        ) {
+            p++;
+        }
+        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
+#   elif defined(SSE41)
+        auto p = (__m128i*)ptr;
+        __m128i vec, vec1, vec2;
+        while (
+            vec = _mm_loadu_si128(p),
+            _mm_testz_si128(
+                vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
+                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
+            )
+        ) {
+            p++;
+        }
+        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
+#   else
+        while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
+            ptr++;
+        }
+#   endif
+    }
+
     SIMD void input(string& value) {
         auto start = ptr;
         trace_non_whitespace();
@@ -354,6 +394,48 @@ struct blazingio_istream {
             value.append(buffer, ptr);
         }
 #   endif
+    }
+
+    SIMD void input(line_t& line) {
+#   ifdef STDIN_EOF
+        // Detect if we're at the end of the file. getline has to be handled differently from other
+        // inputs because it treats a null byte as a line terminator and would thus wrongly assume
+        // there's an empty line after EOF.
+        if (FETCH !*ptr) {
+            // Trigger EOF condition.
+            end = NULL;
+            return;
+        }
+#   endif
+
+        auto start = ptr;
+        trace_line();
+
+        // We know there's no overlap, so avoid doing this for a little bit of performance:
+        // line.value.assign((const char*)start, ptr - start);
+        ((basic_string<UninitChar>&)line.value).resize(ptr - start);
+        memcpy(line.value.data(), start, ptr - start);
+
+#   ifdef INTERACTIVE
+        while (Interactive && ptr == end) {
+            // We have read *some* data, but stumbled upon an unfetched chunk and thus have to load
+            // more. We can't reuse the same code as we want to append to the string instead of
+            // replacing it.
+            fetch();
+            if (ptr == end) {
+                // EOF condition, will be reported on next read.
+                return;
+            }
+            // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
+            // start.
+            trace_line();
+            line.value.append(buffer, ptr);
+        }
+#   endif
+
+        // Skip \n, \r\n, or \0
+        ptr += *ptr == '\r';
+        ptr++;
     }
 
 #   ifdef COMPLEX
@@ -442,65 +524,6 @@ struct blazingio_istream {
 #   endif
     }
 #   endif
-
-    SIMD void input(line_t& line) {
-#   ifdef STDIN_EOF
-        if (*ptr) {
-#   endif
-            auto start = ptr;
-
-            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-            // interleave ptr modification with SIMD loading, there's going to be an extra memory
-            // write on every iteration.
-#   ifdef AVX2
-            auto p = (__m256i*)ptr;
-            auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
-            __m256i vec, vec1, vec2;
-            while (
-                vec = _mm256_loadu_si256(p),
-                _mm256_testz_si256(
-                    vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
-                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                    vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
-                )
-            ) {
-                p++;
-            }
-            ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-#   elif defined(SSE41)
-            auto p = (__m128i*)ptr;
-            __m128i vec, vec1, vec2;
-            while (
-                vec = _mm_loadu_si128(p),
-                _mm_testz_si128(
-                    vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
-                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                    vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
-                )
-            ) {
-                p++;
-            }
-            ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-#   else
-            while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
-                ptr++;
-            }
-#   endif
-
-            // We know there's no overlap, so avoid doing this for a little bit of performance:
-            // value.value.assign((const char*)start, ptr - start);
-            ((basic_string<UninitChar>&)line.value).resize(ptr - start);
-            memcpy(line.value.data(), (char*)start, ptr - start);
-            ptr += *ptr == '\r';
-#   ifdef STDIN_EOF
-        } else {
-            // If we're on the null byte, it's EOF and we should signal that by putting ptr past the
-            // start of the guard page.
-            ptr = end;
-        }
-#   endif
-        ptr++;
-    }
 
     template<typename T>
 #   ifdef INTERACTIVE

@@ -279,18 +279,18 @@ struct blazingio_istream {
 #   endif
 
     INLINE void input(bool& x) {
-        x = FETCH *ptr++ == '1';
+        FETCH x = *ptr++ == '1';
     }
     INLINE void input(char& x) {
-        x = FETCH *ptr++;
+        FETCH x = *ptr++;
     }
 
 #   ifdef CHAR_WITH_SIGN_IS_GLYPH
     INLINE void input(uint8_t& x) {
-        x = FETCH *ptr++;
+        FETCH x = *ptr++;
     }
     INLINE void input(int8_t& x) {
-        x = FETCH *ptr++;
+        FETCH x = *ptr++;
     }
 #   endif
 
@@ -340,7 +340,11 @@ struct blazingio_istream {
             ptr++;
             input(real_part);
             if (FETCH *ptr++ == ',') {
+#   ifdef INTERACTIVE
+                rshift_impl(imag_part);
+#   else
                 *this >> imag_part;
+#   endif
                 ptr++;
             }
         } else {

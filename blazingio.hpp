@@ -385,9 +385,11 @@ struct istream_impl {
         while (Interactive && ptr == end) {
             // We have read *some* data, but stumbled upon an unfetched chunk and thus have to load
             // more. We can't reuse the same code as we want to append to the string instead of
-            // replacing it.
+            // replacing it. fetch() will set 'end = NULL' on EOF here, even though the string/line
+            // exists and we don't want to report end at the moment; therefore, patch 'end'.
             fetch();
-            if (ptr == end) {
+            if (!end) {
+                end = ptr;
                 break;
             }
             // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
@@ -416,9 +418,9 @@ struct istream_impl {
 
         input_string_like(line.value, &istream_impl::trace_line);
 
-        // Skip \n, \r\n, or \0
+        // Skip \n and \r\n
         ptr += *ptr == '\r';
-        ptr++;
+        ptr += *ptr == '\n';
     }
 
 #   ifdef COMPLEX

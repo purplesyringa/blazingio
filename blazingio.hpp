@@ -540,9 +540,9 @@ struct blazingio_istream {
 
     blazingio_istream() {
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
-        file_size == -1
-            ? interactive.init_assume_interactive()
-            : file.init_assume_file(file_size);
+        ~file_size
+            ? file.init_assume_file(file_size)
+            : interactive.init_assume_interactive();
     }
 
     // For people writing cie.tie(0);
@@ -552,9 +552,9 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        __builtin_expect(file_size == -1, 0)
-            ? interactive.rshift_impl(value)
-            : file.rshift_impl(value);
+        __builtin_expect(~file_size, 1)
+            ? file.rshift_impl(value)
+            : interactive.rshift_impl(value);
         return *this;
     }
 
@@ -563,7 +563,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return __builtin_expect(file_size == -1, 0) ? !interactive : !file;
+        return __builtin_expect(~file_size, 1) ? !file : !interactive;
     }
 #   endif
 };
@@ -857,7 +857,7 @@ namespace std {
 
 #   ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (__builtin_expect(blazingio_cin.file_size == -1, 0)) {
+        if (__builtin_expect(!~blazingio_cin.file_size, 0)) {
             stream.do_flush();
         }
         return stream;

@@ -136,6 +136,7 @@ def repl(s):
         ("negative", "l"),
         ("exps", "m"),
         ("has_dot", "o"),
+        ("trace_non_whitespace", "o"),
         ("vec1", "q"),
         ("vec2", "r"),
         ("vec", "s"),

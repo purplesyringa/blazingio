@@ -52,3 +52,9 @@ late_binding=y
 # enables logs like 'std::cerr << ...' to be zero-cost on environments such as Codeforces. Choose
 # 'y' if unsure.
 cerr=y
+
+# Whether to support output longer than 250 MiB. If 'y', the limit is increased to 64 GiB, but
+# valgrind will hang and become unusable when used on the program, and systems without overcommit
+# might deny allocation. UB will happen upon attempt to write more than the limit. Choose 'n' if
+# unsure.
+large_output=n

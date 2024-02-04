@@ -59,14 +59,13 @@ struct NonAliasingChar {
     }
 };
 
-const long BIG = 0x1000000000
 #   ifdef BITSET
-, ONE_BYTES = -1ULL / 255
+const long ONE_BYTES = -1ULL / 255
 #   if !defined(AVX2) && !defined(SSE41)
 , BITSET_SHIFT = 0x8040201008040201
 #   endif
-#   endif
 ;
+#   endif
 
 // Actually 0x0102040810204080
 #   define POWERS_OF_TWO -3ULL / 254
@@ -595,7 +594,18 @@ struct blazingio_ostream {
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
         // end. This also allows us to allocate memory immediately without waiting for freopen,
         // because we'll only use the fd in the destructor.
-        base = (char*)mmap(NULL, BIG, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        base = (char*)mmap(
+            NULL,
+#   ifdef LARGE_OUTPUT
+            0x1000000000,
+#   else
+            0x10000000,
+#   endif
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+            -1,
+            0
+        );
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
 

@@ -24,4 +24,6 @@ CONFIG_OPTS = {
     "late_binding=y": "LATE_BINDING",
     "cerr=n": "",
     "cerr=y": "CERR",
+    "large_output=n": "",
+    "large_output=y": "LARGE_OUTPUT",
 }

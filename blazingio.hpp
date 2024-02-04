@@ -73,7 +73,9 @@ struct line_t {
 };
 
 #   ifdef INTERACTIVE
-static NonAliasingChar buffer[65536];
+// Allocate one more byte for null terminator as used by parsing routines. We might want to
+// lookahead over this byte though, so add 32 instead of 1.
+static NonAliasingChar buffer[65568];
 
 template<bool Interactive>
 struct istream_impl {
@@ -176,7 +178,14 @@ struct blazingio_istream {
             // and then put them back, like this:
             off_t rax = SYS_read;
             NonAliasingChar* rsi = buffer;
-            asm volatile("syscall" : "+a"(rax), "+S"(rsi) : "D"(STDIN_FILENO), "d"(65536) : "rcx", "r11");
+            asm volatile(
+                // Put a 0 byte after data for convenience of parsing routines. No, I don't know why
+                // doing this in an asm statement results in better performance.
+                "syscall; movb $0, (%%rsi,%%rax);"
+                : "+a"(rax), "+S"(rsi)
+                : "D"(STDIN_FILENO), "d"(65536)
+                : "rcx", "r11"
+            );
             ensure(rax >= 0)
             file_size = rax;
             ptr = rsi;
@@ -294,9 +303,7 @@ struct blazingio_istream {
     }
 #   endif
 
-    SIMD void input(string& value) {
-        auto start = ptr;
-
+    SIMD void trace_non_whitespace() {
         // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
         // interleave ptr modification with SIMD loading, there's going to be an extra memory write
         // on every iteration.
@@ -325,11 +332,32 @@ struct blazingio_istream {
             ptr++;
         }
 #   endif
+    }
+
+    SIMD void input(string& value) {
+        auto start = ptr;
+        trace_non_whitespace();
 
         // We know there's no overlap, so avoid doing this for a little bit of performance:
         // value.assign((const char*)start, ptr - start);
         ((basic_string<UninitChar>&)value).resize(ptr - start);
         memcpy(value.data(), start, ptr - start);
+
+#   ifdef INTERACTIVE
+        while (Interactive && ptr == end) {
+            // We have read *some* data, but stumbled upon an unfetched chunk and thus have to load
+            // more. We can't reuse the same code as we want to append to the string instead of
+            // replacing it.
+            fetch();
+            if (ptr == end) {
+                break;
+            }
+            // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
+            // start.
+            trace_non_whitespace();
+            value.append(buffer, ptr);
+        }
+#   endif
     }
 
 #   ifdef COMPLEX

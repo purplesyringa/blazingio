@@ -599,7 +599,7 @@ struct blazingio_ostream {
 #   ifdef LARGE_OUTPUT
             0x1000000000,
 #   else
-            0x10000000,
+            0x40000000,
 #   endif
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,

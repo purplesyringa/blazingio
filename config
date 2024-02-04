@@ -53,7 +53,7 @@ late_binding=y
 # 'y' if unsure.
 cerr=y
 
-# Whether to support output longer than 250 MiB. If 'y', the limit is increased to 64 GiB, but
+# Whether to support output longer than 1 GiB. If 'y', the limit is increased to 64 GiB, but
 # valgrind will hang and become unusable when used on the program, and systems without overcommit
 # might deny allocation. UB will happen upon attempt to write more than the limit. Choose 'n' if
 # unsure.

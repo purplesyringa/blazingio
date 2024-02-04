@@ -20,11 +20,14 @@
 #   ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
 #   define SIMD_SIZE 32
+#   define SIMD_TYPE __m256i
 #   elif defined(SSE41)
 #define SIMD __attribute__((target("sse4.1")))
 #   define SIMD_SIZE 16
+#   define SIMD_TYPE __m128i
 #   else
 #   define SIMD_SIZE 8
+#   define SIMD_TYPE uint64_t
 #   define SIMD
 #   endif
 
@@ -360,18 +363,26 @@ struct blazingio_istream {
         }
 #   endif
         ssize_t i = N;
-        while (i) {
 #   ifdef INTERACTIVE
+        while (i) {
             fetch();
-#   endif
             if (i % SIMD_SIZE || end - ptr < SIMD_SIZE) {
                 value[--i] = *ptr++ == '1';
             } else {
+#   else
+        while (i % SIMD_SIZE) {
+            value[--i] = *ptr++ == '1';
+        }
+#   endif
                 long a = 0x0001020304050607;
+                auto p = (SIMD_TYPE*)ptr;
+#   ifdef INTERACTIVE
+                for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
+#   else
+                while (i) {
+#   endif
+                    i -= SIMD_SIZE;
 #   ifdef AVX2
-                auto p = (__m256i*)ptr;
-                for (size_t j = 0; j < min(i, end - ptr) / 32; j++) {
-                    i -= 32;
                     ((uint32_t*)&value)[i / 32] = __bswap_32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
@@ -385,28 +396,22 @@ struct blazingio_istream {
                             )
                         )
                     );
-                }
 #   elif defined(SSE41)
-                auto p = (__m128i*)ptr;
-                for (size_t j = 0; j < min(i, end - ptr) / 16; j++) {
-                    i -= 16;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_loadu_si128(p++) << 7,
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-                }
 #   else
-                auto p = (uint64_t*)ptr;
-                for (size_t j = 0; j < min(i, end - ptr) / 8; j++) {
-                    i -= 8;
                     ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
-                }
 #   endif
+                }
                 ptr = (NonAliasingChar*)p;
+#   ifdef INTERACTIVE
             }
         }
+#   endif
     }
 #   endif
 

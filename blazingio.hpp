@@ -82,15 +82,14 @@ struct istream_impl {
 #   else
 struct blazingio_istream {
 #   endif
-    off_t file_size;
     NonAliasingChar* end;
     NonAliasingChar* ptr;
 
 #   ifdef INTERACTIVE
-    void init_assume_file() {
+    void init_assume_file(off_t file_size) {
 #   else
     blazingio_istream() {
-        file_size = lseek(STDIN_FILENO, 0, SEEK_END);
+        off_t file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
 #   endif
         // Round to page size.
@@ -131,26 +130,26 @@ struct blazingio_istream {
     INLINE void fetch() {
         if (Interactive && __builtin_expect(ptr == end, 0)) {
             // There's a bit of ridiculous code with questionable choices below. What we *want* is:
-            //     file_size = read(STDIN_FILENO, buffer, 65536);
+            //     off_t n_read = read(STDIN_FILENO, buffer, 65536);
             // Unfortunately, read() is an external call, which means it can override globals. Even
             // though blazingio_cin is static, there's no guarantee read() doesn't map to a symbol
-            // from the same translation unit, so GCC assumes read() may read or modify ptr, end, or
-            // file_size. This causes it to spill the values to memory in the hot loop, which is a
-            // bad-bad thing. Therefore we have to avoid the call to read() and roll our own inline
+            // from the same translation unit, so GCC assumes read() may read or modify ptr or end.
+            // This causes it to spill the values to memory in the hot loop, which is a bad-bad
+            // thing. Therefore we have to avoid the call to read() and roll our own inline
             // assembly. The *obvious* way to write that is
-            //     file_size = SYS_read;
+            //     off_t n_read = SYS_read;
             //     asm volatile(
             //         "syscall"
-            //         : "+a"(file_size)
+            //         : "+a"(n_read)
             //         : "D"(STDIN_FILENO), "S"(buffer), "d"(65536)
             //         : "rcx", "r11", "memory"
             //     );
             // ...but that suffers from the same consequences as the call to read() because of the
             // memory clobber. The second-most obvious way to rewrite this is documented by GCC as
-            //     file_size = SYS_read;
+            //     off_t n_read = SYS_read;
             //     asm volatile(
             //         "syscall"
-            //         : "+a"(file_size), "+m"(buffer)
+            //         : "+a"(n_read), "+m"(buffer)
             //         : "D"(STDIN_FILENO), "S"(buffer), "d"(65536)
             //         : "rcx", "r11"
             //     );
@@ -163,33 +162,32 @@ struct blazingio_istream {
             // if" the buffer was *reallocated* on each read by telling GCC that the syscall might
             // change 'ptr' (it actually won't, but GCC won't be able to misoptimize based on this):
             //     ptr = buffer;
-            //     file_size = SYS_read;
+            //     off_t n_read = SYS_read;
             //     asm volatile(
             //         "syscall"
-            //         : "+a"(file_size), "+S"(ptr)
+            //         : "+a"(n_read), "+S"(ptr)
             //         : "D"(STDIN_FILENO), "d"(65536)
             //         : "rcx", "r11"
             //     );
             // UNFORTUNATELY, this doesn't work *either* due to *yet another* missed optimization:
-            // even though file_size and ptr are clearly loaded into registers, GCC assumes memory
-            // might still be modified, so we have to load file_size and ptr into local variables
-            // and then put them back, like this:
-            off_t rax = SYS_read;
+            // even though ptr is clearly loaded into a register, GCC assumes memory might still be
+            // modified, so we have to load ptr into a local variable and then put it back, like
+            // this:
+            off_t n_read = SYS_read;
             NonAliasingChar* rsi = buffer;
             asm volatile(
                 // Put a 0 byte after data for convenience of parsing routines. No, I don't know why
                 // doing this in an asm statement results in better performance.
                 "syscall; movb $0, (%%rsi,%%rax);"
-                : "+a"(rax), "+S"(rsi)
+                : "+a"(n_read), "+S"(rsi)
                 : "D"(STDIN_FILENO), "d"(65536)
                 : "rcx", "r11"
             );
-            ensure(rax >= 0)
-            file_size = rax;
+            ensure(n_read >= 0)
             ptr = rsi;
-            end = ptr + file_size;
+            end = ptr + n_read;
 #   ifdef STDIN_EOF
-            if (!file_size) {
+            if (!n_read) {
                 // This is an attempt to read past EOF. Simulate this just like with files, with
                 // "\00". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
@@ -536,14 +534,15 @@ struct blazingio_istream {
 
 #   ifdef INTERACTIVE
 struct blazingio_istream {
+    off_t file_size;
     istream_impl<false> file;
     istream_impl<true> interactive;
 
     blazingio_istream() {
-        file.file_size = lseek(STDIN_FILENO, 0, SEEK_END);
-        file.file_size == -1
+        file_size = lseek(STDIN_FILENO, 0, SEEK_END);
+        file_size == -1
             ? interactive.init_assume_interactive()
-            : file.init_assume_file();
+            : file.init_assume_file(file_size);
     }
 
     // For people writing cie.tie(0);
@@ -553,7 +552,7 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        __builtin_expect(file.file_size == -1, 0)
+        __builtin_expect(file_size == -1, 0)
             ? interactive.rshift_impl(value)
             : file.rshift_impl(value);
         return *this;
@@ -564,7 +563,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return __builtin_expect(file.file_size == -1, 0) ? !interactive : !file;
+        return __builtin_expect(file_size == -1, 0) ? !interactive : !file;
     }
 #   endif
 };
@@ -858,7 +857,7 @@ namespace std {
 
 #   ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (__builtin_expect(blazingio_cin.file.file_size == -1, 0)) {
+        if (__builtin_expect(blazingio_cin.file_size == -1, 0)) {
             stream.do_flush();
         }
         return stream;

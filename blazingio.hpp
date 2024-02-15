@@ -331,80 +331,9 @@ struct istream_impl {
     }
 #   endif
 
-    SIMD void trace_non_whitespace() {
-        // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-        // interleave ptr modification with SIMD loading, there's going to be an extra memory write
-        // on every iteration.
-#   ifdef AVX2
-        auto p = (__m256i*)ptr;
-        __m256i vec, space = _mm256_set1_epi8(' ');
-        while (
-            vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
-            _mm256_testz_si256(vec, vec)
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
-#   elif defined(SSE41)
-        auto p = (__m128i*)ptr;
-        __m128i vec, space = _mm_set1_epi8(' ');
-        while (
-            vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
-            _mm_testz_si128(vec, vec)
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
-#   else
-        while (*ptr < 0 || *ptr > ' ') {
-            ptr++;
-        }
-#   endif
-    }
-
-    SIMD void trace_line() {
-        // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-        // interleave ptr modification with SIMD loading, there's going to be an extra memory write
-        // on every iteration.
-#   ifdef AVX2
-        auto p = (__m256i*)ptr;
-        auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
-        __m256i vec, vec1, vec2;
-        while (
-            vec = _mm256_loadu_si256(p),
-            _mm256_testz_si256(
-                vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
-                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
-            )
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-#   elif defined(SSE41)
-        auto p = (__m128i*)ptr;
-        __m128i vec, vec1, vec2;
-        while (
-            vec = _mm_loadu_si128(p),
-            _mm_testz_si128(
-                vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
-                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                vec2 = _mm_shuffle_epi8(_mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff), vec)
-            )
-        ) {
-            p++;
-        }
-        ptr = (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-#   else
-        while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
-            ptr++;
-        }
-#   endif
-    }
-
-    SIMD void input_string_like(string& value, void (istream_impl::*trace)()) {
+    SIMD void input_string_like(string& value, NonAliasingChar* (*trace)(NonAliasingChar*)) {
         auto start = ptr;
-        (this->*trace)();
+        ptr = trace(ptr);
 
         // We know there's no overlap, so avoid doing this for a little bit of performance:
         // value.assign((const char*)start, ptr - start);
@@ -424,14 +353,44 @@ struct istream_impl {
             }
             // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
             // start.
-            (this->*trace)();
+            ptr = trace(ptr);
             value.append(buffer, ptr);
         }
 #   endif
     }
 
     SIMD void input(string& value) {
-        input_string_like(value, &istream_impl::trace_non_whitespace);
+        input_string_like(value, [](NonAliasingChar* ptr) SIMD {
+            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+            // interleave ptr modification with SIMD loading, there's going to be an extra memory
+            // write on every iteration.
+#   ifdef AVX2
+            auto p = (__m256i*)ptr;
+            __m256i vec, space = _mm256_set1_epi8(' ');
+            while (
+                vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
+                _mm256_testz_si256(vec, vec)
+            ) {
+                p++;
+            }
+            return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
+#   elif defined(SSE41)
+            auto p = (__m128i*)ptr;
+            __m128i vec, space = _mm_set1_epi8(' ');
+            while (
+                vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
+                _mm_testz_si128(vec, vec)
+            ) {
+                p++;
+            }
+            return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
+#   else
+            while (*ptr < 0 || *ptr > ' ') {
+                ptr++;
+            }
+            return ptr;
+#   endif
+        });
     }
 
     SIMD void input(line_t& line) {
@@ -446,7 +405,49 @@ struct istream_impl {
         }
 #   endif
 
-        input_string_like(line.value, &istream_impl::trace_line);
+        input_string_like(line.value, [](NonAliasingChar* ptr) SIMD {
+            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+            // interleave ptr modification with SIMD loading, there's going to be an extra memory
+            // write on every iteration.
+#   ifdef AVX2
+            auto p = (__m256i*)ptr;
+            auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
+            __m256i vec, vec1, vec2;
+            while (
+                vec = _mm256_loadu_si256(p),
+                _mm256_testz_si256(
+                    vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
+                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                    vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
+                )
+            ) {
+                p++;
+            }
+            return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
+#   elif defined(SSE41)
+            auto p = (__m128i*)ptr;
+            __m128i vec, vec1, vec2;
+            while (
+                vec = _mm_loadu_si128(p),
+                _mm_testz_si128(
+                    vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
+                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                    vec2 = _mm_shuffle_epi8(
+                        _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff),
+                        vec
+                    )
+                )
+            ) {
+                p++;
+            }
+            return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
+#   else
+            while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
+                ptr++;
+            }
+            return ptr;
+#   endif
+        });
 
         // Skip \n and \r\n
         ptr += *ptr == '\r';

@@ -63,9 +63,7 @@ struct NonAliasingChar {
 
 !ifdef BITSET
 const long ONE_BYTES = -1ULL / 255
-@match
-@case x86_64+avx2,x86_64+sse4.1
-@case x86_64+none,aarch64
+@ondemand x86_64+none,aarch64
 , BITSET_SHIFT = 0x8040201008040201
 @end
 ;

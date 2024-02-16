@@ -83,6 +83,19 @@ def handler(match):
             return aarch64_code
         else:
             return ""
+    elif match[0].startswith("@ondemand "):
+        selectors = match[0].split()[1]
+        code = match[0].removeprefix(f"@ondemand {selectors}\n").removesuffix("@end\n")
+        possible = False
+        for selector in selectors.split(","):
+            if "+" in selector:
+                possible = possible or selector in target_architectures
+            else:
+                possible = possible or selector in target_bases
+        if possible:
+            return code
+        else:
+            return ""
     elif match[0].startswith("@define "):
         name = match[0].split()[1]
         text = match[0].removeprefix(f"@define {name}\n").removesuffix("@end\n")
@@ -155,7 +168,7 @@ def handler(match):
     else:
         assert False
 
-blazingio = re.sub(r"(@match|@define .*|@include)\n(@case (.*)\n[^@]*)+@end\n", handler, blazingio)
+blazingio = re.sub(r"(@match|@ondemand .*|@define .*|@include)\n[\s\S]*?@end\n", handler, blazingio)
 
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
@@ -298,6 +311,7 @@ def repl(s):
         ("Interactive", "F"),
         ("print", "F"),
         ("low_digits", "F"),
+        ("BITSET_SHIFT", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),

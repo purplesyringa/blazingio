@@ -1,6 +1,6 @@
 type: round-trip
 config:
-  architecture: x86_64
+  architecture: x86_64,aarch64
   # Make sure both LUTful and LUTless implementations are correct
   lut: [y, n]
   # Make sure overloads don't resolve to floats

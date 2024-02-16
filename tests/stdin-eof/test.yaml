@@ -1,5 +1,5 @@
 type: compare-std
 config:
-  architecture: x86_64
+  architecture: x86_64,aarch64
   stdin_eof: y
   interactive: [y, n]

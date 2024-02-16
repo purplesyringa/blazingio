@@ -192,7 +192,7 @@ struct istream_impl {
                 : "rcx", "r11"
             );
             ptr = rsi;
-@case aarch64
+@case aarch64 wrap
             register long
                 n_read asm("x0") = STDIN_FILENO,
                 x1 asm("x1") = (long)buffer,
@@ -351,7 +351,7 @@ struct istream_impl {
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
 @match
-@case x86_64+avx2 wrap{}
+@case x86_64+avx2 wrap
             auto p = (__m256i*)ptr;
             __m256i vec, space = _mm256_set1_epi8(' ');
             while (
@@ -361,7 +361,7 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
-@case x86_64+sse4.1 wrap{}
+@case x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, space = _mm_set1_epi8(' ');
             while (
@@ -397,7 +397,7 @@ struct istream_impl {
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
 @match
-@case x86_64+avx2 wrap{}
+@case x86_64+avx2 wrap
             auto p = (__m256i*)ptr;
             auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
             __m256i vec, vec1, vec2;
@@ -412,7 +412,7 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-@case x86_64+sse4.1 wrap{}
+@case x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, vec1, vec2;
             while (

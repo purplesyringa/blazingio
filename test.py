@@ -2,6 +2,7 @@
 
 import yaml
 import os
+import platform
 import subprocess
 import sys
 
@@ -15,6 +16,8 @@ def iterate_config(config, props = []):
         values = [values]
     for value in values:
         new_props = props + [f"{name}={value}"]
+        if name == "architecture" and platform.machine() not in value:
+            continue
         yield from iterate_config(tail, new_props)
 
 

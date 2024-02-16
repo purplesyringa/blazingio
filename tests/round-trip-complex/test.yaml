@@ -1,5 +1,5 @@
 type: round-trip
 config:
-  architecture: x86_64
+  architecture: x86_64,aarch64
   complex: y
   interactive: [y, n]

@@ -81,10 +81,10 @@ def handler(match):
                     assert False
 
         if x86_64_code is not None and aarch64_code is not None and x86_64_code != aarch64_code:
-            if "wrap{}" in x86_64_flags:
-                x86_64_code = f"{{{x86_64_code}}}"
-            if "wrap{}" in aarch64_flags:
-                aarch64_code = f"{{{aarch64_code}}}"
+            if "wrap" in x86_64_flags:
+                x86_64_code = f"UNWRAP({x86_64_code})"
+            if "wrap" in aarch64_flags:
+                aarch64_code = f"UNWRAP({aarch64_code})"
             return f"SELECT_ARCH({x86_64_code}, {aarch64_code})"
         elif x86_64_code is not None:
             return x86_64_code
@@ -212,7 +212,7 @@ blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 if len(target_architectures) > 1:
     # Add multiarch support
-    blazingio = "#ifdef __x86_64__\n#define SELECT_ARCH(x86_64, aarch64) x86_64\n#else\n#define SELECT_ARCH(x86_64, aarch64) aarch64\n#endif\n" + blazingio
+    blazingio = "#ifdef __x86_64__\n#define SELECT_ARCH(x86_64, aarch64) x86_64\n#else\n#define SELECT_ARCH(x86_64, aarch64) aarch64\n#endif\n#define UNWRAP(...) __VA_ARGS__\n" + blazingio
 
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)
@@ -320,7 +320,6 @@ def repl(s):
         ("Interactive", "F"),
         ("print", "F"),
         ("low_digits", "F"),
-        ("BITSET_SHIFT", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),
@@ -347,6 +346,8 @@ def repl(s):
         ("input_string_like", "P"),
 
         ("rshift_impl", "Q"),
+
+        ("BITSET_SHIFT", "R"),
 
         ("NULL", "0"),
         ("false", "0"),

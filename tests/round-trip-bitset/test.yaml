@@ -1,5 +1,5 @@
 type: round-trip
 config:
-  architecture: [x86_64, x86_64+sse4.1, x86_64+avx2]
+  architecture: [x86_64, x86_64+sse4.1, x86_64+avx2, aarch64, "x86_64+avx2,aarch64"]
   bitset: y
   interactive: [y, n]

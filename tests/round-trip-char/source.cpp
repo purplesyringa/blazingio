@@ -1,5 +1,5 @@
 #include <iostream>
-#include "blazingio.hpp"
+#include BLAZINGIO
 
 int main() {
     uint64_t sum = 0;

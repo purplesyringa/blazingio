@@ -1,6 +1,6 @@
 #include <complex>
 #include <iostream>
-#include "blazingio.hpp"
+#include BLAZINGIO
 
 int main() {
     size_t n;

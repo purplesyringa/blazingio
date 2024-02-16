@@ -1,5 +1,5 @@
 #include <iostream>
-#include "blazingio.hpp"
+#include BLAZINGIO
 
 template<size_t N>
 void round_trip() {

@@ -1,28 +1,32 @@
 import re
 import subprocess
+import sys
 
 from common import CONFIG_OPTS
 
 
-opts = []
-for line in open("config"):
-    line = line.strip()
-    if line and not line.startswith("#"):
-        if line not in CONFIG_OPTS:
-            print(f"Invalid key-value combination {line}")
-            raise SystemExit(1)
-        opt = CONFIG_OPTS[line]
-        if opt:
-            opts.append(opt)
+if len(sys.argv) >= 2 and sys.argv[1] == "--override":
+    opts = sys.argv[2:]
+else:
+    opts = []
+    for line in open("config"):
+        line = line.strip()
+        if line and not line.startswith("#"):
+            if line not in CONFIG_OPTS:
+                print(f"Invalid key-value combination {line}")
+                raise SystemExit(1)
+            opt = CONFIG_OPTS[line]
+            if opt:
+                opts.append(opt)
 
 
 blazingio = open("blazingio.hpp").read()
 
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
-blazingio = re.sub(r"^cpp#   ", "#", blazingio, flags=re.M)
+blazingio = re.sub(r"^!", "#", blazingio, flags=re.M)
 proc = subprocess.run(
-    ["cpp", "-P", "-DMINIMIZE"] + [f"-D{opt}" for opt in opts],
+    ["cpp", "-P"] + [f"-D{opt}" for opt in opts],
     input=blazingio.encode(),
     capture_output=True,
     check=True,
@@ -101,74 +105,82 @@ def repl(s):
         ("SIMD", "$s"),
         ("INLINE", "$I"),
         ("FETCH", "$F"),
+
         ("UninitChar", "A"),
+        ("Inner", "A"),
+        ("n_read", "A"),
+        ("negative", "A"),
+        ("vec", "A"),
+        ("line", "A"),
+        ("real_part", "A"),
+        ("file", "A"),
+        ("decimal_lut", "A"),
+        ("n_written", "A"),
+        ("computed", "A"),
+        ("abs", "A"),
+        ("write12", "A"),
+        ("func", "A"),
+
         ("NonAliasingChar", "B"),
-        ("buffer", "C"),
-        ("space", "D"),
-        ("init_assume_file", "E"),
+        ("exponent", "B"),
+        ("imag_part", "B"),
+        ("interactive", "B"),
+        ("iov", "B"),
+        ("MinDigits", "B"),
+        ("whole", "B"),
+        ("stream", "B"),
+
+        ("ONE_BYTES", "C"),
+        ("file_size", "C"),
+        ("rsi", "C"),
+        ("has_dot", "C"),
+        ("trace", "C"),
+        ("space", "C"),
+        ("vec1", "C"),
+        ("MaxDigits", "C"),
+
+        ("line_t", "D"),
+        ("base", "D"),
+        ("new_exponent", "D"),
+        ("exps", "D"),
+        ("vec2", "D"),
+        ("Factor", "D"),
+
+        ("buffer", "E"),
+        ("mask", "E"),
+        ("do_flush", "E"),
+        ("interval", "E"),
+
+        ("Interactive", "F"),
         ("print", "F"),
-        ("do_flush", "G"),
-        ("collect_digits", "H"),
-        ("do_init", "I"),
-        ("stream", "J"),
-        ("ptr", "K"),
+        ("low_digits", "F"),
+
+        ("istream_impl", "G"),
+        ("start", "G"),
+        ("write_int_split", "G"),
+
+        ("end", "H"),
+        ("coeff", "H"),
+
+        ("ptr", "I"),
+
+        ("blazingio_istream", "J"),
+
+        ("value", "K"),
+        ("init_assume_file", "K"),
+
         ("init_assume_interactive", "L"),
-        ("file_size", "M"),
-        ("base", "N"),
-        ("end", "l"),
-        ("value", "O"),
-        ("abs", "P"),
-        ("coeff", "Q"),
-        ("interval", "R"),
-        ("MinDigits", "S"),
-        ("MaxDigits", "U"),
-        ("decimal_lut", "V"),
-        ("write_int_split", "W"),
-        ("whole", "X"),
-        ("func", "Y"),
-        ("fetch", "Z"),
-        ("info", "a"),
-        ("line_t", "b"),
-        ("start", "d"),
-        ("line", "e"),
-        ("exponent", "f"),
-        ("low_digits", "g"),
-        ("Factor", "h"),
-        ("computed", "j"),
-        ("n_written", "k"),
-        ("negative", "l"),
-        ("exps", "m"),
-        ("trace_line", "m"),
-        ("has_dot", "o"),
-        ("trace_non_whitespace", "o"),
-        ("vec1", "q"),
-        ("vec2", "r"),
-        ("vec", "s"),
-        ("mask", "t"),
-        ("trace", "t"),
-        ("input", "u"),
-        ("iov", "v"),
-        ("x2", "v"),
-        ("Interactive", "w"),
-        ("n_read", "y"),
-        ("rax", "q"),
-        ("w8", "q"),
-        ("Inner", "q"),
-        ("empty_fd", "U"),
-        ("write12", "w"),
-        ("new_exponent", "k"),
-        ("input_string_like", "k"),
-        ("rsi", "k"),
-        ("x1", "k"),
-        ("file", "k"),
-        ("interactive", "w"),
-        ("rshift_impl", "t"),
-        ("real_part", "w"),
-        ("imag_part", "q"),
-        ("istream_impl", "q"),
-        ("ONE_BYTES", "Z"),
-        ("BITSET_SHIFT", "q"),
-        ("BIG", "k"),
+
+        ("fetch", "M"),
+
+        ("collect_digits", "N"),
+
+        ("input", "O"),
+
+        ("input_string_like", "P"),
+
+        ("rshift_impl", "Q"),
+
         ("NULL", "0"),
         ("false", "0"),
         ("true", "1"),

@@ -1,44 +1,40 @@
-#   ifndef NO_BLAZINGIO
-
 #include <array>
-#   ifdef BITSET
+!ifdef BITSET
 #include <bitset>
-#   endif
-#   ifdef COMPLEX
+!endif
+!ifdef COMPLEX
 #include <complex>
-#   endif
+!endif
 #include <cstring>
-#   if defined(AVX2) || defined(SSE41)
+!if defined(AVX2) || defined(SSE41)
 #include <immintrin.h>
-#   endif
+!endif
 #include <sys/mman.h>
-#   ifndef MINIMIZE
-#include <fcntl.h>
-#include <sys/syscall.h>
 #include <unistd.h>
-#   endif
 
-#   ifdef AVX2
+!ifdef AVX2
 #define SIMD __attribute__((target("avx2")))
-#   define SIMD_SIZE 32
-#   define SIMD_TYPE __m256i
-#   elif defined(SSE41)
+!define SIMD_SIZE 32
+!define SIMD_TYPE __m256i
+!elif defined(SSE41)
 #define SIMD __attribute__((target("sse4.1")))
-#   define SIMD_SIZE 16
-#   define SIMD_TYPE __m128i
-#   else
-#   define SIMD_SIZE 8
-#   define SIMD_TYPE uint64_t
-#   define SIMD
-#   endif
+!define SIMD_SIZE 16
+!define SIMD_TYPE __m128i
+!else
+!define SIMD_SIZE 8
+!define SIMD_TYPE uint64_t
+!define SIMD
+!endif
 
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
 // otherwise it resorts to way too many memory accesses.
 #define INLINE __attribute__((always_inline))
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
 #define FETCH fetch(),
-#   endif
+!else
+!define FETCH
+!endif
 
 #define ensure(x) if (!(x)) abort();
 
@@ -60,43 +56,43 @@ struct NonAliasingChar {
     }
 };
 
-#   ifdef BITSET
+!ifdef BITSET
 const long ONE_BYTES = -1ULL / 255
-#   if !defined(AVX2) && !defined(SSE41)
+!if !defined(AVX2) && !defined(SSE41)
 , BITSET_SHIFT = 0x8040201008040201
-#   endif
+!endif
 ;
-#   endif
+!endif
 
 // Actually 0x0102040810204080
-#   define POWERS_OF_TWO -3ULL / 254
+!define POWERS_OF_TWO -3ULL / 254
 
 struct line_t {
-    std::string& value;
+    string& value;
 };
 
-#   ifndef INTERACTIVE
-#   define istream_impl blazingio_istream
-#   endif
+!ifndef INTERACTIVE
+!define istream_impl blazingio_istream
+!endif
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
 // Allocate one more byte for null terminator as used by parsing routines. We might want to
 // lookahead over this byte though, so add 32 instead of 1.
 static NonAliasingChar buffer[65568];
 
 template<bool Interactive>
-#   endif
+!endif
 struct istream_impl {
     NonAliasingChar* end;
     NonAliasingChar* ptr;
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
     void init_assume_file(off_t file_size) {
-#   else
+!else
     blazingio_istream() {
         off_t file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
-#   endif
+!endif
         // Round to page size.
         (file_size += 4095) &= -4096;
         char* base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
@@ -110,28 +106,28 @@ struct istream_impl {
         // integer parsing immediately with a zero, and also stops whitespace parsing *soon*.
         end = (NonAliasingChar*)base + file_size;
         ensure(mmap(end, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
-#   ifdef STDIN_EOF
+!ifdef STDIN_EOF
         // We only really need to do this if we're willing to keep going "after" EOF, not just
         // handle 4k-aligned non-whitespace-terminated input.
         end[1] = '0';
-#   endif
+!endif
         ptr = (NonAliasingChar*)base;
     }
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
     void init_assume_interactive() {
         end = ptr = buffer;
     }
-#   endif
+!endif
 
-#   ifndef INTERACTIVE
+!ifndef INTERACTIVE
     // For people writing cie.tie(0);
     void* tie(nullptr_t) {
         return NULL;
     }
-#   endif
+!endif
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
     INLINE void fetch() {
         if (Interactive && __builtin_expect(ptr == end, 0)) {
             // There's a bit of ridiculous code with questionable choices below. What we *want* is:
@@ -178,7 +174,7 @@ struct istream_impl {
             // even though ptr is clearly loaded into a register, GCC assumes memory might still be
             // modified, so we have to load ptr into a local variable and then put it back, like
             // this:
-#   define AARCH64 \
+!define AARCH64 \
             register long \
                 n_read asm("x0") = STDIN_FILENO, \
                 x1 asm("x1") = (long)buffer, \
@@ -190,7 +186,7 @@ struct istream_impl {
                 : "r"(w8), "r"(x1), "r"(x2) \
             ); \
             ptr = (NonAliasingChar*)x1;
-#   define X64 \
+!define X64 \
             off_t n_read = SYS_read; \
             NonAliasingChar* rsi = buffer; \
             asm volatile( \
@@ -203,22 +199,22 @@ struct istream_impl {
             ); \
             ptr = rsi;
 
-#   ifdef MULTIARCH
+!ifdef MULTIARCH
 #ifdef __aarch64__
             AARCH64
 #else
             X64
 #endif
-#   else
-#   ifdef __aarch64__
+!else
+!ifdef __aarch64__
             AARCH64
-#   else
+!else
             X64
-#   endif
-#   endif
+!endif
+!endif
             ensure(n_read >= 0)
             end = ptr + n_read;
-#   ifdef STDIN_EOF
+!ifdef STDIN_EOF
             if (!n_read) {
                 // This is an attempt to read past EOF. Simulate this just like with files, with
                 // "\00". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
@@ -228,12 +224,10 @@ struct istream_impl {
                 // We want ptr == end to evaluate to false.
                 end = NULL;
             }
-#   endif
+!endif
         }
     }
-#   else
-#   define FETCH
-#   endif
+!endif
 
     template<typename T>
     INLINE void collect_digits(T& x) {
@@ -250,7 +244,7 @@ struct istream_impl {
         x = negative ? -x : x;
     }
 
-#   ifdef FLOAT
+!ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
     INLINE void input(T& x) {
         bool negative = (FETCH *ptr == '-');
@@ -313,7 +307,7 @@ struct istream_impl {
         }
         x = negative ? -x : x;
     }
-#   endif
+!endif
 
     INLINE void input(bool& x) {
         FETCH x = *ptr++ == '1';
@@ -322,14 +316,14 @@ struct istream_impl {
         FETCH x = *ptr++;
     }
 
-#   ifdef CHAR_WITH_SIGN_IS_GLYPH
+!ifdef CHAR_WITH_SIGN_IS_GLYPH
     INLINE void input(uint8_t& x) {
         FETCH x = *ptr++;
     }
     INLINE void input(int8_t& x) {
         FETCH x = *ptr++;
     }
-#   endif
+!endif
 
     SIMD void input_string_like(string& value, NonAliasingChar* (*trace)(NonAliasingChar*)) {
         auto start = ptr;
@@ -340,14 +334,13 @@ struct istream_impl {
         ((basic_string<UninitChar>&)value).resize(ptr - start);
         memcpy(value.data(), start, ptr - start);
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
         while (Interactive && ptr == end) {
             // We have read *some* data, but stumbled upon an unfetched chunk and thus have to load
             // more. We can't reuse the same code as we want to append to the string instead of
             // replacing it. fetch() will set 'end = NULL' on EOF here, even though the string/line
             // exists and we don't want to report end at the moment; therefore, patch 'end'.
-            fetch();
-            if (!end) {
+            if (FETCH !end) {
                 end = ptr;
                 break;
             }
@@ -356,7 +349,7 @@ struct istream_impl {
             ptr = trace(ptr);
             value.append(buffer, ptr);
         }
-#   endif
+!endif
     }
 
     SIMD void input(string& value) {
@@ -364,7 +357,7 @@ struct istream_impl {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
-#   ifdef AVX2
+!ifdef AVX2
             auto p = (__m256i*)ptr;
             __m256i vec, space = _mm256_set1_epi8(' ');
             while (
@@ -374,7 +367,7 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
-#   elif defined(SSE41)
+!elif defined(SSE41)
             auto p = (__m128i*)ptr;
             __m128i vec, space = _mm_set1_epi8(' ');
             while (
@@ -384,17 +377,17 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
-#   else
+!else
             while (*ptr < 0 || *ptr > ' ') {
                 ptr++;
             }
             return ptr;
-#   endif
+!endif
         });
     }
 
     SIMD void input(line_t& line) {
-#   ifdef STDIN_EOF
+!ifdef STDIN_EOF
         // Detect if we're at the end of the file. getline has to be handled differently from other
         // inputs because it treats a null byte as a line terminator and would thus wrongly assume
         // there's an empty line after EOF.
@@ -403,13 +396,13 @@ struct istream_impl {
             end = NULL;
             return;
         }
-#   endif
+!endif
 
         input_string_like(line.value, [](NonAliasingChar* ptr) SIMD {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
-#   ifdef AVX2
+!ifdef AVX2
             auto p = (__m256i*)ptr;
             auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
             __m256i vec, vec1, vec2;
@@ -424,7 +417,7 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-#   elif defined(SSE41)
+!elif defined(SSE41)
             auto p = (__m128i*)ptr;
             __m128i vec, vec1, vec2;
             while (
@@ -441,12 +434,12 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-#   else
+!else
             while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
                 ptr++;
             }
             return ptr;
-#   endif
+!endif
         });
 
         // Skip \n and \r\n
@@ -454,7 +447,7 @@ struct istream_impl {
         ptr += *ptr == '\n';
     }
 
-#   ifdef COMPLEX
+!ifdef COMPLEX
     template<typename T>
     INLINE void input(complex<T>& value) {
         T real_part, imag_part{};
@@ -462,11 +455,11 @@ struct istream_impl {
             ptr++;
             input(real_part);
             if (FETCH *ptr++ == ',') {
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
                 rshift_impl(imag_part);
-#   else
+!else
                 *this >> imag_part;
-#   endif
+!endif
                 ptr++;
             }
         } else {
@@ -474,12 +467,12 @@ struct istream_impl {
         }
         value = {real_part, imag_part};
     }
-#   endif
+!endif
 
-#   ifdef BITSET
+!ifdef BITSET
     template<size_t N>
     SIMD void input(bitset<N>& value) {
-#   ifdef STDIN_EOF
+!ifdef STDIN_EOF
         // As we always read N bytes, we might read past the end of the file in case EOF happens.
         // Luckily, we are allowed to overread up to 4095 bytes after EOF (because there's a
         // 4096-page and its second byte is non-whitespace). Therefore, we only have to check for
@@ -487,31 +480,30 @@ struct istream_impl {
         if (N >= 4096 && !*this) {
             return;
         }
-#   endif
+!endif
         ssize_t i = N;
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
         while (i) {
-            fetch();
-            if (i % SIMD_SIZE || end - ptr < SIMD_SIZE) {
+            if (FETCH i % SIMD_SIZE || end - ptr < SIMD_SIZE) {
                 value[--i] = *ptr++ == '1';
             } else {
-#   else
+!else
         while (i % SIMD_SIZE) {
             value[--i] = *ptr++ == '1';
         }
-#   endif
-#   if defined(AVX2) || defined(SSE41)
+!endif
+!if defined(AVX2) || defined(SSE41)
                 // This is actually 0x0001020304050607
                 long a = -1ULL / 65025;
-#   endif
+!endif
                 auto p = (SIMD_TYPE*)ptr;
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
                 for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
-#   else
+!else
                 while (i) {
-#   endif
+!endif
                     i -= SIMD_SIZE;
-#   ifdef AVX2
+!ifdef AVX2
                     ((uint32_t*)&value)[i / 32] = __bswap_32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
@@ -525,31 +517,31 @@ struct istream_impl {
                             )
                         )
                     );
-#   elif defined(SSE41)
+!elif defined(SSE41)
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_loadu_si128(p++) << 7,
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-#   else
+!else
                     ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
-#   endif
+!endif
                 }
                 ptr = (NonAliasingChar*)p;
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
             }
         }
-#   endif
+!endif
     }
-#   endif
+!endif
 
     template<typename T>
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
     INLINE void rshift_impl(T& value) {
-#   else
+!else
     INLINE blazingio_istream& operator>>(T& value) {
-#   endif
+!endif
         if (!is_same_v<T, line_t>) {
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
             // We expect short runs here, hence no vectorization.
@@ -559,22 +551,22 @@ struct istream_impl {
         }
 
         input(value);
-#   ifndef INTERACTIVE
+!ifndef INTERACTIVE
         return *this;
-#   endif
+!endif
     }
 
-#   ifdef STDIN_EOF
+!ifdef STDIN_EOF
     operator bool() {
         return !!*this;
     }
     bool operator!() {
         return ptr > end;
     }
-#   endif
+!endif
 };
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
 struct blazingio_istream {
     off_t file_size;
     istream_impl<false> file;
@@ -600,24 +592,24 @@ struct blazingio_istream {
         return *this;
     }
 
-#   ifdef STDIN_EOF
+!ifdef STDIN_EOF
     operator bool() {
         return !!*this;
     }
     bool operator!() {
         return __builtin_expect(~file_size, 1) ? !file : !interactive;
     }
-#   endif
+!endif
 };
-#   endif
+!endif
 
 struct blazingio_ostream {
     char* base;
     NonAliasingChar* ptr;
 
-#   ifdef LUT
+!ifdef LUT
     inline static char decimal_lut[200];
-#   endif
+!endif
 
     blazingio_ostream() {
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
@@ -625,11 +617,11 @@ struct blazingio_ostream {
         // because we'll only use the fd in the destructor.
         base = (char*)mmap(
             NULL,
-#   ifdef LARGE_OUTPUT
+!ifdef LARGE_OUTPUT
             0x1000000000,
-#   else
+!else
             0x40000000,
-#   endif
+!endif
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
             -1,
@@ -638,23 +630,23 @@ struct blazingio_ostream {
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
 
-#   ifdef LUT
+!ifdef LUT
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++) {
             decimal_lut[i * 2] = '0' + i / 10;
             decimal_lut[i * 2 + 1] = '0' + i % 10;
         }
-#   endif
+!endif
     }
     ~blazingio_ostream() {
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
         do_flush();
     }
 
     void do_flush() {
-#   endif
+!endif
         auto start = base;
-#   ifdef SPLICE
+!ifdef SPLICE
         ssize_t n_written = 1;
         while (n_written > 0) {
             iovec iov{start, (size_t)ptr - (size_t)start};
@@ -668,29 +660,29 @@ struct blazingio_ostream {
             } while (n_written > 0);
             ensure(~n_written)
         }
-#   else
+!else
         ssize_t n_written = 1;
         while (n_written > 0) {
             start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
         }
         ensure(~n_written)
-#   endif
-#   ifdef INTERACTIVE
+!endif
+!ifdef INTERACTIVE
         ptr = (NonAliasingChar*)base;
-#   endif
+!endif
     }
 
     void print(char value) {
         *ptr++ = value;
     }
-#   ifdef CHAR_WITH_SIGN_IS_GLYPH
+!ifdef CHAR_WITH_SIGN_IS_GLYPH
     void print(uint8_t value) {
         *ptr++ = value;
     }
     void print(int8_t value) {
         *ptr++ = value;
     }
-#   endif
+!endif
     void print(bool value) {
         *ptr++ = '0' + value;
     }
@@ -701,7 +693,7 @@ struct blazingio_ostream {
             if (MinDigits >= 1 || value >= Factor) {
                 *ptr++ = '0' + interval;
             }
-#   ifdef LUT
+!ifdef LUT
         } else if constexpr (MaxDigits == 2) {
             if (MinDigits >= 2 || value >= 10 * Factor) {
                 print(decimal_lut[interval * 2]);
@@ -709,7 +701,7 @@ struct blazingio_ostream {
             if (MinDigits >= 1 || value >= Factor) {
                 print(decimal_lut[interval * 2 + 1]);
             }
-#   endif
+!endif
         } else {
             constexpr auto computed = [] {
                 int low_digits = 1;
@@ -740,7 +732,7 @@ struct blazingio_ostream {
         >(abs, abs);
     }
 
-#   ifdef FLOAT
+!ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
     void print(T value) {
         if (value < 0) {
@@ -777,7 +769,7 @@ struct blazingio_ostream {
             write12();
         }
     }
-#   endif
+!endif
 
     void print(const char* value) {
         // We'd prefer strcpy without null terminator here, but perhaps strcpy itself suffices. It's
@@ -785,14 +777,14 @@ struct blazingio_ostream {
         // into a mov or two!
         ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
     }
-#   ifdef CHAR_WITH_SIGN_IS_GLYPH
+!ifdef CHAR_WITH_SIGN_IS_GLYPH
     void print(const uint8_t* value) {
         print((char*)value);
     }
     void print(const int8_t* value) {
         print((char*)value);
     }
-#   endif
+!endif
 
     // std::string is inferred from this:
     void print(string_view value) {
@@ -800,18 +792,18 @@ struct blazingio_ostream {
         ptr += value.size();
     }
 
-#   ifdef COMPLEX
+!ifdef COMPLEX
     template<typename T>
     void print(complex<T> value) {
         *this << '(' << value.real() << ',' << value.imag() << ')';
     }
-#   endif
+!endif
 
-#   ifdef BITSET
+!ifdef BITSET
     template<size_t N>
     SIMD void print(const bitset<N>& value) {
         auto i = N;
-#   ifdef AVX2
+!ifdef AVX2
         while (i % 32) {
             *ptr++ = '0' + value[--i];
         }
@@ -834,7 +826,7 @@ struct blazingio_ostream {
             );
         }
         ptr = (NonAliasingChar*)p;
-#   elif defined(SSE41)
+!elif defined(SSE41)
         while (i % 16) {
             *ptr++ = '0' + value[--i];
         }
@@ -857,7 +849,7 @@ struct blazingio_ostream {
             );
         }
         ptr = (NonAliasingChar*)p;
-#   else
+!else
         while (i % 8) {
             *ptr++ = '0' + value[--i];
         }
@@ -867,9 +859,9 @@ struct blazingio_ostream {
             *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
         }
         ptr = (NonAliasingChar*)p;
-#   endif
+!endif
     }
-#   endif
+!endif
 
     template<typename T>
     blazingio_ostream& operator<<(const T& value) {
@@ -882,7 +874,7 @@ struct blazingio_ostream {
     }
 };
 
-#   ifdef CERR
+!ifdef CERR
 struct blazingio_ignoreostream {
     template<typename T>
     blazingio_ignoreostream& operator<<(const T& value) {
@@ -892,23 +884,23 @@ struct blazingio_ignoreostream {
         return func(*this);
     }
 };
-#   endif
+!endif
 
 }
 
 namespace std {
     blazingio::blazingio_istream blazingio_cin;
     blazingio::blazingio_ostream blazingio_cout;
-#   ifdef CERR
+!ifdef CERR
     blazingio::blazingio_ignoreostream blazingio_cerr;
-#   endif
+!endif
 
     blazingio::blazingio_istream& getline(blazingio::blazingio_istream& stream, string& value) {
         blazingio::line_t line{value};
         return stream >> line;
     }
 
-#   ifdef INTERACTIVE
+!ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
         if (__builtin_expect(!~blazingio_cin.file_size, 0)) {
             stream.do_flush();
@@ -918,37 +910,35 @@ namespace std {
     blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
         return stream << '\n' << flush;
     }
-#   else
+!else
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
         return stream;
     }
     blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {
         return stream << '\n';
     }
-#   endif
+!endif
 
-#   ifdef CERR
+!ifdef CERR
     blazingio::blazingio_ignoreostream& endl(blazingio::blazingio_ignoreostream& stream) {
         return stream;
     }
     blazingio::blazingio_ignoreostream& flush(blazingio::blazingio_ignoreostream& stream) {
         return stream;
     }
-#   endif
+!endif
 }
 
-#   ifdef LATE_BINDING
+!ifdef LATE_BINDING
 #define freopen(...) if (freopen(__VA_ARGS__) == stdin) std::blazingio_cin = blazingio::blazingio_istream{}
-#   endif
+!endif
 
 #define cin blazingio_cin
 #define cout blazingio_cout
 
-#   ifdef CERR
+!ifdef CERR
 #ifdef ONLINE_JUDGE
 #define cerr blazingio_cerr
 #define clog blazingio_cerr
 #endif
-#   endif
-
-#   endif
+!endif

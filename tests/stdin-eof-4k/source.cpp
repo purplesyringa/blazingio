@@ -1,7 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-#include "blazingio.hpp"
+#include BLAZINGIO
 
 int main() {
     std::string s;

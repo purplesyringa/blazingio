@@ -7,6 +7,14 @@ import subprocess
 import sys
 
 
+if len(sys.argv) >= 2 and sys.argv[1] == "--cross":
+    arch = sys.argv[2]
+    compiler = f"{arch}-linux-gnu-g++"
+else:
+    arch = platform.machine()
+    compiler = "g++"
+
+
 def iterate_config(config, props = []):
     if not config:
         yield props
@@ -16,7 +24,7 @@ def iterate_config(config, props = []):
         values = [values]
     for value in values:
         new_props = props + [f"{name}={value}"]
-        if name == "architecture" and platform.machine() not in value:
+        if name == "architecture" and arch not in value:
             continue
         yield from iterate_config(tail, new_props)
 
@@ -34,14 +42,14 @@ for test_name in os.listdir("tests"):
 
     config = list(manifest.get("config", {}).items())
     for props in iterate_config(config):
-        print(f"  Props {' '.join(props) if props else '(none)'}")
+        print(f"  Props {' '.join(props)}")
 
         print("    Minimizing")
-        subprocess.run([sys.executable, "minimize.py", "--override"] + props, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, "minimize.py", "--override"] + props, stdout=subprocess.DEVNULL, check=True)
 
         if manifest["type"] == "round-trip":
             print("    Compiling")
-            subprocess.run(["g++", f"tests/{test_name}/source.cpp", "-iquote", ".", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
+            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
             print("    Running")
             with open("/tmp/blazingio-test", "rb") as f:
                 with open("/tmp/blazingio-out", "wb") as f2:
@@ -50,9 +58,9 @@ for test_name in os.listdir("tests"):
                     assert test == f2.read()
         elif manifest["type"] == "compare-std":
             print("    Compiling with blazingio")
-            subprocess.run(["g++", f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out.blazingio", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
+            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out.blazingio", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
             print("    Compiling without blazingio")
-            subprocess.run(["g++", f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out.std", "-DBLAZINGIO=\"empty.hpp\""], check=True)
+            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out.std", "-DBLAZINGIO=\"empty.hpp\""], check=True)
             print("    Running with blazingio")
             with open("/tmp/blazingio-test", "rb") as f:
                 with open("/tmp/blazingio-out-blazingio", "wb") as f2:
@@ -66,7 +74,7 @@ for test_name in os.listdir("tests"):
                     assert f.read() == f2.read()
         elif manifest["type"] == "exit-code":
             print("    Compiling")
-            subprocess.run(["g++", f"tests/{test_name}/source.cpp", "-iquote", ".", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
+            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
             print("    Running")
             with open("/tmp/blazingio-test", "rb") as f:
                 subprocess.run(["./a.out"], stdin=f, check=True)

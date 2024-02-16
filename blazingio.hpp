@@ -759,7 +759,8 @@ struct blazingio_ostream {
         }
         // At least it isn't \write18...
         auto write12 = [&] {
-            write_int_split<uint64_t, 12, 12>(value * 1e12, value * 1e12);
+            value *= 1e12;
+            write_int_split<uint64_t, 12, 12>(value, value);
         };
         if (!value) {
             return print('0');

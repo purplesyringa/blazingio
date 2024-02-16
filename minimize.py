@@ -281,7 +281,6 @@ def repl(s):
         ("write12", "A"),
         ("func", "A"),
         ("x86_64", "A"),
-        ("table", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),
@@ -310,6 +309,7 @@ def repl(s):
         ("exps", "D"),
         ("vec2", "D"),
         ("Factor", "D"),
+        ("table", "D"),
 
         ("buffer", "E"),
         ("mask", "E"),

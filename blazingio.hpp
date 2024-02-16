@@ -413,9 +413,8 @@ struct istream_impl {
                     // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                     vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
                 )
-            ) {
+            )
                 p++;
-            }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
 @case x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
@@ -430,14 +429,19 @@ struct istream_impl {
                         vec
                     )
                 )
-            ) {
+            )
                 p++;
-            }
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-@case x86_64+none,aarch64
-            while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
+@case aarch64+neon wrap
+            auto p = (uint8x16_t*)ptr;
+            uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
+            uint64x2_t vec;
+            while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *p), !(vec[0] | vec[1]))
+                p++;
+            return (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
+@case x86_64+none,aarch64+none
+            while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n')
                 ptr++;
-            }
             return ptr;
 @end
         });

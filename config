@@ -1,9 +1,3 @@
-# Which SIMD instruction sets to use for string and bitset I/O. Valid values: 'none', 'sse4.1',
-# 'avx2'. 'none' is the safest one, 'avx2' is present on most modern computers, including Codeforces
-# servers. 'sse4.1' is a middle-ground option available since Silvermont. Apart from better generic
-# CPU support, using 'none' or 'sse4.1' will reduce code size. Choose 'avx2' if unsure.
-simd=avx2
-
 # Whether to use a precomputed 200-byte lookup table for integer output. This typically increases
 # performance, but might affect cache negatively in cache-intensive tasks. Slightly increases code
 # size. Choose 'y' if unsure.
@@ -59,8 +53,12 @@ cerr=y
 # unsure.
 large_output=n
 
-# Whether to build a version that works on all architectures as opposed to just the architecture the
-# minimized program was built on. For instance, if you're using M1 and the judge server is using
-# x64, setting this option to 'y' will enable you to use the same blazingio code for both
-# environments. Choose 'n' if unsure.
-multiarch=n
+# Which architectures and instruction sets to generate code for. The supported architectures are
+# 'x86_64' (amd64) and 'aarch64' (arm64). Additionally, ISA extensions may be specified by naming
+# them after '+'. The supported extensions are 'avx2' and 'sse4.1' for x86_64; none for aarch64. If
+# an extension is listed, it is assumed to always be present: there is no way to perform smart
+# detection after blazingio is built. Most x64 CPUs support AVX2 these days, including Codeforces
+# invokers and likely your computer, so 'x86_64+avx2' will work in most use cases. 'x86_64+sse4.1'
+# is a middle-ground option available since Silvermont. If you are using M1, you will need to list
+# 'aarch64' among the options. Choose 'x86_64+avx2,aarch64' if unsure.
+architecture=x86_64+avx2,aarch64

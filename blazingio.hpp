@@ -6,25 +6,30 @@
 #include <complex>
 !endif
 #include <cstring>
-!if defined(AVX2) || defined(SSE41)
-#include <immintrin.h>
-!endif
+@include
+@case x86_64+avx2,x86_64+sse4.1 <immintrin.h>
+@case x86_64+none,aarch64 none
+@end
 #include <sys/mman.h>
 #include <unistd.h>
 
-!ifdef AVX2
-#define SIMD __attribute__((target("avx2")))
-!define SIMD_SIZE 32
-!define SIMD_TYPE __m256i
-!elif defined(SSE41)
-#define SIMD __attribute__((target("sse4.1")))
-!define SIMD_SIZE 16
-!define SIMD_TYPE __m128i
-!else
-!define SIMD_SIZE 8
-!define SIMD_TYPE uint64_t
-!define SIMD
-!endif
+@define SIMD
+@case x86_64+avx2 __attribute__((target("avx2")))
+@case x86_64+sse4.1 __attribute__((target("sse4.1")))
+@case x86_64+none,aarch64
+@end
+
+@define SIMD_SIZE
+@case x86_64+avx2 32
+@case x86_64+sse4.1 16
+@case x86_64+none,aarch64 8
+@end
+
+@define SIMD_TYPE
+@case x86_64+avx2 __m256i
+@case x86_64+sse4.1 __m128i
+@case x86_64+none,aarch64 uint64_t
+@end
 
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
 // otherwise it resorts to way too many memory accesses.
@@ -58,9 +63,11 @@ struct NonAliasingChar {
 
 !ifdef BITSET
 const long ONE_BYTES = -1ULL / 255
-!if !defined(AVX2) && !defined(SSE41)
+@match
+@case x86_64+avx2,x86_64+sse4.1
+@case x86_64+none,aarch64
 , BITSET_SHIFT = 0x8040201008040201
-!endif
+@end
 ;
 !endif
 
@@ -174,44 +181,32 @@ struct istream_impl {
             // even though ptr is clearly loaded into a register, GCC assumes memory might still be
             // modified, so we have to load ptr into a local variable and then put it back, like
             // this:
-!define AARCH64 \
-            register long \
-                n_read asm("x0") = STDIN_FILENO, \
-                x1 asm("x1") = (long)buffer, \
-                x2 asm("x2") = 65536, \
-                w8 asm("x8") = SYS_read; \
-            asm volatile( \
-                "svc 0; strb wzr, [x1, x0]" \
-                : "+r"(n_read) \
-                : "r"(w8), "r"(x1), "r"(x2) \
-            ); \
-            ptr = (NonAliasingChar*)x1;
-!define X64 \
-            off_t n_read = SYS_read; \
-            NonAliasingChar* rsi = buffer; \
-            asm volatile( \
-                /* Put a 0 byte after data for convenience of parsing routines. No, I don't know why
-                   doing this in an asm statement results in better performance. */ \
-                "syscall; movb $0, (%%rsi,%%rax);" \
-                : "+a"(n_read), "+S"(rsi) \
-                : "D"(STDIN_FILENO), "d"(65536) \
-                : "rcx", "r11" \
-            ); \
+@match
+@case x86_64
+            off_t n_read = SYS_read;
+            NonAliasingChar* rsi = buffer;
+            asm volatile(
+                // Put a 0 byte after data for convenience of parsing routines. No, I don't know why
+                // doing this in an asm statement results in better performance.
+                "syscall; movb $0, (%%rsi,%%rax);"
+                : "+a"(n_read), "+S"(rsi)
+                : "D"(STDIN_FILENO), "d"(65536)
+                : "rcx", "r11"
+            );
             ptr = rsi;
-
-!ifdef MULTIARCH
-#ifdef __aarch64__
-            AARCH64
-#else
-            X64
-#endif
-!else
-!ifdef __aarch64__
-            AARCH64
-!else
-            X64
-!endif
-!endif
+@case aarch64
+            register long
+                n_read asm("x0") = STDIN_FILENO,
+                x1 asm("x1") = (long)buffer,
+                x2 asm("x2") = 65536,
+                w8 asm("x8") = SYS_read;
+            asm volatile(
+                "svc 0; strb wzr, [x1, x0]"
+                : "+r"(n_read)
+                : "r"(w8), "r"(x1), "r"(x2)
+            );
+            ptr = (NonAliasingChar*)x1;
+@end
             ensure(n_read >= 0)
             end = ptr + n_read;
 !ifdef STDIN_EOF
@@ -357,7 +352,8 @@ struct istream_impl {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
-!ifdef AVX2
+@match
+@case x86_64+avx2
             auto p = (__m256i*)ptr;
             __m256i vec, space = _mm256_set1_epi8(' ');
             while (
@@ -367,7 +363,7 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
-!elif defined(SSE41)
+@case x86_64+sse4.1
             auto p = (__m128i*)ptr;
             __m128i vec, space = _mm_set1_epi8(' ');
             while (
@@ -377,12 +373,12 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
-!else
+@case x86_64+none,aarch64
             while (*ptr < 0 || *ptr > ' ') {
                 ptr++;
             }
             return ptr;
-!endif
+@end
         });
     }
 
@@ -402,7 +398,8 @@ struct istream_impl {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
-!ifdef AVX2
+@match
+@case x86_64+avx2
             auto p = (__m256i*)ptr;
             auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
             __m256i vec, vec1, vec2;
@@ -417,7 +414,7 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-!elif defined(SSE41)
+@case x86_64+sse4.1
             auto p = (__m128i*)ptr;
             __m128i vec, vec1, vec2;
             while (
@@ -434,12 +431,12 @@ struct istream_impl {
                 p++;
             }
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-!else
+@case x86_64+none,aarch64
             while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n') {
                 ptr++;
             }
             return ptr;
-!endif
+@end
         });
 
         // Skip \n and \r\n
@@ -492,10 +489,12 @@ struct istream_impl {
             value[--i] = *ptr++ == '1';
         }
 !endif
-!if defined(AVX2) || defined(SSE41)
+@match
+@case x86_64+avx2,x86_64+sse4.1
                 // This is actually 0x0001020304050607
                 long a = -1ULL / 65025;
-!endif
+@case x86_64+none,aarch64
+@end
                 auto p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
                 for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
@@ -503,7 +502,8 @@ struct istream_impl {
                 while (i) {
 !endif
                     i -= SIMD_SIZE;
-!ifdef AVX2
+@match
+@case x86_64+avx2
                     ((uint32_t*)&value)[i / 32] = __bswap_32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
@@ -517,16 +517,16 @@ struct istream_impl {
                             )
                         )
                     );
-!elif defined(SSE41)
+@case x86_64+sse4.1
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_loadu_si128(p++) << 7,
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-!else
+@case x86_64+none,aarch64
                     ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
-!endif
+@end
                 }
                 ptr = (NonAliasingChar*)p;
 !ifdef INTERACTIVE
@@ -803,7 +803,8 @@ struct blazingio_ostream {
     template<size_t N>
     SIMD void print(const bitset<N>& value) {
         auto i = N;
-!ifdef AVX2
+@match
+@case x86_64+avx2
         while (i % 32) {
             *ptr++ = '0' + value[--i];
         }
@@ -826,7 +827,7 @@ struct blazingio_ostream {
             );
         }
         ptr = (NonAliasingChar*)p;
-!elif defined(SSE41)
+@case x86_64+sse4.1
         while (i % 16) {
             *ptr++ = '0' + value[--i];
         }
@@ -849,7 +850,7 @@ struct blazingio_ostream {
             );
         }
         ptr = (NonAliasingChar*)p;
-!else
+@case x86_64+none,aarch64
         while (i % 8) {
             *ptr++ = '0' + value[--i];
         }
@@ -859,7 +860,7 @@ struct blazingio_ostream {
             *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
         }
         ptr = (NonAliasingChar*)p;
-!endif
+@end
     }
 !endif
 

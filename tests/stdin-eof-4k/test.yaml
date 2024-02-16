@@ -1,4 +1,5 @@
 type: exit-code
 config:
+  architecture: [x86_64, x86_64+sse4.1, x86_64+avx2]
   stdin_eof: y
   interactive: [y, n]

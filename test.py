@@ -5,19 +5,16 @@ import os
 import subprocess
 import sys
 
-from common import CONFIG_OPTS
-
 
 def iterate_config(config, props = []):
     if not config:
         yield props
         return
     (name, values), *tail = config
+    if not isinstance(values, list):
+        values = [values]
     for value in values:
-        new_props = props
-        opt = CONFIG_OPTS[f"{name}={value}"]
-        if opt:
-            new_props = new_props + [opt]
+        new_props = props + [f"{name}={value}"]
         yield from iterate_config(tail, new_props)
 
 

@@ -6,21 +6,156 @@ from common import CONFIG_OPTS
 
 
 if len(sys.argv) >= 2 and sys.argv[1] == "--override":
-    opts = sys.argv[2:]
+    lines = sys.argv[2:]
 else:
-    opts = []
+    lines = []
     for line in open("config"):
         line = line.strip()
         if line and not line.startswith("#"):
-            if line not in CONFIG_OPTS:
-                print(f"Invalid key-value combination {line}")
+            lines.append(line)
+
+opts = []
+target_architectures = []
+target_bases = []
+for line in lines:
+    if line.startswith("architecture="):
+        for architecture in line.partition("=")[2].split(","):
+            base, *extensions = architecture.split("+")
+            if len(extensions) > 1:
+                print("Extensions cannot be combined for one architecture")
                 raise SystemExit(1)
-            opt = CONFIG_OPTS[line]
-            if opt:
-                opts.append(opt)
+            if base == "x86_64":
+                if extensions and extensions[0] not in ("avx2", "sse4.1"):
+                    print(f"Invalid extension {extensions[0]} for architecture x86_64")
+                    raise SystemExit(1)
+            elif base == "aarch64":
+                if extensions:
+                    print(f"Invalid extension {extensions[0]} for architecture aarch64")
+                    raise SystemExit(1)
+            else:
+                print(f"Invalid architecture {base}")
+                raise SystemExit(1)
+            if extensions:
+                target_architectures.append(architecture)
+            else:
+                target_architectures.append(architecture + "+none")
+            target_bases.append(base)
+        continue
+    if line not in CONFIG_OPTS:
+        print(f"Invalid key-value combination {line}")
+        raise SystemExit(1)
+    opt = CONFIG_OPTS[line]
+    if opt:
+        opts.append(opt)
 
 
 blazingio = open("blazingio.hpp").read()
+
+# Figure out per-architecture cases
+def handler(match):
+    if match[0].startswith("@match\n"):
+        text = match[0].removeprefix("@match\n").removesuffix("@end\n")
+        first, *rest = re.split(r"@case (.*)\n", text)
+        assert first == ""
+        x86_64_code = None
+        aarch64_code = None
+        for selectors, code in zip(rest[::2], rest[1::2]):
+            for selector in selectors.split(","):
+                if "+" in selector:
+                    possible = selector in target_architectures
+                else:
+                    possible = selector in target_bases
+                if not possible:
+                    continue
+                base = selector.split("+")[0]
+                if base == "x86_64":
+                    x86_64_code = code
+                elif base == "aarch64":
+                    aarch64_code = code
+                else:
+                    assert False
+
+        if x86_64_code is not None and aarch64_code is not None and x86_64_code != aarch64_code:
+            return f"SELECT_ARCH({x86_64_code}, {aarch64_code})"
+        elif x86_64_code is not None:
+            return x86_64_code
+        elif aarch64_code is not None:
+            return aarch64_code
+        else:
+            return ""
+    elif match[0].startswith("@define "):
+        name = match[0].split()[1]
+        text = match[0].removeprefix(f"@define {name}\n").removesuffix("@end\n")
+        x86_64_value = None
+        aarch64_value = None
+        for line in text.splitlines():
+            assert line.startswith("@case ")
+            _, selectors, *value = line.split(" ", 2)
+            for selector in selectors.split(","):
+                if "+" in selector:
+                    possible = selector in target_architectures
+                else:
+                    possible = selector in target_bases
+                if not possible:
+                    continue
+                base = selector.split("+")[0]
+                if base == "x86_64":
+                    x86_64_value = " ".join(value)
+                elif base == "aarch64":
+                    aarch64_value = " ".join(value)
+                else:
+                    assert False
+        if x86_64_value is not None and aarch64_value is not None and x86_64_value != aarch64_value:
+            value = f"SELECT_ARCH({x86_64_value}, {aarch64_value})"
+        elif x86_64_value is not None:
+            value = x86_64_value
+        elif aarch64_value is not None:
+            value = aarch64_value
+        else:
+            return ""
+        # Just a heuristic
+        prefix = "!" if len(value) < 10 else "#"
+        return f"{prefix}define {name} {value}\n"
+    elif match[0].startswith("@include\n"):
+        text = match[0].removeprefix("@include\n").removesuffix("@end\n")
+        x86_64_include = None
+        aarch64_include = None
+        for line in text.splitlines():
+            assert line.startswith("@case ")
+            _, selectors, include = line.split(" ")
+            for selector in selectors.split(","):
+                if "+" in selector:
+                    possible = selector in target_architectures
+                else:
+                    possible = selector in target_bases
+                if not possible:
+                    continue
+                base = selector.split("+")[0]
+                if base == "x86_64":
+                    x86_64_include = include
+                elif base == "aarch64":
+                    aarch64_include = include
+                else:
+                    assert False
+        if x86_64_include is not None and aarch64_include is not None and x86_64_include != aarch64_include:
+            # We can't conditionally include a header or not, so include <ios> in the negative case. It
+            # is the shortest name, and it is already included transitively by <iostream> so compilation
+            # time shouldn't be affected.
+            if x86_64_include == "none":
+                x86_64_include = "<ios>"
+            if aarch64_include == "none":
+                aarch64_include = "<ios>"
+            return f"#include SELECT_ARCH({x86_64_include}, {aarch64_include})\n"
+        elif x86_64_include is not None and x86_64_include != "none":
+            return f"#include {x86_64_include}\n"
+        elif aarch64_include is not None and aarch64_include != "none":
+            return f"#include {aarch64_include}\n"
+        else:
+            return ""
+    else:
+        assert False
+
+blazingio = re.sub(r"(@match|@define .*|@include)\n(@case (.*)\n[^@]*)+@end\n", handler, blazingio)
 
 # Preprocess
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
@@ -53,6 +188,10 @@ blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
 blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typename", "$c")
 blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
+if len(target_architectures) > 1:
+    # Add multiarch support
+    blazingio = "#ifdef __x86_64__\n#define SELECT_ARCH(x86_64, aarch64) x86_64\n#else\n#define SELECT_ARCH(x86_64, aarch64) aarch64\n#endif\n" + blazingio
+
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)
 
@@ -80,7 +219,7 @@ def whitespace(s):
 blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
 
 # Remove whitespace after "#include"
-blazingio = re.sub(r"#include\s+", "#include", blazingio)
+blazingio = re.sub(r"#include\s+<", "#include<", blazingio)
 
 
 # Replace character literals with their values
@@ -103,8 +242,11 @@ def repl(s):
         ("ensure", "E$"),
         ("blazingio", "$f"),
         ("SIMD", "$s"),
+        ("SIMD_SIZE", "$z"),
+        ("SIMD_TYPE", "$t"),
         ("INLINE", "$I"),
         ("FETCH", "$F"),
+        ("SELECT_ARCH", "$S"),
 
         ("UninitChar", "A"),
         ("Inner", "A"),
@@ -120,6 +262,7 @@ def repl(s):
         ("abs", "A"),
         ("write12", "A"),
         ("func", "A"),
+        ("x86_64", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),
@@ -129,6 +272,7 @@ def repl(s):
         ("MinDigits", "B"),
         ("whole", "B"),
         ("stream", "B"),
+        ("aarch64", "B"),
 
         ("ONE_BYTES", "C"),
         ("file_size", "C"),
@@ -250,7 +394,7 @@ elif "_mm_" in blazingio:
 blazingio = blazingio.strip()
 
 # Add comments
-blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Config options: {' '.join(opts) if opts else '(none)'}\n{blazingio}\n// End of blazingio\n"
+blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Config options: {' '.join(opts) if opts else '(none)'}\n// Targets: {', '.join(target_architectures)}\n{blazingio}\n// End of blazingio\n"
 
 open("blazingio.min.hpp", "w").write(blazingio)
 

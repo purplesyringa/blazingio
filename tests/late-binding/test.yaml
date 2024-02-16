@@ -1,3 +1,4 @@
 type: compare-std
 config:
+  architecture: x86_64
   late_binding: [y, n]

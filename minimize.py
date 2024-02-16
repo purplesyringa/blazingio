@@ -58,8 +58,11 @@ def handler(match):
         first, *rest = re.split(r"@case (.*)\n", text)
         assert first == ""
         x86_64_code = None
+        x86_64_flags = None
         aarch64_code = None
-        for selectors, code in zip(rest[::2], rest[1::2]):
+        aarch64_flags = None
+        for case_arg, code in zip(rest[::2], rest[1::2]):
+            selectors, *flags = case_arg.split()
             for selector in selectors.split(","):
                 if "+" in selector:
                     possible = selector in target_architectures
@@ -70,12 +73,18 @@ def handler(match):
                 base = selector.split("+")[0]
                 if base == "x86_64":
                     x86_64_code = code
+                    x86_64_flags = flags
                 elif base == "aarch64":
                     aarch64_code = code
+                    aarch64_flags = flags
                 else:
                     assert False
 
         if x86_64_code is not None and aarch64_code is not None and x86_64_code != aarch64_code:
+            if "wrap{}" in x86_64_flags:
+                x86_64_code = f"{{{x86_64_code}}}"
+            if "wrap{}" in aarch64_flags:
+                aarch64_code = f"{{{aarch64_code}}}"
             return f"SELECT_ARCH({x86_64_code}, {aarch64_code})"
         elif x86_64_code is not None:
             return x86_64_code

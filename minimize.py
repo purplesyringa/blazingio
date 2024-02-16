@@ -2,7 +2,7 @@ import re
 import subprocess
 import sys
 
-from common import CONFIG_OPTS
+from common import CONFIG_OPTS, ARCHITECTURES
 
 
 if len(sys.argv) >= 2 and sys.argv[1] == "--override":
@@ -21,19 +21,14 @@ for line in lines:
     if line.startswith("architecture="):
         for architecture in line.partition("=")[2].split(","):
             base, *extensions = architecture.split("+")
+            if base not in ARCHITECTURES:
+                print(f"Invalid architecture {base}")
+                raise SystemExit(1)
             if len(extensions) > 1:
                 print("Extensions cannot be combined for one architecture")
                 raise SystemExit(1)
-            if base == "x86_64":
-                if extensions and extensions[0] not in ("avx2", "sse4.1"):
-                    print(f"Invalid extension {extensions[0]} for architecture x86_64")
-                    raise SystemExit(1)
-            elif base == "aarch64":
-                if extensions:
-                    print(f"Invalid extension {extensions[0]} for architecture aarch64")
-                    raise SystemExit(1)
-            else:
-                print(f"Invalid architecture {base}")
+            if extensions and extensions[0] not in ARCHITECTURES[base]:
+                print(f"Invalid extension {extensions[0]} for architecture {base}")
                 raise SystemExit(1)
             if extensions:
                 target_architectures.append(architecture)
@@ -269,6 +264,7 @@ def repl(s):
         ("INLINE", "$I"),
         ("FETCH", "$F"),
         ("SELECT_ARCH", "$S"),
+        ("UNWRAP", "$u"),
 
         ("UninitChar", "A"),
         ("Inner", "A"),
@@ -285,6 +281,7 @@ def repl(s):
         ("write12", "A"),
         ("func", "A"),
         ("x86_64", "A"),
+        ("table", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),
@@ -295,6 +292,7 @@ def repl(s):
         ("whole", "B"),
         ("stream", "B"),
         ("aarch64", "B"),
+        ("masked", "B"),
 
         ("ONE_BYTES", "C"),
         ("file_size", "C"),
@@ -304,6 +302,7 @@ def repl(s):
         ("space", "C"),
         ("vec1", "C"),
         ("MaxDigits", "C"),
+        ("zipped", "C"),
 
         ("line_t", "D"),
         ("base", "D"),

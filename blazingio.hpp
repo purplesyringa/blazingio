@@ -8,7 +8,8 @@
 #include <cstring>
 @include
 @case x86_64+avx2,x86_64+sse4.1 <immintrin.h>
-@case x86_64+none,aarch64 none
+@case aarch64+neon <arm_neon.h>
+@case x86_64+none,aarch64+none none
 @end
 #include <sys/mman.h>
 #include <unistd.h>
@@ -21,14 +22,15 @@
 
 @define SIMD_SIZE
 @case x86_64+avx2 32
-@case x86_64+sse4.1 16
-@case x86_64+none,aarch64 8
+@case x86_64+sse4.1,aarch64+neon 16
+@case x86_64+none,aarch64+none 8
 @end
 
 @define SIMD_TYPE
 @case x86_64+avx2 __m256i
 @case x86_64+sse4.1 __m128i
-@case x86_64+none,aarch64 uint64_t
+@case aarch64+neon uint8x16_t
+@case x86_64+none,aarch64+none uint64_t
 @end
 
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
@@ -63,7 +65,7 @@ struct NonAliasingChar {
 
 !ifdef BITSET
 const long ONE_BYTES = -1ULL / 255
-@ondemand x86_64+none,aarch64
+@ondemand x86_64+none,aarch64+none
 , BITSET_SHIFT = 0x8040201008040201
 @end
 ;
@@ -357,9 +359,8 @@ struct istream_impl {
             while (
                 vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
                 _mm256_testz_si256(vec, vec)
-            ) {
+            )
                 p++;
-            }
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
 @case x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
@@ -367,14 +368,18 @@ struct istream_impl {
             while (
                 vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
                 _mm_testz_si128(vec, vec)
-            ) {
+            )
                 p++;
-            }
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
-@case x86_64+none,aarch64
-            while (*ptr < 0 || *ptr > ' ') {
+@case aarch64+neon wrap
+            auto p = (uint8x16_t*)ptr;
+            uint64x2_t vec;
+            while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
+                p++;
+            return (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
+@case x86_64+none,aarch64+none
+            while (*ptr < 0 || *ptr > ' ')
                 ptr++;
-            }
             return ptr;
 @end
         });
@@ -491,7 +496,12 @@ struct istream_impl {
 @case x86_64+avx2,x86_64+sse4.1
                 // This is actually 0x0001020304050607
                 long a = -1ULL / 65025;
-@case x86_64+none,aarch64
+@case aarch64+neon wrap
+                static constexpr uint8_t table[16] = {
+                    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01,
+                    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01
+                };
+@case x86_64+none,aarch64+none
 @end
                 auto p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
@@ -522,7 +532,13 @@ struct istream_impl {
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-@case x86_64+none,aarch64
+@case aarch64+neon
+                    uint8x16_t masked = vld1q_u8(table) & ('0' - *p++);
+                    uint8x8x2_t zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
+                    ((uint16_t*)&value)[i / 16] = vaddvq_u16(
+                        (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
+                    );
+@case x86_64+none,aarch64+none
                     ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
 @end
                 }
@@ -801,64 +817,60 @@ struct blazingio_ostream {
     template<size_t N>
     SIMD void print(const bitset<N>& value) {
         auto i = N;
+        while (i % SIMD_SIZE) {
+            *ptr++ = '0' + value[--i];
+        }
+        auto p = (SIMD_TYPE*)ptr;
+        i /= SIMD_SIZE;
+        while (i) {
 @match
 @case x86_64+avx2
-        while (i % 32) {
-            *ptr++ = '0' + value[--i];
-        }
-        auto p = (__m256i*)ptr;
-        i /= 32;
-        auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
-        while (i) {
-            _mm256_storeu_si256(
-                p++,
-                _mm256_sub_epi8(
-                    _mm256_set1_epi8('0'),
-                    _mm256_cmpeq_epi8(
-                        _mm256_shuffle_epi8(
-                            _mm256_set1_epi32(((uint32_t*)&value)[--i]),
-                            _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
-                        ) & b,
-                        b
+            {
+                auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
+                _mm256_storeu_si256(
+                    p++,
+                    _mm256_sub_epi8(
+                        _mm256_set1_epi8('0'),
+                        _mm256_cmpeq_epi8(
+                            _mm256_shuffle_epi8(
+                                _mm256_set1_epi32(((uint32_t*)&value)[--i]),
+                                _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
+                            ) & b,
+                            b
+                        )
                     )
-                )
-            );
-        }
-        ptr = (NonAliasingChar*)p;
+                );
+            }
 @case x86_64+sse4.1
-        while (i % 16) {
-            *ptr++ = '0' + value[--i];
-        }
-        auto p = (__m128i*)ptr;
-        i /= 16;
-        auto b = _mm_set1_epi64x(POWERS_OF_TWO);
-        while (i) {
-            _mm_storeu_si128(
-                p++,
-                _mm_sub_epi8(
-                    _mm_set1_epi8('0'),
-                    _mm_cmpeq_epi8(
-                        _mm_shuffle_epi8(
-                            _mm_set1_epi16(((uint16_t*)&value)[--i]),
-                            _mm_set_epi64x(0, ONE_BYTES)
-                        ) & b,
-                        b
+            {
+                auto b = _mm_set1_epi64x(POWERS_OF_TWO);
+                _mm_storeu_si128(
+                    p++,
+                    _mm_sub_epi8(
+                        _mm_set1_epi8('0'),
+                        _mm_cmpeq_epi8(
+                            _mm_shuffle_epi8(
+                                _mm_set1_epi16(((uint16_t*)&value)[--i]),
+                                _mm_set_epi64x(0, ONE_BYTES)
+                            ) & b,
+                            b
+                        )
                     )
-                )
-            );
-        }
-        ptr = (NonAliasingChar*)p;
-@case x86_64+none,aarch64
-        while (i % 8) {
-            *ptr++ = '0' + value[--i];
-        }
-        auto p = (long*)ptr;
-        i /= 8;
-        while (i) {
+                );
+            }
+@case aarch64+neon
+            {
+                auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
+                *p++ = '0' - vtstq_u8(
+                    vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
+                    (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
+                );
+            }
+@case x86_64+none,aarch64+none
             *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
+@end
         }
         ptr = (NonAliasingChar*)p;
-@end
     }
 !endif
 

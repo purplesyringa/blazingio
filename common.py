@@ -1,7 +1,4 @@
 CONFIG_OPTS = {
-    "simd=none": "",
-    "simd=sse4.1": "SSE41",
-    "simd=avx2": "AVX2",
     "lut=n": "",
     "lut=y": "LUT",
     "char_with_sign_is_glyph=n": "",
@@ -26,6 +23,9 @@ CONFIG_OPTS = {
     "cerr=y": "CERR",
     "large_output=n": "",
     "large_output=y": "LARGE_OUTPUT",
-    "multiarch=n": "",
-    "multiarch=y": "MULTIARCH",
+}
+
+ARCHITECTURES = {
+    "x86_64": ["sse4.1", "avx2"],
+    "aarch64": ["neon"],
 }

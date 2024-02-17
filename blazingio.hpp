@@ -20,7 +20,7 @@
 @end
 #include <unistd.h>
 
-@define SIMD
+@define #SIMD
 @case *-x86_64+avx2 __attribute__((target("avx2")))
 @case *-x86_64+sse4.1 __attribute__((target("sse4.1")))
 @case *-x86_64+none,*-aarch64
@@ -32,7 +32,7 @@
 @case *-x86_64+none,*-aarch64+none 8
 @end
 
-@define SIMD_TYPE
+@define #SIMD_TYPE
 @case *-x86_64+avx2 __m256i
 @case *-x86_64+sse4.1 __m128i
 @case *-aarch64+neon uint8x16_t
@@ -184,6 +184,14 @@ struct istream_impl {
             // even though ptr is clearly loaded into a register, GCC assumes memory might still be
             // modified, so we have to load ptr into a local variable and then put it back, like
             // this:
+@define !SYSCALL_NO_REGISTER
+@case linux-* "x8"
+@case macos-* "x16"
+@end
+@define !SVC
+@case linux-* ""
+@case macos-* "x80"
+@end
 @match
 @case *-x86_64
             off_t n_read = SYS_read;
@@ -205,17 +213,19 @@ struct istream_impl {
             );
             ptr = rsi;
 @case *-aarch64 wrap
+            // Linux:  svc 0, syscall number in x8
+            // Mac OS: svc 0x80, syscall number in x16
             register long
                 n_read asm("x0") = STDIN_FILENO,
-                x1 asm("x1") = (long)buffer,
-                x2 asm("x2") = 65536,
-                w8 asm("x8") = SYS_read;
+                arg1 asm("x1") = (long)buffer,
+                arg2 asm("x2") = 65536,
+                syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read;
             asm volatile(
-                "svc 0; strb wzr, [x1, x0]"
+                "svc 0" SVC "; strb wzr, [x1, x0]"
                 : "+r"(n_read)
-                : "r"(w8), "r"(x1), "r"(x2)
+                : "r"(syscall_no), "r"(arg1), "r"(arg2)
             );
-            ptr = (NonAliasingChar*)x1;
+            ptr = (NonAliasingChar*)arg1;
 @end
             end = ptr + n_read;
 !ifdef STDIN_EOF

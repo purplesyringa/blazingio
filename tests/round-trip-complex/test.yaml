@@ -1,6 +1,6 @@
 type: round-trip
 config:
   architecture: x86_64,aarch64
-  os: linux,windows
+  os: windows,linux,macos
   complex: y
   interactive: [y, n]

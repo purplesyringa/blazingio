@@ -1,7 +1,7 @@
 type: round-trip
 config:
   architecture: x86_64,aarch64
-  os: linux,windows
+  os: windows,linux,macos
   char_with_sign_is_glyph: y
   # Make sure overloads don't resolve to floats
   float: [y, n]

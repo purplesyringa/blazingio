@@ -178,8 +178,11 @@ def handler(match):
             _, selectors, *value = line.split(" ", 2)
             cases.append((selectors, " ".join(value)))
         value = generate_multicase_code(cases)
-        # Just a heuristic
-        prefix = "!" if len(value) < 10 else "#"
+        if name.startswith("!") or name.startswith("#"):
+            prefix, name = name[0], name[1:]
+        else:
+            # Heuristic
+            prefix = "!" if len(value) < 10 else "#"
         return f"{prefix}define {name} {value}\n"
     elif match[0].startswith("@include\n"):
         text = match[0].removeprefix("@include\n").removesuffix("@end\n")
@@ -346,6 +349,7 @@ def repl(s):
         ("ONE_BYTES", "C"),
         ("file_size", "C"),
         ("rsi", "C"),
+        ("syscall_no", "C"),
         ("has_dot", "C"),
         ("trace", "C"),
         ("space", "C"),
@@ -360,6 +364,7 @@ def repl(s):
         ("vec2", "D"),
         ("Factor", "D"),
         ("table", "D"),
+        ("arg1", "D"),
 
         ("buffer", "E"),
         ("mask", "E"),
@@ -373,6 +378,7 @@ def repl(s):
         ("istream_impl", "G"),
         ("start", "G"),
         ("write_int_split", "G"),
+        ("arg2", "G"),
 
         ("end", "H"),
         ("coeff", "H"),

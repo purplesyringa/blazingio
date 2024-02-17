@@ -132,7 +132,7 @@ def handler(match):
         text = match[0].removeprefix("@match\n").removesuffix("@end\n")
         first, *rest = re.split(r"@case (.*)\n", text)
         assert first == ""
-        return generate_multicase_code(list(zip(rest[::2], rest[1::2])))
+        return generate_multicase_code(list(zip(rest[::2], rest[1::2]))) + "\n"
     elif match[0].startswith("@ondemand "):
         selectors = match[0].split()[1]
         code = match[0].removeprefix(f"@ondemand {selectors}\n").removesuffix("@end\n")

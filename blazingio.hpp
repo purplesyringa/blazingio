@@ -658,25 +658,27 @@ struct blazingio_ostream {
     void do_flush() {
 !endif
         auto start = base;
+        ssize_t n_written;
 !ifdef SPLICE
-        ssize_t n_written = 1;
-        while (n_written > 0) {
+@match
+@case linux-* wrap
+        do {
             iovec iov{start, (size_t)ptr - (size_t)start};
             start += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
-        }
+        } while (n_written > 0);
         // Perhaps not a pipe?
         if (n_written) {
             start++;
+@case windows-*,macos-*
+        {
+@end
+!endif
             do
                 start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
             while (n_written > 0);
             ensure(~n_written)
+!ifdef SPLICE
         }
-!else
-        ssize_t n_written = 1;
-        while (n_written > 0)
-            start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
-        ensure(~n_written)
 !endif
 !ifdef INTERACTIVE
         ptr = (NonAliasingChar*)base;

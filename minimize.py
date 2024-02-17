@@ -459,7 +459,7 @@ elif "_mm_" in blazingio:
 blazingio = blazingio.strip()
 
 # Add comments
-blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Config options: {' '.join(opts) if opts else '(none)'}\n// Targets: {', '.join(target_architectures)}\n{blazingio}\n// End of blazingio\n"
+blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Config options: {' '.join(opts) if opts else '(none)'}\n// Targets: {', '.join(target_oses)}; {', '.join(target_architectures)}\n{blazingio}\n// End of blazingio\n"
 
 open("blazingio.min.hpp", "w").write(blazingio)
 

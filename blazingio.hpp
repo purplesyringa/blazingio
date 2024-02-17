@@ -701,7 +701,7 @@ struct blazingio_ostream {
     template<typename T, int MinDigits, int MaxDigits, T Factor = 1>
     void write_int_split(T value, T interval) {
         if constexpr (MaxDigits == 1) {
-            if (MinDigits >= 1 || value >= Factor) {
+            if (MinDigits || value >= Factor) {
                 *ptr++ = '0' + interval;
             }
 !ifdef LUT
@@ -709,7 +709,7 @@ struct blazingio_ostream {
             if (MinDigits >= 2 || value >= 10 * Factor) {
                 print(decimal_lut[interval * 2]);
             }
-            if (MinDigits >= 1 || value >= Factor) {
+            if (MinDigits || value >= Factor) {
                 print(decimal_lut[interval * 2 + 1]);
             }
 !endif

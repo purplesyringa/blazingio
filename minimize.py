@@ -184,15 +184,6 @@ proc = subprocess.run(
 blazingio = proc.stdout.decode()
 blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 
-# Remove unnecessary parentheses
-proc = subprocess.run(
-    ["clang-format-18", "--style=file:minimize.clang-format"],
-    input=blazingio.encode(),
-    capture_output=True,
-    check=True,
-)
-blazingio = proc.stdout.decode()
-
 # Replace "return *this;"
 blazingio = "#define $r return*this;\n" + re.sub(r"return\s*\*this;", "$r", blazingio)
 

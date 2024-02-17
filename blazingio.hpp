@@ -232,9 +232,8 @@ struct istream_impl {
 
     template<typename T>
     INLINE void collect_digits(T& x) {
-        while (FETCH (*ptr & 0xf0) == 0x30) {
+        while (FETCH (*ptr & 0xf0) == 0x30)
             x = x * 10 + (*ptr++ - '0');
-        }
     }
 
     template<typename T, T = 1>
@@ -254,9 +253,8 @@ struct istream_impl {
 
         uint64_t n = 0;
         int i = 0;
-        for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++) {
+        for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++)
             n = n * 10 + *ptr++ - '0';
-        }
         int exponent = 20;  // Offset by 20, for reasons
         bool has_dot = *ptr == '.';
         ptr += has_dot;
@@ -299,12 +297,10 @@ struct istream_impl {
             }();
             x *= exps[exponent];
         } else {
-            while (exponent-- > 20) {
+            while (exponent-- > 20)
                 x *= 10;
-            }
-            while (++exponent < 20) {
+            while (++exponent < 20)
                 x *= .1;
-            }
         }
         x = negative ? -x : x;
     }
@@ -472,9 +468,8 @@ struct istream_impl {
 !endif
                 ptr++;
             }
-        } else {
+        } else
             input(real_part);
-        }
         value = {real_part, imag_part};
     }
 !endif
@@ -487,20 +482,18 @@ struct istream_impl {
         // Luckily, we are allowed to overread up to 4095 bytes after EOF (because there's a
         // 4096-page and its second byte is non-whitespace). Therefore, we only have to check for
         // EOF for large enough N, and in this case the overhead is small enough.
-        if (N >= 4096 && !*this) {
+        if (N >= 4096 && !*this)
             return;
-        }
 !endif
         ssize_t i = N;
 !ifdef INTERACTIVE
         while (i) {
-            if (FETCH i % SIMD_SIZE || end - ptr < SIMD_SIZE) {
+            if (FETCH i % SIMD_SIZE || end - ptr < SIMD_SIZE)
                 value[--i] = *ptr++ == '1';
-            } else {
+            else {
 !else
-        while (i % SIMD_SIZE) {
+        while (i % SIMD_SIZE)
             value[--i] = *ptr++ == '1';
-        }
 !endif
                 auto p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
@@ -559,13 +552,11 @@ struct istream_impl {
 !else
     INLINE blazingio_istream& operator>>(T& value) {
 !endif
-        if (!is_same_v<T, line_t>) {
+        if (!is_same_v<T, line_t>)
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
             // We expect short runs here, hence no vectorization.
-            while (FETCH 0 <= *ptr && *ptr <= ' ') {
+            while (FETCH 0 <= *ptr && *ptr <= ' ')
                 ptr++;
-            }
-        }
 
         input(value);
 !ifndef INTERACTIVE
@@ -672,16 +663,15 @@ struct blazingio_ostream {
         // Perhaps not a pipe?
         if (n_written) {
             start++;
-            do {
+            do
                 start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
-            } while (n_written > 0);
+            while (n_written > 0);
             ensure(~n_written)
         }
 !else
         ssize_t n_written = 1;
-        while (n_written > 0) {
+        while (n_written > 0)
             start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
-        }
         ensure(~n_written)
 !endif
 !ifdef INTERACTIVE
@@ -707,25 +697,21 @@ struct blazingio_ostream {
     template<typename T, int MinDigits, int MaxDigits, T Factor = 1>
     void write_int_split(T value, T interval) {
         if constexpr (MaxDigits == 1) {
-            if (MinDigits || value >= Factor) {
+            if (MinDigits || value >= Factor)
                 *ptr++ = '0' + interval;
-            }
 !ifdef LUT
         } else if constexpr (MaxDigits == 2) {
-            if (MinDigits >= 2 || value >= 10 * Factor) {
+            if (MinDigits >= 2 || value >= 10 * Factor)
                 print(decimal_lut[interval * 2]);
-            }
-            if (MinDigits || value >= Factor) {
+            if (MinDigits || value >= Factor)
                 print(decimal_lut[interval * 2 + 1]);
-            }
 !endif
         } else {
             constexpr auto computed = [] {
                 int low_digits = 1;
                 T coeff = 10;
-                while ((low_digits *= 2) < MaxDigits) {
+                while ((low_digits *= 2) < MaxDigits)
                     coeff *= coeff;
-                }
                 return pair{low_digits / 2, coeff};
             }();
             constexpr int low_digits = computed.first;
@@ -761,9 +747,8 @@ struct blazingio_ostream {
             value *= 1e12;
             write_int_split<uint64_t, 12, 12>(value, value);
         };
-        if (!value) {
+        if (!value)
             return print('0');
-        }
         if (value >= 1e16) {
             value *= 1e-16;
             int exponent = 16;
@@ -830,55 +815,48 @@ struct blazingio_ostream {
     template<size_t N>
     SIMD void print(const bitset<N>& value) {
         auto i = N;
-        while (i % SIMD_SIZE) {
+        while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
-        }
         auto p = (SIMD_TYPE*)ptr;
         i /= SIMD_SIZE;
         while (i) {
 @match
 @case *-x86_64+avx2
-            {
-                auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
-                _mm256_storeu_si256(
-                    p++,
-                    _mm256_sub_epi8(
-                        _mm256_set1_epi8('0'),
-                        _mm256_cmpeq_epi8(
-                            _mm256_shuffle_epi8(
-                                _mm256_set1_epi32(((uint32_t*)&value)[--i]),
-                                _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
-                            ) & b,
-                            b
-                        )
+            auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
+            _mm256_storeu_si256(
+                p++,
+                _mm256_sub_epi8(
+                    _mm256_set1_epi8('0'),
+                    _mm256_cmpeq_epi8(
+                        _mm256_shuffle_epi8(
+                            _mm256_set1_epi32(((uint32_t*)&value)[--i]),
+                            _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
+                        ) & b,
+                        b
                     )
-                );
-            }
+                )
+            );
 @case *-x86_64+sse4.1
-            {
-                auto b = _mm_set1_epi64x(POWERS_OF_TWO);
-                _mm_storeu_si128(
-                    p++,
-                    _mm_sub_epi8(
-                        _mm_set1_epi8('0'),
-                        _mm_cmpeq_epi8(
-                            _mm_shuffle_epi8(
-                                _mm_set1_epi16(((uint16_t*)&value)[--i]),
-                                _mm_set_epi64x(0, ONE_BYTES)
-                            ) & b,
-                            b
-                        )
+            auto b = _mm_set1_epi64x(POWERS_OF_TWO);
+            _mm_storeu_si128(
+                p++,
+                _mm_sub_epi8(
+                    _mm_set1_epi8('0'),
+                    _mm_cmpeq_epi8(
+                        _mm_shuffle_epi8(
+                            _mm_set1_epi16(((uint16_t*)&value)[--i]),
+                            _mm_set_epi64x(0, ONE_BYTES)
+                        ) & b,
+                        b
                     )
-                );
-            }
+                )
+            );
 @case *-aarch64+neon
-            {
-                auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
-                *p++ = '0' - vtstq_u8(
-                    vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
-                    (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
-                );
-            }
+            auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
+            *p++ = '0' - vtstq_u8(
+                vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
+                (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
+            );
 @case *-x86_64+none,*-aarch64+none
             *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
 @end
@@ -926,9 +904,8 @@ namespace std {
 
 !ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (__builtin_expect(!~blazingio_cin.file_size, 0)) {
+        if (__builtin_expect(!~blazingio_cin.file_size, 0))
             stream.do_flush();
-        }
         return stream;
     }
     blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {

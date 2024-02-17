@@ -1,5 +1,0 @@
-ColumnLimit: 0
-RemoveBracesLLVM: true
-StatementMacros: ["SELECT_ARCH", "ensure"]
-RemoveSemicolon: true
-SkipMacroDefinitionBody: true

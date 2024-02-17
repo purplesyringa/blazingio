@@ -15,6 +15,7 @@ else:
             lines.append(line)
 
 opts = []
+target_oses = []
 target_architectures = []
 target_bases = []
 for line in lines:
@@ -46,129 +47,113 @@ for line in lines:
 
 blazingio = open("blazingio.hpp").read()
 
-# Figure out per-architecture cases
+# Figure out per-architecture/OS cases
+needed_factor_macros = set()
+
+def does_selector_match(selector):
+    selector_os, selector_arch = selector.split("-")
+    if selector_os != "*" and selector_os not in target_oses:
+        return False
+    if selector_arch != "*":
+        if selector_arch not in (target_architectures if "+" in selector_arch else target_bases):
+            return False
+    return True
+
+def generate_multicase_code(cases):
+    filtered_cases = []
+    for arg, code in cases:
+        selectors, *flags = arg.split()
+        for selector in selectors.split(","):
+            if not does_selector_match(selector):
+                continue
+            selector_os, selector_arch = selector.split("-")
+            selector_base = selector_arch.split("+")[0]
+            filtered_cases.append((selector_os, selector_base, code, flags))
+
+    if not filtered_cases:
+        raise ValueError(f"No matching cases in {cases}")
+
+    def factor_out(cases, both_cond, cond, macro):
+        true_cases = []
+        false_cases = []
+        for case in cases:
+            if both_cond(case):
+                raise StopIteration
+            (true_cases if cond(case) else false_cases).append(case)
+        if not true_cases or not false_cases:
+            raise StopIteration
+        needed_factor_macros.add(macro)
+        return f"{macro}({codegen(true_cases)}, {codegen(false_cases)})"
+
+    factors = [
+        lambda cases: factor_out(
+            cases,
+            lambda case: case[1] == "*",
+            lambda case: case[1] == "x86_64",
+            "IF_X86_64"
+        ),
+    ]
+
+    def codegen(cases):
+        assert cases
+        if len(cases) == 1:
+            _, _, code, flags = cases[0]
+            if "wrap" in flags:
+                code = f"UNWRAP({code})"
+            return code
+        for factor in factors:
+            try:
+                return factor(cases)
+            except StopIteration:
+                pass
+        raise StopIteration
+
+    try:
+        return codegen(filtered_cases)
+    except StopIteration:
+        raise ValueError(f"Cannot factor cases {filtered_cases}") from None
+
+
 def handler(match):
     if match[0].startswith("@match\n"):
         text = match[0].removeprefix("@match\n").removesuffix("@end\n")
         first, *rest = re.split(r"@case (.*)\n", text)
         assert first == ""
-        x86_64_code = None
-        x86_64_flags = None
-        aarch64_code = None
-        aarch64_flags = None
-        for case_arg, code in zip(rest[::2], rest[1::2]):
-            selectors, *flags = case_arg.split()
-            for selector in selectors.split(","):
-                if "+" in selector:
-                    possible = selector in target_architectures
-                else:
-                    possible = selector in target_bases
-                if not possible:
-                    continue
-                base = selector.split("+")[0]
-                if base == "x86_64":
-                    x86_64_code = code
-                    x86_64_flags = flags
-                elif base == "aarch64":
-                    aarch64_code = code
-                    aarch64_flags = flags
-                else:
-                    assert False
-
-        if x86_64_code is not None and aarch64_code is not None and x86_64_code != aarch64_code:
-            if "wrap" in x86_64_flags:
-                x86_64_code = f"UNWRAP({x86_64_code})"
-            if "wrap" in aarch64_flags:
-                aarch64_code = f"UNWRAP({aarch64_code})"
-            return f"SELECT_ARCH({x86_64_code}, {aarch64_code})"
-        elif x86_64_code is not None:
-            return x86_64_code
-        elif aarch64_code is not None:
-            return aarch64_code
-        else:
-            return ""
+        return generate_multicase_code(list(zip(rest[::2], rest[1::2])))
     elif match[0].startswith("@ondemand "):
         selectors = match[0].split()[1]
         code = match[0].removeprefix(f"@ondemand {selectors}\n").removesuffix("@end\n")
-        possible = False
-        for selector in selectors.split(","):
-            if "+" in selector:
-                possible = possible or selector in target_architectures
-            else:
-                possible = possible or selector in target_bases
-        if possible:
+        if any(does_selector_match(selector) for selector in selectors.split(",")):
             return code
         else:
             return ""
     elif match[0].startswith("@define "):
         name = match[0].split()[1]
         text = match[0].removeprefix(f"@define {name}\n").removesuffix("@end\n")
-        x86_64_value = None
-        aarch64_value = None
+        cases = []
         for line in text.splitlines():
             assert line.startswith("@case ")
             _, selectors, *value = line.split(" ", 2)
-            for selector in selectors.split(","):
-                if "+" in selector:
-                    possible = selector in target_architectures
-                else:
-                    possible = selector in target_bases
-                if not possible:
-                    continue
-                base = selector.split("+")[0]
-                if base == "x86_64":
-                    x86_64_value = " ".join(value)
-                elif base == "aarch64":
-                    aarch64_value = " ".join(value)
-                else:
-                    assert False
-        if x86_64_value is not None and aarch64_value is not None and x86_64_value != aarch64_value:
-            value = f"SELECT_ARCH({x86_64_value}, {aarch64_value})"
-        elif x86_64_value is not None:
-            value = x86_64_value
-        elif aarch64_value is not None:
-            value = aarch64_value
-        else:
-            return ""
+            cases.append((selectors, " ".join(value)))
+        value = generate_multicase_code(cases)
         # Just a heuristic
         prefix = "!" if len(value) < 10 else "#"
         return f"{prefix}define {name} {value}\n"
     elif match[0].startswith("@include\n"):
         text = match[0].removeprefix("@include\n").removesuffix("@end\n")
-        x86_64_include = None
-        aarch64_include = None
+        # We can't conditionally include a header or not, so include <ios> in the negative case. It
+        # is the shortest name, and it is already included transitively by <iostream> so compilation
+        # time shouldn't be affected.
+        cases = []
         for line in text.splitlines():
             assert line.startswith("@case ")
             _, selectors, include = line.split(" ")
-            for selector in selectors.split(","):
-                if "+" in selector:
-                    possible = selector in target_architectures
-                else:
-                    possible = selector in target_bases
-                if not possible:
-                    continue
-                base = selector.split("+")[0]
-                if base == "x86_64":
-                    x86_64_include = include
-                elif base == "aarch64":
-                    aarch64_include = include
-                else:
-                    assert False
-        if x86_64_include is not None and aarch64_include is not None and x86_64_include != aarch64_include:
-            # We can't conditionally include a header or not, so include <ios> in the negative case. It
-            # is the shortest name, and it is already included transitively by <iostream> so compilation
-            # time shouldn't be affected.
-            if x86_64_include == "none":
-                x86_64_include = "<ios>"
-            if aarch64_include == "none":
-                aarch64_include = "<ios>"
-            return f"#include SELECT_ARCH({x86_64_include}, {aarch64_include})\n"
-        elif x86_64_include is not None and x86_64_include != "none":
-            return f"#include {x86_64_include}\n"
-        elif aarch64_include is not None and aarch64_include != "none":
-            return f"#include {aarch64_include}\n"
-        else:
+            cases.append((selectors, "<ios>" if include == "none" else include))
+        code = generate_multicase_code(cases)
+        if code == "<ios>":
             return ""
+        else:
+            return f"#include {code}\n"
     else:
         assert False
 
@@ -205,9 +190,9 @@ blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
 blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typename", "$c")
 blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
-if len(target_architectures) > 1:
-    # Add multiarch support
-    blazingio = "#ifdef __x86_64__\n#define SELECT_ARCH(x86_64, aarch64) x86_64\n#else\n#define SELECT_ARCH(x86_64, aarch64) aarch64\n#endif\n#define UNWRAP(...) __VA_ARGS__\n" + blazingio
+# Add multiarch support
+if "IF_X86_64" in needed_factor_macros:
+    blazingio = "#ifdef __x86_64__\n#define IF_X86_64(x86_64, aarch64) x86_64\n#else\n#define IF_X86_64(x86_64, aarch64) aarch64\n#endif\n#define UNWRAP(...) __VA_ARGS__\n" + blazingio
 
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)
@@ -263,7 +248,7 @@ def repl(s):
         ("SIMD_TYPE", "$t"),
         ("INLINE", "$I"),
         ("FETCH", "$F"),
-        ("SELECT_ARCH", "$S"),
+        ("IF_X86_64", "$S"),
         ("UNWRAP", "$u"),
 
         ("UninitChar", "A"),

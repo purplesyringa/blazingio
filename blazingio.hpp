@@ -7,30 +7,30 @@
 !endif
 #include <cstring>
 @include
-@case x86_64+avx2,x86_64+sse4.1 <immintrin.h>
-@case aarch64+neon <arm_neon.h>
-@case x86_64+none,aarch64+none none
+@case *-x86_64+avx2,*-x86_64+sse4.1 <immintrin.h>
+@case *-aarch64+neon <arm_neon.h>
+@case *-x86_64+none,*-aarch64+none none
 @end
 #include <sys/mman.h>
 #include <unistd.h>
 
 @define SIMD
-@case x86_64+avx2 __attribute__((target("avx2")))
-@case x86_64+sse4.1 __attribute__((target("sse4.1")))
-@case x86_64+none,aarch64
+@case *-x86_64+avx2 __attribute__((target("avx2")))
+@case *-x86_64+sse4.1 __attribute__((target("sse4.1")))
+@case *-x86_64+none,*-aarch64
 @end
 
 @define SIMD_SIZE
-@case x86_64+avx2 32
-@case x86_64+sse4.1,aarch64+neon 16
-@case x86_64+none,aarch64+none 8
+@case *-x86_64+avx2 32
+@case *-x86_64+sse4.1,*-aarch64+neon 16
+@case *-x86_64+none,*-aarch64+none 8
 @end
 
 @define SIMD_TYPE
-@case x86_64+avx2 __m256i
-@case x86_64+sse4.1 __m128i
-@case aarch64+neon uint8x16_t
-@case x86_64+none,aarch64+none uint64_t
+@case *-x86_64+avx2 __m256i
+@case *-x86_64+sse4.1 __m128i
+@case *-aarch64+neon uint8x16_t
+@case *-x86_64+none,*-aarch64+none uint64_t
 @end
 
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
@@ -65,7 +65,7 @@ struct NonAliasingChar {
 
 !ifdef BITSET
 const long ONE_BYTES = -1ULL / 255
-@ondemand x86_64+none,aarch64+none
+@ondemand *-x86_64+none,*-aarch64+none
 , BITSET_SHIFT = 0x8040201008040201
 @end
 ;
@@ -182,7 +182,7 @@ struct istream_impl {
             // modified, so we have to load ptr into a local variable and then put it back, like
             // this:
 @match
-@case x86_64
+@case *-x86_64
             off_t n_read = SYS_read;
             NonAliasingChar* rsi = buffer;
             asm volatile(
@@ -194,7 +194,7 @@ struct istream_impl {
                 : "rcx", "r11"
             );
             ptr = rsi;
-@case aarch64 wrap
+@case *-aarch64 wrap
             register long
                 n_read asm("x0") = STDIN_FILENO,
                 x1 asm("x1") = (long)buffer,
@@ -353,7 +353,7 @@ struct istream_impl {
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
 @match
-@case x86_64+avx2 wrap
+@case *-x86_64+avx2 wrap
             auto p = (__m256i*)ptr;
             __m256i vec, space = _mm256_set1_epi8(' ');
             while (
@@ -362,7 +362,7 @@ struct istream_impl {
             )
                 p++;
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
-@case x86_64+sse4.1 wrap
+@case *-x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, space = _mm_set1_epi8(' ');
             while (
@@ -371,13 +371,13 @@ struct istream_impl {
             )
                 p++;
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
-@case aarch64+neon wrap
+@case *-aarch64+neon wrap
             auto p = (uint8x16_t*)ptr;
             uint64x2_t vec;
             while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
                 p++;
             return (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
-@case x86_64+none,aarch64+none
+@case *-x86_64+none,*-aarch64+none
             while (*ptr < 0 || *ptr > ' ')
                 ptr++;
             return ptr;
@@ -402,7 +402,7 @@ struct istream_impl {
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
 @match
-@case x86_64+avx2 wrap
+@case *-x86_64+avx2 wrap
             auto p = (__m256i*)ptr;
             auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
             __m256i vec, vec1, vec2;
@@ -416,7 +416,7 @@ struct istream_impl {
             )
                 p++;
             return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
-@case x86_64+sse4.1 wrap
+@case *-x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, vec1, vec2;
             while (
@@ -432,14 +432,14 @@ struct istream_impl {
             )
                 p++;
             return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
-@case aarch64+neon wrap
+@case *-aarch64+neon wrap
             auto p = (uint8x16_t*)ptr;
             uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
             uint64x2_t vec;
             while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *p), !(vec[0] | vec[1]))
                 p++;
             return (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
-@case x86_64+none,aarch64+none
+@case *-x86_64+none,*-aarch64+none
             while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n')
                 ptr++;
             return ptr;
@@ -504,7 +504,7 @@ struct istream_impl {
 !endif
                     i -= SIMD_SIZE;
 @match
-@case x86_64+avx2
+@case *-x86_64+avx2
                     // This is actually 0x0001020304050607
                     long a = -1ULL / 65025;
                     ((uint32_t*)&value)[i / 32] = __bswap_32(
@@ -520,7 +520,7 @@ struct istream_impl {
                             )
                         )
                     );
-@case x86_64+sse4.1
+@case *-x86_64+sse4.1
                     // This is actually 0x0001020304050607
                     long a = -1ULL / 65025;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
@@ -529,13 +529,13 @@ struct istream_impl {
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-@case aarch64+neon wrap
+@case *-aarch64+neon wrap
                     auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - *p++);
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
                     ((uint16_t*)&value)[i / 16] = vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     );
-@case x86_64+none,aarch64+none
+@case *-x86_64+none,*-aarch64+none
                     ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
 @end
                 }
@@ -822,7 +822,7 @@ struct blazingio_ostream {
         i /= SIMD_SIZE;
         while (i) {
 @match
-@case x86_64+avx2
+@case *-x86_64+avx2
             {
                 auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
                 _mm256_storeu_si256(
@@ -839,7 +839,7 @@ struct blazingio_ostream {
                     )
                 );
             }
-@case x86_64+sse4.1
+@case *-x86_64+sse4.1
             {
                 auto b = _mm_set1_epi64x(POWERS_OF_TWO);
                 _mm_storeu_si128(
@@ -856,7 +856,7 @@ struct blazingio_ostream {
                     )
                 );
             }
-@case aarch64+neon
+@case *-aarch64+neon
             {
                 auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
                 *p++ = '0' - vtstq_u8(
@@ -864,7 +864,7 @@ struct blazingio_ostream {
                     (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
                 );
             }
-@case x86_64+none,aarch64+none
+@case *-x86_64+none,*-aarch64+none
             *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
 @end
         }

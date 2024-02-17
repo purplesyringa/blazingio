@@ -214,39 +214,30 @@ if "UNWRAP" in needed_factor_macros:
 blazingio = re.sub(r"//.*", "", blazingio)
 
 
-# Remove unnecessary whitespace
-def whitespace(s):
-    if s.startswith("#"):
-        s, *rest = s.split(None, 1)
-        if rest:
-            s += " " + whitespace(rest[0])
-        else:
-            s += "\n"
-        return s
-    for _ in range(3):
-        s = re.sub(r"([^a-zA-Z0-9_$])\s+(\S)", r"\1\2", s)
-        s = re.sub(r"(\S)\s+([^a-zA-Z0-9_$])", r"\1\2", s)
-    s = s.replace("\n", " ")
-    s = s.replace("''", "' '")
-    s = s.strip()
-    if s:
-        s += "\n"
-    return s
-
-
-blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
-
-# Remove whitespace after "#include"
-blazingio = re.sub(r"#include\s+<", "#include<", blazingio)
-
-
-# Replace character literals with their values
-blazingio = re.sub(
-    r"(?<!<<)(?<!print\()('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
-)
-
-
 def repl(s):
+    # Replace libc constants
+    consts = {
+        "PROT_READ": 1,
+        "PROT_WRITE": 2,
+        "MAP_PRIVATE": 2,
+        "MAP_FIXED": 0x10,
+        "MAP_ANONYMOUS": 0x20,
+        "MAP_NORESERVE": 0x4000,
+        "MADV_POPULATE_READ": 22,
+        "STDIN_FILENO": 0,
+        "STDOUT_FILENO": 1,
+        "SEEK_END": 2,
+        "SPLICE_F_GIFT": 8,
+        "SYS_read": generate_multicase_code([
+            ("linux-x86_64", "0"),
+            ("linux-aarch64", "63"),
+        ])
+    }
+    const = "(" + "|".join(consts) + ")"
+    s = re.sub(
+        const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s
+    )
+
     # Replace identifiers
     for old, new in [
         ("blazingio_istream", "$i"),
@@ -357,38 +348,41 @@ def repl(s):
     ]:
         s = re.sub(r"\b" + re.escape(old) + r"\b", new, s)
 
-    # Replace libc constants
-    consts = {
-        "O_RDONLY": 0,
-        "O_RDWR": 2,
-        "PROT_READ": 1,
-        "PROT_WRITE": 2,
-        "MAP_SHARED": 1,
-        "MAP_PRIVATE": 2,
-        "MAP_FIXED": 0x10,
-        "MAP_ANONYMOUS": 0x20,
-        "MAP_NORESERVE": 0x4000,
-        "MAP_POPULATE": 0x8000,
-        "MADV_POPULATE_READ": 22,
-        "MADV_POPULATE_WRITE": 23,
-        "SA_SIGINFO": 4,
-        "STDIN_FILENO": 0,
-        "STDOUT_FILENO": 1,
-        "SEEK_END": 2,
-        "SPLICE_F_GIFT": 8,
-        "SIGBUS": 7,
-        "SYS_read": 0,
-    }
-    const = "(" + "|".join(consts) + ")"
-    s = re.sub(
-        const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s
-    )
-
     return s
-
 
 blazingio = "".join(
     repl(part) if part[0] != '"' else part for part in re.split(r"(\".*?\")", blazingio)
+)
+
+
+# Remove unnecessary whitespace
+def whitespace(s):
+    if s.startswith("#"):
+        s, *rest = s.split(None, 1)
+        if rest:
+            s += " " + whitespace(rest[0])
+        else:
+            s += "\n"
+        return s
+    for _ in range(3):
+        s = re.sub(r"([^a-zA-Z0-9_$])\s+(\S)", r"\1\2", s)
+        s = re.sub(r"(\S)\s+([^a-zA-Z0-9_$])", r"\1\2", s)
+    s = s.replace("\n", " ")
+    s = s.replace("''", "' '")
+    s = s.strip()
+    if s:
+        s += "\n"
+    return s
+
+
+blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
+
+# Remove whitespace after "#include"
+blazingio = re.sub(r"#include\s+<", "#include<", blazingio)
+
+# Replace character literals with their values
+blazingio = re.sub(
+    r"(?<!<<)(?<!print\()('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
 )
 
 # Replace hexadecimal integer literals

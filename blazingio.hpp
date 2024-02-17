@@ -669,7 +669,7 @@ struct blazingio_ostream {
         // Perhaps not a pipe?
         if (n_written) {
             start++;
-@case windows-*,macos-*
+@case macos-*
         {
 @end
 !endif

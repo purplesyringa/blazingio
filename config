@@ -10,8 +10,8 @@ lut=y
 char_with_sign_is_glyph=y
 
 # Whether to support <bitset> I/O. This will benefit from using SIMD significantly. This also
-# increases code size significantly. Choose 'y' if unsure.
-bitset=y
+# increases code size greatly while being seldom used. Choose 'n' if unsure.
+bitset=n
 
 # Whether to support floating-point I/O. This increases code size significantly. Choose 'y' if
 # unsure.

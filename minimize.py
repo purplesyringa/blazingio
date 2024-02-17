@@ -230,6 +230,11 @@ if "UNWRAP" in needed_factor_macros:
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)
 
+# Replace character literals with their values
+blazingio = re.sub(
+    r"(?<!<< )(?<!print\()('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
+)
+
 
 consts = {
     "PROT_READ": 1,
@@ -425,11 +430,6 @@ blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
 
 # Remove whitespace after "#include"
 blazingio = re.sub(r"#include\s+<", "#include<", blazingio)
-
-# Replace character literals with their values
-blazingio = re.sub(
-    r"(?<!<<)(?<!print\()('\\?.')", lambda match: str(ord(eval(match[1]))), blazingio
-)
 
 # Replace hexadecimal integer literals
 blazingio = re.sub(

@@ -15,7 +15,7 @@
 @case *-x86_64+none,*-aarch64+none none
 @end
 @include
-@case linux-* <sys/mman.h>
+@case linux-*,macos-* <sys/mman.h>
 @case windows-* none
 @end
 #include <unistd.h>
@@ -790,7 +790,7 @@ struct blazingio_ostream {
         // also a builtin in GCC, which means outputting a constant string is going to be optimized
         // into a mov or two!
 @match
-@case linux-*
+@case linux-*,macos-*
         ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
 @case windows-*
         // Windows doesn't provide stpcpy, so we have to simulate it (albeit inefficiently) with

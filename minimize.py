@@ -65,6 +65,20 @@ def does_selector_match(selector):
             return False
     return True
 
+def does_selector_match_particular(selector, os, base):
+    selector_os, selector_arch = selector.split("-")
+    return (
+        selector_os in ("*", os)
+        and selector_os in target_oses
+        and (
+            selector_arch == "*"
+            or (
+                selector_arch.split("+")[0] == base
+                and selector_arch in (target_architectures if "+" in selector_arch else target_bases)
+            )
+        )
+    )
+
 def generate_multicase_code(cases):
     filtered_cases = []
     for arg, code in cases:
@@ -114,18 +128,21 @@ def generate_multicase_code(cases):
 
     def codegen(cases):
         assert cases
-        if len(cases) == 1:
+        if all(case[2:] == cases[0][2:] for case in cases):
             _, _, code, flags = cases[0]
             if "wrap" in flags:
                 needed_factor_macros.add("UNWRAP")
                 code = f"UNWRAP({code})"
             return code
+        variants = []
         for factor in factors:
             try:
-                return factor(cases)
+                variants.append(factor(cases))
             except StopIteration:
                 pass
-        raise StopIteration
+        if not variants:
+            raise StopIteration
+        return min(variants, key=len)
 
     try:
         return codegen(filtered_cases)
@@ -214,31 +231,59 @@ if "UNWRAP" in needed_factor_macros:
 blazingio = re.sub(r"//.*", "", blazingio)
 
 
+consts = {
+    "PROT_READ": 1,
+    "PROT_WRITE": 2,
+    "MAP_PRIVATE": 2,
+    "MAP_FIXED": 0x10,
+    "MAP_ANONYMOUS": {
+        "linux-*": 0x20,
+        "macos-*": 0x1000,
+    },
+    "MAP_NORESERVE": {
+        "linux-*": 0x4000,
+        "macos-*": 0x40,
+    },
+    "MADV_POPULATE_READ": 22,
+    "STDIN_FILENO": 0,
+    "STDOUT_FILENO": 1,
+    "SEEK_END": 2,
+    "SPLICE_F_GIFT": 8,
+    "SYS_read": {
+        "linux-x86_64": 0,
+        "linux-aarch64": 63,
+        # This is not documented anywhere, but it's been this for dozens of years
+        "macos-x86_64": (2 << 24) | 3,
+    },
+}
+
 def repl(s):
     # Replace libc constants
-    consts = {
-        "PROT_READ": 1,
-        "PROT_WRITE": 2,
-        "MAP_PRIVATE": 2,
-        "MAP_FIXED": 0x10,
-        "MAP_ANONYMOUS": 0x20,
-        "MAP_NORESERVE": 0x4000,
-        "MADV_POPULATE_READ": 22,
-        "STDIN_FILENO": 0,
-        "STDOUT_FILENO": 1,
-        "SEEK_END": 2,
-        "SPLICE_F_GIFT": 8,
-        "SYS_read": generate_multicase_code([
-            ("linux-x86_64", "0"),
-            ("linux-aarch64", "63"),
-            # This is not documented anywhere, but it's been this for dozens of years
-            ("macos-x86_64", str((2 << 24) | 3)),
-        ])
-    }
+    def replace_consts(match):
+        cases = []
+        for os in target_oses:
+            for base in target_bases:
+                total_value = 0
+                for name in match[0].split("|"):
+                    values = consts[name.strip()]
+                    if isinstance(values, int):
+                        value = values
+                    else:
+                        for selector, value in values.items():
+                            if does_selector_match_particular(selector, os, base):
+                                break
+                        else:
+                            total_value = None
+                            break
+                    if total_value is None:
+                        break
+                    total_value |= value
+                if total_value is not None:
+                    cases.append((f"{os}-{base}", str(total_value)))
+        return generate_multicase_code(cases)
+        # return str(eval(match[0], consts))
     const = "(" + "|".join(consts) + ")"
-    s = re.sub(
-        const + r"(\s*\|\s*" + const + ")*", lambda match: str(eval(match[0], consts)), s
-    )
+    s = re.sub(const + r"(\s*\|\s*" + const + ")*", replace_consts, s)
 
     # Replace identifiers
     for old, new in [

@@ -244,7 +244,6 @@ consts = {
         "linux-*": 0x4000,
         "macos-*": 0x40,
     },
-    "MADV_POPULATE_READ": 22,
     "STDIN_FILENO": 0,
     "STDOUT_FILENO": 1,
     "SEEK_END": 2,

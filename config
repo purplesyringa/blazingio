@@ -53,6 +53,11 @@ cerr=y
 # unsure.
 large_output=n
 
+# Which operating systems to generate code for. The supported values are 'windows', 'linux', and
+# 'macos'. Listing more than one operating system will increase code size significantly. Codeforces
+# uses Windows; most other online judges use Linux. Choose 'windows,linux,macos' if unsure.
+os=windows,linux
+
 # Which architectures and instruction sets to generate code for. The supported architectures are
 # 'x86_64' (amd64) and 'aarch64' (arm64). Additionally, ISA extensions may be specified by naming
 # them after '+'. The supported extensions are 'avx2' and 'sse4.1' for x86_64; 'neon' for aarch64.

@@ -1,6 +1,7 @@
 type: round-trip
 config:
   architecture: x86_64,aarch64
+  os: linux,windows
   # Make sure overloads don't resolve to floats
   float: [y, n]
   # Make sure char is not resovled to (un)signed char

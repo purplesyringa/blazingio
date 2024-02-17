@@ -29,3 +29,5 @@ ARCHITECTURES = {
     "x86_64": ["sse4.1", "avx2"],
     "aarch64": ["neon"],
 }
+
+OSES = ["windows", "linux", "macos"]

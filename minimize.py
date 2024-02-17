@@ -2,7 +2,7 @@ import re
 import subprocess
 import sys
 
-from common import CONFIG_OPTS, ARCHITECTURES
+from common import CONFIG_OPTS, ARCHITECTURES, OSES
 
 
 if len(sys.argv) >= 2 and sys.argv[1] == "--override":
@@ -19,7 +19,13 @@ target_oses = []
 target_architectures = []
 target_bases = []
 for line in lines:
-    if line.startswith("architecture="):
+    if line.startswith("os="):
+        for os in line.partition("=")[2].split(","):
+            if os not in OSES:
+                print(f"Invalid OS {os}")
+                raise SystemExit(1)
+            target_oses.append(os)
+    elif line.startswith("architecture="):
         for architecture in line.partition("=")[2].split(","):
             base, *extensions = architecture.split("+")
             if base not in ARCHITECTURES:
@@ -36,13 +42,13 @@ for line in lines:
             else:
                 target_architectures.append(architecture + "+none")
             target_bases.append(base)
-        continue
-    if line not in CONFIG_OPTS:
-        print(f"Invalid key-value combination {line}")
-        raise SystemExit(1)
-    opt = CONFIG_OPTS[line]
-    if opt:
-        opts.append(opt)
+    else:
+        if line not in CONFIG_OPTS:
+            print(f"Invalid key-value combination {line}")
+            raise SystemExit(1)
+        opt = CONFIG_OPTS[line]
+        if opt:
+            opts.append(opt)
 
 
 blazingio = open("blazingio.hpp").read()
@@ -92,6 +98,12 @@ def generate_multicase_code(cases):
             lambda case: case[1] == "x86_64",
             "IF_X86_64"
         ),
+        lambda cases: factor_out(
+            cases,
+            lambda case: case[0] == "*",
+            lambda case: case[0] == "windows",
+            "IF_WINDOWS"
+        ),
     ]
 
     def codegen(cases):
@@ -99,6 +111,7 @@ def generate_multicase_code(cases):
         if len(cases) == 1:
             _, _, code, flags = cases[0]
             if "wrap" in flags:
+                needed_factor_macros.add("UNWRAP")
                 code = f"UNWRAP({code})"
             return code
         for factor in factors:
@@ -190,9 +203,13 @@ blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
 blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typename", "$c")
 blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
-# Add multiarch support
+# Add multiarch/multiOS support
 if "IF_X86_64" in needed_factor_macros:
-    blazingio = "#ifdef __x86_64__\n#define IF_X86_64(x86_64, aarch64) x86_64\n#else\n#define IF_X86_64(x86_64, aarch64) aarch64\n#endif\n#define UNWRAP(...) __VA_ARGS__\n" + blazingio
+    blazingio = "#ifdef __x86_64__\n#define IF_X86_64(yes, no) yes\n#else\n#define IF_X86_64(yes, no) no\n#endif\n" + blazingio
+if "IF_WINDOWS" in needed_factor_macros:
+    blazingio = "#ifdef _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio
+if "UNWRAP" in needed_factor_macros:
+    blazingio = "#define UNWRAP(...) __VA_ARGS__\n" + blazingio
 
 # Strip out comments
 blazingio = re.sub(r"//.*", "", blazingio)
@@ -249,6 +266,7 @@ def repl(s):
         ("INLINE", "$I"),
         ("FETCH", "$F"),
         ("IF_X86_64", "$S"),
+        ("IF_WINDOWS", "$w"),
         ("UNWRAP", "$u"),
 
         ("UninitChar", "A"),
@@ -265,7 +283,7 @@ def repl(s):
         ("abs", "A"),
         ("write12", "A"),
         ("func", "A"),
-        ("x86_64", "A"),
+        ("yes", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),
@@ -275,7 +293,7 @@ def repl(s):
         ("MinDigits", "B"),
         ("whole", "B"),
         ("stream", "B"),
-        ("aarch64", "B"),
+        ("no", "B"),
         ("masked", "B"),
 
         ("ONE_BYTES", "C"),

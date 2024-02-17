@@ -11,7 +11,10 @@
 @case *-aarch64+neon <arm_neon.h>
 @case *-x86_64+none,*-aarch64+none none
 @end
-#include <sys/mman.h>
+@include
+@case linux-* <sys/mman.h>
+@case windows-* none
+@end
 #include <unistd.h>
 
 @define SIMD
@@ -787,7 +790,16 @@ struct blazingio_ostream {
         // We'd prefer strcpy without null terminator here, but perhaps strcpy itself suffices. It's
         // also a builtin in GCC, which means outputting a constant string is going to be optimized
         // into a mov or two!
+@match
+@case linux-*
         ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
+@case windows-*
+        // Windows doesn't provide stpcpy, so we have to simulate it (albeit inefficiently) with
+        // strlen+mecpy
+        size_t length = strlen(value);
+        memcpy((char*)ptr, value, length);
+        ptr += length;
+@end
     }
 !ifdef CHAR_WITH_SIGN_IS_GLYPH
     void print(const uint8_t* value) {

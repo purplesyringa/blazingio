@@ -586,7 +586,12 @@ struct blazingio_istream {
 
     blazingio_istream() {
         file_size = lseek(STDIN_FILENO, 0, SEEK_END);
-        ~file_size
+        // We want to switch to a pipe-based method if the file is a special device. On Linux, this
+        // can be detected by lseek returning -1. Mac OS, however, returns 0 from lseek(SEEK_END) on
+        // some special files, e.g. /dev/null, /dev/zero, and ptys. If we compared the return value
+        // just to -1, the check would pass and mmap'ing the file would fail, crashing the program.
+        // Therefore, use > 0 instead, even though it's a bit longer.
+        file_size > 0
             ? file.init_assume_file(file_size)
             : interactive.init_assume_interactive();
     }
@@ -598,7 +603,7 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        __builtin_expect(~file_size, 1)
+        __builtin_expect(file_size > 0, 1)
             ? file.rshift_impl(value)
             : interactive.rshift_impl(value);
         return *this;
@@ -609,7 +614,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return __builtin_expect(~file_size, 1) ? !file : !interactive;
+        return __builtin_expect(file_size > 0, 1) ? !file : !interactive;
     }
 !endif
 };
@@ -910,7 +915,7 @@ namespace std {
 
 !ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (__builtin_expect(!~blazingio_cin.file_size, 0))
+        if (__builtin_expect(blazingio_cin.file_size <= 0, 0))
             stream.do_flush();
         return stream;
     }

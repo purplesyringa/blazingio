@@ -5,17 +5,17 @@
 #define L$(x)_mm256_loadu_si256(x)
 #define M$(x,...)_mm256_##x##_epi8(__VA_ARGS__)
 #define $u(...)__VA_ARGS__
-#ifdef __APPLE__
+#if __APPLE__
 #define $m(A,B)A
 #else
 #define $m(A,B)B
 #endif
-#ifdef _WIN32
+#if _WIN32
 #define $w(A,B)A
 #else
 #define $w(A,B)B
 #endif
-#ifdef __x86_64__
+#if __x86_64__
 #define $S(A,B)A
 #else
 #define $S(A,B)B

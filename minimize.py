@@ -225,11 +225,11 @@ blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 # Add multiarch/multiOS support
 if "IF_X86_64" in needed_factor_macros:
-    blazingio = "#ifdef __x86_64__\n#define IF_X86_64(yes, no) yes\n#else\n#define IF_X86_64(yes, no) no\n#endif\n" + blazingio
+    blazingio = "#if __x86_64__\n#define IF_X86_64(yes, no) yes\n#else\n#define IF_X86_64(yes, no) no\n#endif\n" + blazingio
 if "IF_WINDOWS" in needed_factor_macros:
-    blazingio = "#ifdef _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio
+    blazingio = "#if _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio
 if "IF_MACOS" in needed_factor_macros:
-    blazingio = "#ifdef __APPLE__\n#define IF_MACOS(yes, no) yes\n#else\n#define IF_MACOS(yes, no) no\n#endif\n" + blazingio
+    blazingio = "#if __APPLE__\n#define IF_MACOS(yes, no) yes\n#else\n#define IF_MACOS(yes, no) no\n#endif\n" + blazingio
 if "UNWRAP" in needed_factor_macros:
     blazingio = "#define UNWRAP(...) __VA_ARGS__\n" + blazingio
 

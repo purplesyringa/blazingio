@@ -231,6 +231,7 @@ def repl(s):
         "SYS_read": generate_multicase_code([
             ("linux-x86_64", "0"),
             ("linux-aarch64", "63"),
+            ("macos-*", "3"),  # this is not documented anywhere, but it's been 3 for dozens of years
         ])
     }
     const = "(" + "|".join(consts) + ")"

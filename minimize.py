@@ -18,6 +18,7 @@ opts = []
 target_oses = []
 target_architectures = []
 target_bases = []
+config_str = ""
 for line in lines:
     if line.startswith("os="):
         for os in line.partition("=")[2].split(","):
@@ -25,19 +26,23 @@ for line in lines:
                 print(f"Invalid OS {os}")
                 raise SystemExit(1)
             target_oses.append(os)
+            config_str += OSES[os]
     elif line.startswith("architecture="):
         for architecture in line.partition("=")[2].split(","):
             base, *extensions = architecture.split("+")
             if base not in ARCHITECTURES:
                 print(f"Invalid architecture {base}")
                 raise SystemExit(1)
+            arch_extensions, base_str = ARCHITECTURES[base]
             if len(extensions) > 1:
                 print("Extensions cannot be combined for one architecture")
                 raise SystemExit(1)
-            if extensions and extensions[0] not in ARCHITECTURES[base]:
+            if extensions and extensions[0] not in arch_extensions:
                 print(f"Invalid extension {extensions[0]} for architecture {base}")
                 raise SystemExit(1)
+            config_str += base_str
             if extensions:
+                config_str += arch_extensions[extensions[0]]
                 target_architectures.append(architecture)
             else:
                 target_architectures.append(architecture + "+none")
@@ -46,9 +51,10 @@ for line in lines:
         if line not in CONFIG_OPTS:
             print(f"Invalid key-value combination {line}")
             raise SystemExit(1)
-        opt = CONFIG_OPTS[line]
+        opt, opt_str = CONFIG_OPTS[line]
         if opt:
             opts.append(opt)
+        config_str += opt_str
 
 
 blazingio = open("blazingio.hpp").read()
@@ -459,7 +465,7 @@ elif "_mm_" in blazingio:
 blazingio = blazingio.strip()
 
 # Add comments
-blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Config options: {' '.join(opts) if opts else '(none)'}\n// Targets: {', '.join(target_oses)}; {', '.join(target_architectures)}\n{blazingio}\n// End of blazingio\n"
+blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a minified build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Options: {config_str or '(none)'}\n{blazingio}\n// End of blazingio\n"
 
 open("blazingio.min.hpp", "w").write(blazingio)
 

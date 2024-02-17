@@ -1,8 +1,7 @@
-// DO NOT REMOVE THIS MESSAGE. The mess that follows is a compressed build of
+// DO NOT REMOVE THIS MESSAGE. The mess that follows is a minified build of
 // https://github.com/purplesyringa/blazingio. Refer to the repository for
 // a human-readable version and documentation.
-// Config options: LUT CHAR_WITH_SIGN_IS_GLYPH FLOAT COMPLEX SPLICE INTERACTIVE STDIN_EOF LATE_BINDING CERR
-// Targets: windows, linux, macos; x86_64+avx2, aarch64+neon
+// Options: lcfosiedrWLMXaAn
 #define L$(x)_mm256_loadu_si256(x)
 #define M$(x,...)_mm256_##x##_epi8(__VA_ARGS__)
 #define $u(...)__VA_ARGS__

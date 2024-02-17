@@ -25,6 +25,7 @@
 #include<array>
 #include<complex>
 #include<cstring>
+#include<fcntl.h>
 #include $S(<immintrin.h>,<arm_neon.h>)
 #include $w(<ios>,<sys/mman.h>)
 #include<unistd.h>

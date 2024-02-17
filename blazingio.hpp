@@ -6,6 +6,9 @@
 #include <complex>
 !endif
 #include <cstring>
+!ifdef SPLICE
+#include <fcntl.h>
+!endif
 @include
 @case *-x86_64+avx2,*-x86_64+sse4.1 <immintrin.h>
 @case *-aarch64+neon <arm_neon.h>

@@ -236,7 +236,7 @@ def repl(s):
     }
     const = "(" + "|".join(consts) + ")"
     s = re.sub(
-        const + r"(\|" + const + ")*", lambda match: str(eval(match[0], consts)), s
+        const + r"(\s*\|\s*" + const + ")*", lambda match: str(eval(match[0], consts)), s
     )
 
     # Replace identifiers

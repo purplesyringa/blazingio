@@ -496,17 +496,6 @@ struct istream_impl {
             value[--i] = *ptr++ == '1';
         }
 !endif
-@match
-@case x86_64+avx2,x86_64+sse4.1
-                // This is actually 0x0001020304050607
-                long a = -1ULL / 65025;
-@case aarch64+neon wrap
-                static constexpr uint8_t table[16] = {
-                    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01,
-                    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01
-                };
-@case x86_64+none,aarch64+none
-@end
                 auto p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
                 for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
@@ -516,6 +505,8 @@ struct istream_impl {
                     i -= SIMD_SIZE;
 @match
 @case x86_64+avx2
+                    // This is actually 0x0001020304050607
+                    long a = -1ULL / 65025;
                     ((uint32_t*)&value)[i / 32] = __bswap_32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
@@ -530,15 +521,17 @@ struct istream_impl {
                         )
                     );
 @case x86_64+sse4.1
+                    // This is actually 0x0001020304050607
+                    long a = -1ULL / 65025;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_loadu_si128(p++) << 7,
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-@case aarch64+neon
-                    uint8x16_t masked = vld1q_u8(table) & ('0' - *p++);
-                    uint8x8x2_t zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
+@case aarch64+neon wrap
+                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - *p++);
+                    auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
                     ((uint16_t*)&value)[i / 16] = vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     );

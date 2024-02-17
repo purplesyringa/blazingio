@@ -55,8 +55,6 @@ namespace blazingio {
 
 using namespace std;
 
-struct UninitChar { UninitChar& operator=(UninitChar) { return *this; } };
-
 struct NonAliasingChar {
     enum class Inner : char {};
     Inner c;
@@ -326,10 +324,16 @@ struct istream_impl {
         auto start = ptr;
         ptr = trace(ptr);
 
-        // We know there's no overlap, so avoid doing this for a little bit of performance:
-        // value.assign((const char*)start, ptr - start);
-        ((basic_string<UninitChar>&)value).resize(ptr - start);
-        memcpy(value.data(), start, ptr - start);
+        // We know that [start; ptr) does not overlap 'value'. std::string::assign doesn't
+        // know that and will perform a runtime check to determine if it need to handle
+        // aliasing strings gracefully. This takes a bit of time, so we *used to* do the
+        // following instead:
+        //     struct UninitChar { UninitChar& operator=(UninitChar) { return *this; } };
+        //     ((basic_string<UninitChar>&)value).resize(ptr - start);
+        //     memcpy(value.data(), start, ptr - start);
+        // This worked just fine, but libc++ forbids this code because UninitChar is not
+        // a trivial type. Therefore, disable this optimization.
+        value.assign((const char*)start, ptr - start);
 
 !ifdef INTERACTIVE
         while (Interactive && ptr == end) {

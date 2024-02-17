@@ -260,7 +260,6 @@ def repl(s):
         ("IF_WINDOWS", "$w"),
         ("UNWRAP", "$u"),
 
-        ("UninitChar", "A"),
         ("Inner", "A"),
         ("n_read", "A"),
         ("negative", "A"),

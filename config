@@ -11,7 +11,7 @@ char_with_sign_is_glyph=y
 
 # Whether to support <bitset> I/O. This will benefit from using SIMD significantly. This also
 # increases code size greatly while being seldom used. Choose 'n' if unsure.
-bitset=n
+bitset=y
 
 # Whether to support floating-point I/O. This increases code size significantly. Choose 'y' if
 # unsure.
@@ -51,7 +51,7 @@ cerr=y
 # do not call into libc (including transitive calls, e.g. operator new). This approach is more
 # error-prone and is unlikely to cause speed-ups in practice, but increases performance on synthetic
 # benchmarks by a few percent. Choose 'n' if unsure.
-hoist_globals_on_interactive_input=n
+hoist_globals_on_interactive_input=y
 
 # Which operating systems to generate code for. The supported values are 'windows', 'linux', and
 # 'macos'. Listing more than one operating system will increase code size significantly. Codeforces

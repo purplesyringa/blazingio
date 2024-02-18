@@ -283,6 +283,7 @@ consts = {
     "MEM_RELEASE": 0x8000,
     "FILE_MAP_READ": 4,
     "STD_INPUT_HANDLE": -10,
+    "STD_OUTPUT_HANDLE": -11,
 }
 
 def repl(s):

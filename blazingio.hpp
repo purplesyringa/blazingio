@@ -704,15 +704,15 @@ struct blazingio_ostream {
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
         // end. This also allows us to allocate memory immediately without waiting for freopen,
         // because we'll only use the fd in the destructor.
-        base = (char*)mmap(
-            NULL,
-            0x40000000,
-            PROT_READ | PROT_WRITE,
-            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
-            -1,
-            0
-        );
-        // base = new char[0x40000000];
+        // base = (char*)mmap(
+        //     NULL,
+        //     0x40000000,
+        //     PROT_READ | PROT_WRITE,
+        //     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+        //     -1,
+        //     0
+        // );
+        base = new char[0x40000000];
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
 
@@ -731,29 +731,35 @@ struct blazingio_ostream {
 
     void do_flush() {
 !endif
+@ondemand linux-*
+!ifdef SPLICE
+!define SPLICE_ENABLED
+!endif
+@end
+!ifdef SPLICE_ENABLED
+@define !UNIX_FLUSH_OPENING
+@case linux-* UNWRAP(do { iovec iov{start, (size_t)ptr - (size_t)start}; start += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT)); } while (n_written > 0); if (n_written) { start++;)
+@case macos-* {
+@end
+!define UNIX_FLUSH_CLOSING }
+!else
+!define UNIX_FLUSH_OPENING
+!define UNIX_FLUSH_CLOSING
+!endif
+@match
+@case linux-*,macos-*
         auto start = base;
         ssize_t n_written;
-!ifdef SPLICE
-@match
-@case linux-* wrap
-        do {
-            iovec iov{start, (size_t)ptr - (size_t)start};
-            start += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT));
-        } while (n_written > 0);
-        // Perhaps not a pipe?
-        if (n_written) {
-            start++;
-@case macos-*,windows-*
-        {
+        UNIX_FLUSH_OPENING
+        do
+            start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
+        while (n_written > 0);
+        ensure(~n_written)
+        UNIX_FLUSH_CLOSING
+@case windows-*
+        DWORD count;
+        ensure(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), base, (char*)ptr - base, &count, NULL))
 @end
-!endif
-            do
-                start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
-            while (n_written > 0);
-            ensure(~n_written)
-!ifdef SPLICE
-        }
-!endif
 !ifdef INTERACTIVE
         ptr = (NonAliasingChar*)base;
 !endif

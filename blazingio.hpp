@@ -704,19 +704,15 @@ struct blazingio_ostream {
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
         // end. This also allows us to allocate memory immediately without waiting for freopen,
         // because we'll only use the fd in the destructor.
-//         base = (char*)mmap(
-//             NULL,
-// !ifdef LARGE_OUTPUT
-//             0x1000000000,
-// !else
-//             0x40000000,
-// !endif
-//             PROT_READ | PROT_WRITE,
-//             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
-//             -1,
-//             0
-//         );
-        base = new char[0x40000000];
+        base = (char*)mmap(
+            NULL,
+            0x40000000,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+            -1,
+            0
+        );
+        // base = new char[0x40000000];
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
 

@@ -49,7 +49,7 @@ for test_name in os.listdir("tests"):
 
         if manifest["type"] == "round-trip":
             print("    Compiling")
-            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
+            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
             print("    Running")
             with open("/tmp/blazingio-test", "rb") as f:
                 with open("/tmp/blazingio-out", "wb") as f2:
@@ -74,7 +74,7 @@ for test_name in os.listdir("tests"):
                     assert f.read() == f2.read()
         elif manifest["type"] == "exit-code":
             print("    Compiling")
-            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
+            subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)
             print("    Running")
             with open("/tmp/blazingio-test", "rb") as f:
                 subprocess.run(["./a.out"], stdin=f, check=True)

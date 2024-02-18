@@ -582,7 +582,7 @@ struct istream_impl {
 @case *-x86_64+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = -1ULL / 65025;
-                    ((uint32_t*)&value)[i / 32] = __bswap_32(
+                    ((uint32_t*)&value)[i / 32] = __builtin_bswap32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
                                 _mm256_loadu_si256(p++) << 7,

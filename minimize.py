@@ -389,6 +389,7 @@ def repl(s):
         ("Factor", "D"),
         ("table", "D"),
         ("arg1", "D"),
+        ("stat_buf", "D"),
 
         ("buffer", "E"),
         ("mask", "E"),

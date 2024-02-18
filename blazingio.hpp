@@ -729,8 +729,8 @@ struct blazingio_ostream {
         ensure(base = (char*)VirtualAlloc(NULL, 0x40000000, MEM_RESERVE, PAGE_READWRITE))
         ensure(VirtualAlloc(base, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
         AddVectoredExceptionHandler(true, vectored_exception_handler);
-        ptr = (NonAliasingChar*)base;
 @end
+        ptr = (NonAliasingChar*)base;
 !ifdef LUT
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++) {

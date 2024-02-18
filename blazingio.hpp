@@ -21,6 +21,9 @@
 @case linux-*,macos-* <sys/mman.h>
 @case windows-* <windows.h>
 @end
+!ifdef INTERACTIVE
+#include <sys/stat.h>
+!endif
 #include <unistd.h>
 
 @define #SIMD
@@ -251,45 +254,52 @@ struct istream_impl {
 @case linux-* ""
 @case macos-* "x80"
 @end
+!define UNIX_READ \
 @match
-@case *-x86_64
-            off_t n_read = SYS_read;
-            NonAliasingChar* rsi = buffer;
-            asm volatile(
-                // Put a 0 byte after data for convenience of parsing routines. For some reason,
-                // doing this in an asm statement results in better codegen.
-                // XXX: Handling errors here is complicated, because on Linux syscall will return
-                // a small negative number in rax, leading to OOB write, while on XNU the syscall
-                // will return a small positive number in rax and set a carry flag we ignore, making
-                // it seem like we've just read a few bytes. Neither case is handled correctly, and
-                // 'ensure(n_read >= 0)' just hides the error, so let us explicitly state we don't
-                // support errors returned from read(2) for now. This should probably be fixed
-                // later.
-                "syscall; movb $0, (%%rsi,%%rax);"
-                : "+a"(n_read), "+S"(rsi)
-                : "D"(STDIN_FILENO), "d"(65536)
-                : "rcx", "r11"
-            );
-            ptr = rsi;
+@case *-x86_64 \
+            off_t n_read = SYS_read; \
+            NonAliasingChar* rsi = buffer; \
+            asm volatile( \
+                /* Put a 0 byte after data for convenience of parsing routines. For some reason,
+                   doing this in an asm statement results in better codegen.
+                   XXX: Handling errors here is complicated, because on Linux syscall will return
+                   a small negative number in rax, leading to OOB write, while on XNU the syscall
+                   will return a small positive number in rax and set a carry flag we ignore, making
+                   it seem like we've just read a few bytes. Neither case is handled correctly, and
+                   'ensure(n_read >= 0)' just hides the error, so let us explicitly state we don't
+                   support errors returned from read(2) for now. This should probably be fixed
+                   later. */ \
+                "syscall; movb $0, (%%rsi,%%rax);" \
+                : "+a"(n_read), "+S"(rsi) \
+                : "D"(STDIN_FILENO), "d"(65536) \
+                : "rcx", "r11" \
+            ); \
+            ptr = rsi; \
 @case *-aarch64 wrap
-            // Linux:  svc 0, syscall number in x8
-            // Mac OS: svc 0x80, syscall number in x16
-            register long
-                n_read asm("x0") = STDIN_FILENO,
-                arg1 asm("x1") = (long)buffer,
-                arg2 asm("x2") = 65536,
-                syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read;
-            asm volatile(
-                "svc 0" SVC "; strb wzr, [x1, x0]"
-                : "+r"(n_read), "+r"(arg1)
-                : "r"(syscall_no), "r"(arg2)
-            );
-            ptr = (NonAliasingChar*)arg1;
+            /* Linux:  svc 0, syscall number in x8
+               Mac OS: svc 0x80, syscall number in x16 */ \
+            register long \
+                n_read asm("x0") = STDIN_FILENO, \
+                arg1 asm("x1") = (long)buffer, \
+                arg2 asm("x2") = 65536, \
+                syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read; \
+            asm volatile( \
+                "svc 0" SVC "; strb wzr, [x1, x0]" \
+                : "+r"(n_read), "+r"(arg1) \
+                : "r"(syscall_no), "r"(arg2) \
+            ); \
+            ptr = (NonAliasingChar*)arg1; \
 @end
 !else
-            off_t n_read = read(STDIN_FILENO, ptr = buffer, 65536);
-            ensure(~n_read)
+!define UNIX_READ off_t n_read = read(STDIN_FILENO, ptr = buffer, 65536); ensure(~n_read)
 !endif
+@match
+@case linux-*,macos-*
+            UNIX_READ
+@case windows-*
+            DWORD n_read = 0;
+            ReadFile(GetStdHandle(STD_INPUT_HANDLE), ptr = buffer, 65536, &n_read, NULL);
+@end
             end = ptr + n_read;
 !ifdef STDIN_EOF
             if (!n_read) {
@@ -658,19 +668,21 @@ struct istream_impl {
 
 !ifdef INTERACTIVE
 struct blazingio_istream {
-    off_t file_size;
     istream_impl<false> file;
     istream_impl<true> interactive;
 
     blazingio_istream() {
-        file_size = lseek(STDIN_FILENO, 0, SEEK_END);
-        // We want to switch to a pipe-based method if the file is a special device. On Linux, this
-        // can be detected by lseek returning -1. Mac OS, however, returns 0 from lseek(SEEK_END) on
-        // some special files, e.g. /dev/null, /dev/zero, and ptys. If we compared the return value
-        // just to -1, the check would pass and mmap'ing the file would fail, crashing the program.
-        // Therefore, use > 0 instead, even though it's a bit longer.
-        file_size > 0
-            ? file.init_assume_file(file_size)
+        // We want to switch to a pipe-based method if the file is a special device. This cannot be
+        // reliably detected by the return value of lseek(SEEK_END) because the returned value
+        // depends on the OS:
+        // - Linux returns -1, with errno EISPIPE.
+        // - Mac OS returns 0.
+        // - Windows returns 131072 (wtf), supposedly the size of the buffer.
+        // Therefore, don't try to be smart about this and just do an honest stat
+        struct stat stat_buf;
+        ensure(~fstat(STDIN_FILENO, &stat_buf))
+        S_ISREG(stat_buf.st_mode)
+            ? file.init_assume_file(stat_buf.st_size)
             : interactive.init_assume_interactive();
     }
 
@@ -681,7 +693,7 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        __builtin_expect(file_size > 0, 1)
+        __builtin_expect(!!file.end, 1)
             ? file.rshift_impl(value)
             : interactive.rshift_impl(value);
         return *this;
@@ -692,7 +704,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return __builtin_expect(file_size > 0, 1) ? !file : !interactive;
+        return __builtin_expect(!!file.end, 1) ? !file : !interactive;
     }
 !endif
 };
@@ -1005,7 +1017,7 @@ namespace std {
 
 !ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (__builtin_expect(blazingio_cin.file_size <= 0, 0))
+        if (__builtin_expect(!blazingio_cin.file.end, 0))
             stream.do_flush();
         return stream;
     }

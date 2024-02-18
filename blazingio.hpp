@@ -106,9 +106,9 @@ struct istream_impl {
     blazingio_istream() {
         off_t file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
+!endif
         // Round to page size.
         (file_size += 4095) &= -4096;
-!endif
 @match
 @case windows-*
         // Windows is a mess. With allocation granularity 64k and page size 4k we don't always have

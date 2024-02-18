@@ -7,4 +7,5 @@ config:
   # Make sure overloads don't resolve to floats
   float: [y, n]
   interactive: [y, n]
+  hoist_globals_on_interactive_input: [y, n]
   splice: [y, n]

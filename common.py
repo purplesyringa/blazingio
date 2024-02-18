@@ -21,6 +21,8 @@ CONFIG_OPTS = {
     "cerr=y": ("CERR", "r"),
     "large_output=n": ("", ""),
     "large_output=y": ("LARGE_OUTPUT", "g"),
+    "hoist_globals_on_interactive_input=n": ("", ""),
+    "hoist_globals_on_interactive_input=y": ("HOIST_GLOBALS_ON_INTERACTIVE_INPUT", "h"),
 }
 
 ARCHITECTURES = {

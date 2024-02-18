@@ -53,6 +53,12 @@ cerr=y
 # unsure.
 large_output=n
 
+# Whether to use inline assembly to optimize a memory load out of hot loops that read from stdin but
+# do not call into libc (including transitive calls, e.g. operator new). This approach is more
+# error-prone and is unlikely to cause speed-ups in practice, but increases performance on synthetic
+# benchmarks by a few percent. Choose 'n' if unsure.
+hoist_globals_on_interactive_input=n
+
 # Which operating systems to generate code for. The supported values are 'windows', 'linux', and
 # 'macos'. Listing more than one operating system will increase code size significantly. Codeforces
 # uses Windows; most other online judges use Linux. Choose 'windows,linux,macos' if unsure.

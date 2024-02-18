@@ -140,6 +140,7 @@ struct istream_impl {
 !ifdef INTERACTIVE
     INLINE void fetch() {
         if (Interactive && __builtin_expect(ptr == end, 0)) {
+!ifdef HOIST_GLOBALS_ON_INTERACTIVE_INPUT
             // There's a bit of ridiculous code with questionable choices below. What we *want* is:
             //     off_t n_read = read(STDIN_FILENO, buffer, 65536);
             // Unfortunately, read() is an external call, which means it can override globals. Even
@@ -227,6 +228,10 @@ struct istream_impl {
             );
             ptr = (NonAliasingChar*)arg1;
 @end
+!else
+            off_t n_read = read(STDIN_FILENO, ptr = buffer, 65536);
+            ensure(~n_read)
+!endif
             end = ptr + n_read;
 !ifdef STDIN_EOF
             if (!n_read) {

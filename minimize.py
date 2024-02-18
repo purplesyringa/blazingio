@@ -267,6 +267,7 @@ consts = {
         "linux-aarch64": 63,
         # This is not documented anywhere, but it's been this for dozens of years
         "macos-x86_64": (2 << 24) | 3,
+        "macos-aarch64": 3,
     },
 }
 

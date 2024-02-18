@@ -116,8 +116,6 @@ struct istream_impl {
         off_t file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
 !endif
-        // Round to page size.
-        (file_size += 4095) &= -4096;
 @match
 @case windows-*
         // Windows is a mess. With allocation granularity 64k and page size 4k we don't always have
@@ -128,6 +126,8 @@ struct istream_impl {
         // Aligning the sizes to 64k, we then remap the last 64k with rw memory and read it from
         // file. This is a mix mmap-based file handling with read-based file handling and is
         // hopefully more efficient than a pure read-based method.
+        // Round to page size.
+        (file_size += 4095) &= -4096;
         // Find free space
         char* base = (char*)VirtualAlloc(NULL, file_size + 4096, MEM_RESERVE, PAGE_NOACCESS);
         ensure(base)
@@ -166,17 +166,34 @@ struct istream_impl {
         // WIN32_MEMORY_RANGE_ENTRY range{end - file_size, (size_t)file_size};
         // ensure(PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0) != -1)
 @case linux-*,macos-*
-        char* base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
+        // We expect a zero byte after EOF. On Linux, man mmap(2) says:
+        //     A file is mapped in multiples of the page size.  For a file that is not a multiple of
+        //     the page size, the remaining bytes in the partial page at the end of the mapping are
+        //     zeroed when mapped, and modifications to that region are not written out to the file.
+        // This is not the whole truth: if the file has previously been mapped with MAP_SHARED,
+        // modifications to the few bytes after EOF are saved in the shared page and visible even to
+        // processes that map the file with MAP_PRIVATE. Therefore assuming the rest of the last
+        // page is zero-filled is unreliable and has to be fixed. To do that, we mmap the file
+        // read-write and explicitly zero the byte after EOF.
+        // Various functions assume at least a few bytes after EOF are readable. For instance,
+        // that's what vectorized implementations expect. Round that up to 4k for simplicity because
+        // we're going to map an anonymous page anyway. This also enables bitset to work more
+        // efficiently for bitsets of size up to 4095.
+        char* base = (char*)mmap(NULL, file_size + 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE, STDIN_FILENO, 0);
         ensure(base != MAP_FAILED)
-        // Map one more anonymous page to handle attempts to read beyond EOF of stdin gracefully.
-        // This would happen either in operator>> while skipping whitespace, or in input(). In the
-        // former case, the right thing to do is stop the loop by encountering a non-space
-        // character; in the latter case, the right thing to do is to stop the loop by encountering
-        // a space character. Something like "\00" works for both cases: it stops (for instance)
-        // integer parsing immediately with a zero, and also stops whitespace parsing *soon*.
-        ensure(mmap(base + file_size, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
+        // Remap the last page from anonymous mapping to avoid SIGBUS
+        ensure(mmap(base + ((file_size + 4095) & -4096), 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
+        // Handle attempts to read beyond EOF of stdin gracefully. This would happen either in
+        // operator>> while skipping whitespace, or in input(). In the former case, the right thing
+        // to do is stop the loop by encountering a non-space character; in the latter case, the
+        // right thing to do is to stop the loop by encountering a space character. Something like
+        // "\00" works for both cases: it stops (for instance) integer parsing immediately with a
+        // zero, and also stops whitespace parsing *soon*.
 @end
         end = (NonAliasingChar*)base + file_size;
+@ondemand linux-*
+        *end = 0;
+@end
 !ifdef STDIN_EOF
         // We only really need to do this if we're willing to keep going "after" EOF, not just
         // handle 4k-aligned non-whitespace-terminated input.

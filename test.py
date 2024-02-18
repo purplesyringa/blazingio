@@ -71,7 +71,7 @@ for test_name in os.listdir("tests"):
                     subprocess.run(["./a.out.std"], stdin=f, stdout=f2, check=True)
             with open("/tmp/blazingio-out-blazingio", "rb") as f:
                 with open("/tmp/blazingio-out-std", "rb") as f2:
-                    assert f.read() == f2.read()
+                    assert f.read() == f2.read().replace(b"\r\n", b"\n")
         elif manifest["type"] == "exit-code":
             print("    Compiling")
             subprocess.run([compiler, f"tests/{test_name}/source.cpp", "-iquote", ".", "-o", "a.out", "-DBLAZINGIO=\"blazingio.min.hpp\""], check=True)

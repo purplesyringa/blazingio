@@ -222,8 +222,8 @@ struct istream_impl {
                 syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read;
             asm volatile(
                 "svc 0" SVC "; strb wzr, [x1, x0]"
-                : "+r"(n_read)
-                : "r"(syscall_no), "r"(arg1), "r"(arg2)
+                : "+r"(n_read), "+r"(arg1)
+                : "r"(syscall_no), "r"(arg2)
             );
             ptr = (NonAliasingChar*)arg1;
 @end

@@ -14,9 +14,12 @@
 @case *-aarch64+neon <arm_neon.h>
 @case *-x86_64+none,*-aarch64+none none
 @end
+@ondemand windows-*
+#include <stdint.h>
+@end
 @include
 @case linux-*,macos-* <sys/mman.h>
-@case windows-* none
+@case windows-* <windows.h>
 @end
 #include <unistd.h>
 
@@ -68,7 +71,7 @@ struct NonAliasingChar {
 };
 
 !ifdef BITSET
-const long ONE_BYTES = -1ULL / 255
+const uint64_t ONE_BYTES = -1ULL / 255
 @ondemand *-x86_64+none,*-aarch64+none
 , BITSET_SHIFT = 0x8040201008040201
 @end
@@ -103,9 +106,57 @@ struct istream_impl {
     blazingio_istream() {
         off_t file_size = lseek(STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
-!endif
         // Round to page size.
         (file_size += 4095) &= -4096;
+!endif
+@match
+@case windows-*
+        // Windows is a mess. With allocation granularity 64k and page size 4k we don't always have
+        // the option of mapping a zero page immediately after contents. For instance, mapping a 32k
+        // file will leave the second half of the 64k section unmapped, triggering a page fault upon
+        // access without letting us to map the page right. Therefore, we map the file and one more
+        // page; this both gives us free space to work with and guarantees at most 64k bytes trap.
+        // Aligning the sizes to 64k, we then remap the last 64k with rw memory and read it from
+        // file. This is a mix mmap-based file handling with read-based file handling and is
+        // hopefully more efficient than a pure read-based method.
+        // Find free space
+        char* base = (char*)VirtualAlloc(NULL, file_size + 4096, MEM_RESERVE, PAGE_NOACCESS);
+        ensure(base)
+        ensure(VirtualFree(base, 0, MEM_RELEASE))
+        // Map the file there
+        size_t mmaped_region_size = (file_size + 4096) & -65536;
+        // If we remove this if and always call CreateFileMapping, it's going to interpret 0 as
+        // "max", which we don't want.
+        if (mmaped_region_size)
+            ensure(
+                MapViewOfFileEx(
+                    CreateFileMapping(
+                        GetStdHandle(STD_INPUT_HANDLE),
+                        NULL,
+                        PAGE_READONLY,
+                        // XXX: This assumes the file fits in ~4 GB by putting the size in the low
+                        // DWORD only
+                        0,
+                        mmaped_region_size,
+                        NULL
+                    ),
+                    FILE_MAP_READ,
+                    0,
+                    0,
+                    0,
+                    base
+                ) == base
+            )
+        // Read into the start of a 64k region
+        ensure(
+            VirtualAlloc(base + mmaped_region_size, 65536, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE)
+            == base + mmaped_region_size
+        )
+        ensure(~_lseek(STDIN_FILENO, mmaped_region_size, SEEK_SET))
+        _read(STDIN_FILENO, base + mmaped_region_size, 65536);
+        // WIN32_MEMORY_RANGE_ENTRY range{end - file_size, (size_t)file_size};
+        // ensure(PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0) != -1)
+@case linux-*,macos-*
         char* base = (char*)mmap(NULL, file_size + 4096, PROT_READ, MAP_PRIVATE, STDIN_FILENO, 0);
         ensure(base != MAP_FAILED)
         // Map one more anonymous page to handle attempts to read beyond EOF of stdin gracefully.
@@ -114,8 +165,9 @@ struct istream_impl {
         // character; in the latter case, the right thing to do is to stop the loop by encountering
         // a space character. Something like "\00" works for both cases: it stops (for instance)
         // integer parsing immediately with a zero, and also stops whitespace parsing *soon*.
+        ensure(mmap(base + file_size, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
+@end
         end = (NonAliasingChar*)base + file_size;
-        ensure(mmap(end, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
 !ifdef STDIN_EOF
         // We only really need to do this if we're willing to keep going "after" EOF, not just
         // handle 4k-aligned non-whitespace-terminated input.
@@ -529,7 +581,7 @@ struct istream_impl {
 @match
 @case *-x86_64+avx2
                     // This is actually 0x0001020304050607
-                    long a = -1ULL / 65025;
+                    uint64_t a = -1ULL / 65025;
                     ((uint32_t*)&value)[i / 32] = __bswap_32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
@@ -545,7 +597,7 @@ struct istream_impl {
                     );
 @case *-x86_64+sse4.1
                     // This is actually 0x0001020304050607
-                    long a = -1ULL / 65025;
+                    uint64_t a = -1ULL / 65025;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_loadu_si128(p++) << 7,
@@ -652,18 +704,19 @@ struct blazingio_ostream {
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
         // end. This also allows us to allocate memory immediately without waiting for freopen,
         // because we'll only use the fd in the destructor.
-        base = (char*)mmap(
-            NULL,
-!ifdef LARGE_OUTPUT
-            0x1000000000,
-!else
-            0x40000000,
-!endif
-            PROT_READ | PROT_WRITE,
-            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
-            -1,
-            0
-        );
+//         base = (char*)mmap(
+//             NULL,
+// !ifdef LARGE_OUTPUT
+//             0x1000000000,
+// !else
+//             0x40000000,
+// !endif
+//             PROT_READ | PROT_WRITE,
+//             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+//             -1,
+//             0
+//         );
+        base = new char[0x40000000];
         ensure(base != MAP_FAILED)
         ptr = (NonAliasingChar*)base;
 
@@ -694,7 +747,7 @@ struct blazingio_ostream {
         // Perhaps not a pipe?
         if (n_written) {
             start++;
-@case macos-*
+@case macos-*,windows-*
         {
 @end
 !endif

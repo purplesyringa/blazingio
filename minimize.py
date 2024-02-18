@@ -97,7 +97,7 @@ def generate_multicase_code(cases):
             filtered_cases.append((selector_os, selector_base, code, flags))
 
     if not filtered_cases:
-        raise ValueError(f"No matching cases in {cases}")
+        return None
 
     def factor_out(cases, both_cond, cond, macro):
         true_cases = []
@@ -161,7 +161,10 @@ def handler(match):
         text = match[0].removeprefix("@match\n").removesuffix("@end\n")
         first, *rest = re.split(r"@case (.*)\n", text)
         assert first == ""
-        return generate_multicase_code(list(zip(rest[::2], rest[1::2]))) + "\n"
+        code = generate_multicase_code(list(zip(rest[::2], rest[1::2])))
+        if code is None:
+            return ""
+        return code + "\n"
     elif match[0].startswith("@ondemand "):
         selectors = match[0].split()[1]
         code = match[0].removeprefix(f"@ondemand {selectors}\n").removesuffix("@end\n")
@@ -178,6 +181,8 @@ def handler(match):
             _, selectors, *value = line.split(" ", 2)
             cases.append((selectors, " ".join(value)))
         value = generate_multicase_code(cases)
+        if value is None:
+            return ""
         if name.startswith("!") or name.startswith("#"):
             prefix, name = name[0], name[1:]
         else:
@@ -195,7 +200,7 @@ def handler(match):
             _, selectors, include = line.split(" ")
             cases.append((selectors, "<ios>" if include == "none" else include))
         code = generate_multicase_code(cases)
-        if code == "<ios>":
+        if code is None or code == "<ios>":
             return ""
         else:
             return f"#include {code}\n"
@@ -260,6 +265,7 @@ consts = {
     },
     "STDIN_FILENO": 0,
     "STDOUT_FILENO": 1,
+    "SEEK_SET": 0,
     "SEEK_END": 2,
     "SPLICE_F_GIFT": 8,
     "SYS_read": {
@@ -269,6 +275,14 @@ consts = {
         "macos-x86_64": (2 << 24) | 3,
         "macos-aarch64": 3,
     },
+    "PAGE_NOACCESS": 1,
+    "PAGE_READONLY": 2,
+    "PAGE_READWRITE": 4,
+    "MEM_COMMIT": 0x1000,
+    "MEM_RESERVE": 0x2000,
+    "MEM_RELEASE": 0x8000,
+    "FILE_MAP_READ": 4,
+    "STD_INPUT_HANDLE": -10,
 }
 
 def repl(s):
@@ -294,8 +308,7 @@ def repl(s):
                     total_value |= value
                 if total_value is not None:
                     cases.append((f"{os}-{base}", str(total_value)))
-        return generate_multicase_code(cases)
-        # return str(eval(match[0], consts))
+        return generate_multicase_code(cases) or ""
     const = "(" + "|".join(consts) + ")"
     s = re.sub(const + r"(\s*\|\s*" + const + ")*", replace_consts, s)
 
@@ -335,6 +348,7 @@ def repl(s):
         ("write12", "A"),
         ("func", "A"),
         ("yes", "A"),
+        ("mmaped_region_size", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),

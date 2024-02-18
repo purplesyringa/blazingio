@@ -278,12 +278,16 @@ consts = {
     "PAGE_NOACCESS": 1,
     "PAGE_READONLY": 2,
     "PAGE_READWRITE": 4,
+    "PAGE_GUARD": 0x100,
     "MEM_COMMIT": 0x1000,
     "MEM_RESERVE": 0x2000,
     "MEM_RELEASE": 0x8000,
     "FILE_MAP_READ": 4,
     "STD_INPUT_HANDLE": -10,
     "STD_OUTPUT_HANDLE": -11,
+    "STATUS_GUARD_PAGE_VIOLATION": 0x80000001,
+    "EXCEPTION_CONTINUE_SEARCH": 0,
+    "EXCEPTION_CONTINUE_EXECUTION": -1,
 }
 
 def repl(s):
@@ -324,6 +328,7 @@ def repl(s):
         ("blazingio_init", "t$"),
         ("blazingio_freopen", "f$"),
         ("ensure", "E$"),
+        ("vectored_exception_handler", "$x"),
         ("blazingio", "$f"),
         ("SIMD", "$s"),
         ("SIMD_SIZE", "$z"),
@@ -350,6 +355,7 @@ def repl(s):
         ("func", "A"),
         ("yes", "A"),
         ("mmaped_region_size", "A"),
+        ("exception_info", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),
@@ -361,6 +367,7 @@ def repl(s):
         ("stream", "B"),
         ("no", "B"),
         ("masked", "B"),
+        ("trigger_address", "B"),
 
         ("ONE_BYTES", "C"),
         ("file_size", "C"),
@@ -372,6 +379,7 @@ def repl(s):
         ("vec1", "C"),
         ("MaxDigits", "C"),
         ("zipped", "C"),
+        ("exception_record", "C"),
 
         ("line_t", "D"),
         ("base", "D"),
@@ -453,7 +461,6 @@ def whitespace(s):
     if s:
         s += "\n"
     return s
-
 
 blazingio = "".join(whitespace(part) for part in re.split(r"(#.*)", blazingio))
 

@@ -54,6 +54,12 @@
 
 #define ensure(x) if (!(x)) abort();
 
+@match
+@case linux-*,macos-*
+@case windows-*
+LONG vectored_exception_handler(_EXCEPTION_POINTERS*);
+@end
+
 namespace blazingio {
 
 using namespace std;
@@ -701,21 +707,30 @@ struct blazingio_ostream {
 !endif
 
     blazingio_ostream() {
+        // We *could* use 'base = new char[0x40000000];' instead of mmap-based allocation here, but
+        // that would lead to problems on systems without overcommit, such as Windows.
+@match
+@case linux-*,macos-*
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
         // end. This also allows us to allocate memory immediately without waiting for freopen,
         // because we'll only use the fd in the destructor.
-        // base = (char*)mmap(
-        //     NULL,
-        //     0x40000000,
-        //     PROT_READ | PROT_WRITE,
-        //     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
-        //     -1,
-        //     0
-        // );
-        base = new char[0x40000000];
+        base = (char*)mmap(
+            NULL,
+            0x40000000,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+            -1,
+            0
+        );
         ensure(base != MAP_FAILED)
+@case windows-*
+        // Windows doesn't support anything like MAP_NORESERVE or overcommit. Therefore, reserve
+        // memory and use guard pages to extend the committed region.
+        ensure(base = (char*)VirtualAlloc(NULL, 0x40000000, MEM_RESERVE, PAGE_READWRITE))
+        ensure(VirtualAlloc(base, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
+        AddVectoredExceptionHandler(true, vectored_exception_handler);
         ptr = (NonAliasingChar*)base;
-
+@end
 !ifdef LUT
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++) {
@@ -757,8 +772,8 @@ struct blazingio_ostream {
         ensure(~n_written)
         UNIX_FLUSH_CLOSING
 @case windows-*
-        DWORD count;
-        ensure(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), base, (char*)ptr - base, &count, NULL))
+        DWORD n_written;
+        ensure(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), base, (char*)ptr - base, &n_written, NULL))
 @end
 !ifdef INTERACTIVE
         ptr = (NonAliasingChar*)base;
@@ -1015,6 +1030,23 @@ namespace std {
     }
 !endif
 }
+
+@match
+@case linux-*,macos-*
+@case windows-*
+LONG vectored_exception_handler(_EXCEPTION_POINTERS* exception_info) {
+    auto exception_record = exception_info->ExceptionRecord;
+    if (exception_record->ExceptionCode == STATUS_GUARD_PAGE_VIOLATION) {
+        char* trigger_address = (char*)exception_record->ExceptionInformation[1];
+        if ((size_t)(trigger_address - std::blazingio_cout.base) < 0x40000000) {
+            ensure(VirtualAlloc(trigger_address, 0x1000000, MEM_COMMIT, PAGE_READWRITE))
+            ensure(VirtualAlloc(trigger_address + 0x1000000, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+@end
 
 !ifdef LATE_BINDING
 #define freopen(...) if (freopen(__VA_ARGS__) == stdin) std::blazingio_cin = blazingio::blazingio_istream{}

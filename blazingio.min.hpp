@@ -34,7 +34,7 @@
 #include<stdint.h>
 #include $w(<windows.h>,<sys/mman.h>)
 #include<sys/stat.h>
-#include<unistd.h>
+#include $w(<io.h>,<unistd.h>)
 #define $s $S(__attribute__((target("avx2"))),)
 #define $z $S(32,16)
 #define $t $S(__m256i,uint8x16_t)

@@ -23,7 +23,10 @@
 !ifdef INTERACTIVE
 #include <sys/stat.h>
 !endif
-#include <unistd.h>
+@include
+@case linux-*,macos-* <unistd.h>
+@case windows-* <io.h>
+@end
 
 @define #SIMD
 @case *-x86_64+avx2 __attribute__((target("avx2")))

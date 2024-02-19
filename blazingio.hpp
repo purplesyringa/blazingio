@@ -162,7 +162,8 @@ struct istream_impl {
             == base + mmaped_region_size
         )
         ensure(~_lseek(STDIN_FILENO, mmaped_region_size, SEEK_SET))
-        _read(STDIN_FILENO, base + mmaped_region_size, 65536);
+        DWORD tmp_n_read = 0;
+        ReadFile(GetStdHandle(STD_INPUT_HANDLE), base + mmaped_region_size, 65536, &tmp_n_read, NULL);
         // WIN32_MEMORY_RANGE_ENTRY range{end - file_size, (size_t)file_size};
         // ensure(PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0) != -1)
 @case linux-*,macos-*

@@ -405,6 +405,7 @@ def repl(s):
         ("do_flush", "E"),
         ("interval", "E"),
         ("stdout_handle", "E"),
+        ("tmp_n_read", "E"),
 
         ("Interactive", "F"),
         ("print", "F"),

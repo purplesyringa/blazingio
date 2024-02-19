@@ -528,7 +528,7 @@ struct istream_impl {
                 )
             )
                 p++;
-            return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec1 & vec2));
+            return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
 @case *-x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, vec1, vec2;
@@ -544,7 +544,7 @@ struct istream_impl {
                 )
             )
                 p++;
-            return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec1 & vec2));
+            return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
 @case *-aarch64+neon wrap
             auto p = (uint8x16_t*)ptr;
             uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
@@ -978,10 +978,13 @@ struct blazingio_ostream {
                 _mm256_sub_epi8(
                     _mm256_set1_epi8('0'),
                     _mm256_cmpeq_epi8(
-                        _mm256_shuffle_epi8(
-                            _mm256_set1_epi32(((uint32_t*)&value)[--i]),
-                            _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
-                        ) & b,
+                        _mm256_and_si256(
+                            _mm256_shuffle_epi8(
+                                _mm256_set1_epi32(((uint32_t*)&value)[--i]),
+                                _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
+                            ),
+                            b
+                        ),
                         b
                     )
                 )
@@ -993,10 +996,13 @@ struct blazingio_ostream {
                 _mm_sub_epi8(
                     _mm_set1_epi8('0'),
                     _mm_cmpeq_epi8(
-                        _mm_shuffle_epi8(
-                            _mm_set1_epi16(((uint16_t*)&value)[--i]),
-                            _mm_set_epi64x(0, ONE_BYTES)
-                        ) & b,
+                        _mm_and_si128(
+                            _mm_shuffle_epi8(
+                                _mm_set1_epi16(((uint16_t*)&value)[--i]),
+                                _mm_set_epi64x(0, ONE_BYTES)
+                            ),
+                            b
+                        ),
                         b
                     )
                 )

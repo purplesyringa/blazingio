@@ -487,15 +487,17 @@ struct istream_impl {
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
             SIMD_TYPE* p = (SIMD_TYPE*)ptr;
-@ondemand windows-*
+@match
+@case linux-*,macos-*
+@case windows-*
             ULONG index;
 @end
 @define !BSFD(x)
-@case linux-*,macos-* __bsfd(x)
+@case linux-*,macos-* __builtin_ctz(x)
 @case windows-* (_BitScanForward(&index, x), index)
 @end
 @define !BSFQ(x)
-@case linux-*,macos-* __bsfq(x)
+@case linux-*,macos-* __builtin_ctzll(x)
 @case windows-* (_BitScanForward64(&index, x), index)
 @end
 @match

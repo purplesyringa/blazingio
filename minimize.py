@@ -364,6 +364,7 @@ def repl(s):
         ("exception_info", "A"),
         ("do_trace", "A"),
         ("mask", "A"),
+        ("length", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),

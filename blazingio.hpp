@@ -449,6 +449,9 @@ struct istream_impl {
 
     template<typename T>
     SIMD void input_string_like(string& value, T trace) {
+!ifdef INTERACTIVE
+        fetch();
+!endif
         auto start = ptr;
         trace();
 

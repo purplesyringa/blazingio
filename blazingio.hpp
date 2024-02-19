@@ -44,11 +44,6 @@
 @case *-x86_64+avx2 __m256i
 @case *-x86_64+sse4.1 __m128i
 @case *-aarch64+neon uint8x16_t
-@case *-x86_64+none,*-aarch64+none uint8_t
-@end
-
-@define BITSET_SIMD_TYPE
-@case *-x86_64+avx2,*-x86_64+sse4.1,*-aarch64+neon SIMD_TYPE
 @case *-x86_64+none,*-aarch64+none uint64_t
 @end
 
@@ -86,13 +81,13 @@ struct NonAliasingChar {
     }
 };
 
-!ifdef BITSET
 const uint64_t ONE_BYTES = -1ULL / 255
+!ifdef BITSET
 @ondemand *-x86_64+none,*-aarch64+none
 , BITSET_SHIFT = 0x8040201008040201
 @end
-;
 !endif
+;
 
 // Actually 0x0102040810204080
 !define POWERS_OF_TWO -3ULL / 254
@@ -449,7 +444,7 @@ struct istream_impl {
 @case *-aarch64+neon
             (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8
 @case *-x86_64+none,*-aarch64+none
-            0
+            __builtin_ctzll(vec) / 8
 @end
             ;
         };
@@ -512,9 +507,13 @@ struct istream_impl {
             ptr++;
         return vec;
 @case *-x86_64+none,*-aarch64+none
-        while (*ptr < 0 || *ptr > ' ')
+        // This is a variation on Mycroft's algorithm. See
+        // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for the
+        // original code.
+        uint64_t vec;
+        while (!(vec = ((*ptr - ONE_BYTES * 33) & ~*ptr & (ONE_BYTES << 7))))
             ptr++;
-        return 0;
+        return vec;
 @end
     }
 
@@ -564,9 +563,11 @@ struct istream_impl {
             ptr++;
         return vec;
 @case *-x86_64+none,*-aarch64+none
-        while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n')
-            ptr++;
-        return 0;
+        char* p = (char*)ptr;
+        while (*p != '\0' && *p != '\r' && *p != '\n')
+            p++;
+        ptr = (SIMD_TYPE*)p;
+        return 1;
 @end
     }
 
@@ -631,7 +632,7 @@ struct istream_impl {
         while (i % SIMD_SIZE)
             value[--i] = *ptr++ == '1';
 !endif
-                auto p = (BITSET_SIMD_TYPE*)ptr;
+                auto p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
                 for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
 !else
@@ -992,7 +993,7 @@ struct blazingio_ostream {
         auto i = N;
         while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
-        auto p = (BITSET_SIMD_TYPE*)ptr;
+        auto p = (SIMD_TYPE*)ptr;
         i /= SIMD_SIZE;
         while (i) {
 @match

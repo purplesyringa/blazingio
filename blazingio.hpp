@@ -873,7 +873,12 @@ struct blazingio_ostream {
         write_int_split<
             decltype(abs),
             1,
-            array{3, 5, 10, 20}[__builtin_ctz(sizeof(value))]
+            // This maps size in bytes to maximal decimal length
+            // 1 => 3
+            // 2 => 5
+            // 4 => 10
+            // 8 => 20
+            (5 * sizeof(value) + 1) / 2
         >(abs, abs);
     }
 

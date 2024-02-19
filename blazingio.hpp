@@ -697,7 +697,8 @@ struct blazingio_istream {
         // Therefore, don't try to be smart about this and just do an honest stat
         struct stat stat_buf;
         ensure(~fstat(STDIN_FILENO, &stat_buf))
-        S_ISREG(stat_buf.st_mode)
+        // A real S_ISREG is sometimes unavailable (e.g. under MSVC), so simulate it
+        (stat_buf.st_mode >> 12) == 8
             ? file.init_assume_file(stat_buf.st_size)
             : interactive.init_assume_interactive();
     }

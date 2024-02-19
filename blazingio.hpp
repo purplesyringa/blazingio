@@ -601,11 +601,15 @@ struct istream_impl {
                 while (i) {
 !endif
                     i -= SIMD_SIZE;
+@define !BSWAP32
+@case linux-*,macos-* __builtin_bswap32
+@case windows-* _byteswap_ulong
+@end
 @match
 @case *-x86_64+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = -1ULL / 65025;
-                    ((uint32_t*)&value)[i / 32] = _byteswap_ulong(
+                    ((uint32_t*)&value)[i / 32] = BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
                                 _mm256_slli_epi32(_mm256_loadu_si256(p++), 7),

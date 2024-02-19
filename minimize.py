@@ -401,6 +401,7 @@ def repl(s):
         ("mask", "E"),
         ("do_flush", "E"),
         ("interval", "E"),
+        ("stdout_handle", "E"),
 
         ("Interactive", "F"),
         ("print", "F"),

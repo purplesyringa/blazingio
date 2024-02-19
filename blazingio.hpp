@@ -444,10 +444,8 @@ struct istream_impl {
             auto vec = trace(p);
             ptr = (NonAliasingChar*)p +
 @match
-@case *-x86_64+avx2
-            __bsfd(_mm256_movemask_epi8(vec))
-@case *-x86_64+sse4.1
-            __bsfd(_mm_movemask_epi8(vec))
+@case *-x86_64+avx2,*-x86_64+sse4.1
+            __bsfd(vec)
 @case *-aarch64+neon
             (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8
 @case *-x86_64+none,*-aarch64+none
@@ -489,21 +487,25 @@ struct istream_impl {
     static SIMD auto input_string_impl(SIMD_TYPE*& ptr) {
 @match
 @case *-x86_64+avx2 wrap
-        __m256i vec, space = _mm256_set1_epi8(' ');
+        int mask;
+        __m256i space = _mm256_set1_epi8(' ');
         while (
-            vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(ptr))),
-            _mm256_testz_si256(vec, vec)
+            !(mask = _mm256_movemask_epi8(
+                _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(ptr)))
+            ))
         )
             ptr++;
-        return vec;
+        return mask;
 @case *-x86_64+sse4.1 wrap
-        __m128i vec, space = _mm_set1_epi8(' ');
+        int mask;
+        __m128i space = _mm_set1_epi8(' ');
         while (
-            vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(ptr))),
-            _mm_testz_si128(vec, vec)
+            !(mask = _mm_movemask_epi8(
+                _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(ptr)))
+            ))
         )
             ptr++;
-        return vec;
+        return mask;
 @case *-aarch64+neon wrap
         uint64x2_t vec;
         while (vec = (uint64x2_t)(*ptr <= ' '), !(vec[0] | vec[1]))
@@ -539,7 +541,7 @@ struct istream_impl {
             )
         )
             ptr++;
-        return _mm256_and_si256(vec1, vec2);
+        return _mm256_movemask_epi8(_mm256_and_si256(vec1, vec2));
 @case *-x86_64+sse4.1 wrap
         __m128i vec, vec1, vec2;
         while (
@@ -554,7 +556,7 @@ struct istream_impl {
             )
         )
             ptr++;
-        return _mm_and_si128(vec1, vec2);
+        return _mm_movemask_epi8(_mm_and_si128(vec1, vec2));
 @case *-aarch64+neon wrap
         uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
         uint64x2_t vec;

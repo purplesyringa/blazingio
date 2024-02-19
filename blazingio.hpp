@@ -884,7 +884,7 @@ struct blazingio_ostream {
         ptr = (NonAliasingChar*)stpcpy((char*)ptr, value);
 @case windows-*
         // Windows doesn't provide stpcpy, so we have to simulate it (albeit inefficiently) with
-        // strlen+mecpy
+        // strlen+memcpy
         size_t length = strlen(value);
         memcpy((char*)ptr, value, length);
         ptr += length;

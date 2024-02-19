@@ -529,8 +529,8 @@ struct istream_impl {
                 // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                 vec2 = _mm256_shuffle_epi8(
                     _mm256_set_epi64x(
-                        0x0000ff0000ff0000, 0,
-                        0x0000ff0000ff0000, 0
+                        0x0000000000ff0000, 0,
+                        0x0000000000ff0000, 0
                     ),
                     vec
                 )
@@ -546,7 +546,7 @@ struct istream_impl {
                 vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
                 // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                 vec2 = _mm_shuffle_epi8(
-                    _mm_set_epi64x(0x0000ff0000ff0000, 0),
+                    _mm_set_epi64x(0x0000000000ff0000, 0),
                     vec
                 )
             )
@@ -554,14 +554,14 @@ struct istream_impl {
             ptr++;
         return _mm_movemask_epi8(_mm_and_si128(vec1, vec2));
 @case *-aarch64+neon wrap
-        uint64_t table[] = {0, 0x0000ff0000ff0000};
+        uint64_t table[] = {0, 0x0000000000ff0000};
         uint64x2_t vec;
         while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *ptr), !(vec[0] | vec[1]))
             ptr++;
         return vec;
 @case *-x86_64+none,*-aarch64+none
         char* p = (char*)ptr;
-        while (*p != '\r' && *p != '\n')
+        while (*p != '\n')
             p++;
         ptr = (SIMD_TYPE*)p;
         return 1;
@@ -571,9 +571,12 @@ struct istream_impl {
     SIMD void input(line_t& line) {
         input_string_like(line.value, input_line_impl);
 
-        // Skip \n and \r\n, but avoid skipping \n if the terminator is part of EOF and we have read
-        // a non-empty string (so as not to trigger EOF after reading a non-terminated line)
-        ptr += *ptr == '\r';
+        if (line.value.size() && line.value.back() == '\r') {
+            line.value.pop_back();
+        }
+
+        // Skip \n unless the terminator is part of EOF and we have read a non-empty string (so as
+        // not to trigger EOF after reading a non-terminated line)
         ptr += (line.value.empty() || ptr < end) && *ptr == '\n';
     }
 

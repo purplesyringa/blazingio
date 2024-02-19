@@ -268,7 +268,7 @@ struct istream_impl {
 @case macos-* "x16"
 @end
 @define !SVC
-@case linux-* ""
+@case linux-*
 @case macos-* "x80"
 @end
 !define UNIX_READ \
@@ -277,16 +277,14 @@ struct istream_impl {
             off_t n_read = SYS_read; \
             NonAliasingChar* rsi = buffer; \
             asm volatile( \
-                /* Put a \n byte after data for convenience of parsing routines. For some reason,
-                   doing this in an asm statement results in better codegen.
-                   XXX: Handling errors here is complicated, because on Linux syscall will return
+                /* XXX: Handling errors here is complicated, because on Linux syscall will return
                    a small negative number in rax, leading to OOB write, while on XNU the syscall
                    will return a small positive number in rax and set a carry flag we ignore, making
                    it seem like we've just read a few bytes. Neither case is handled correctly, and
                    'ensure(n_read >= 0)' just hides the error, so let us explicitly state we don't
                    support errors returned from read(2) for now. This should probably be fixed
                    later. */ \
-                "syscall; movb $10, (%%rsi,%%rax);" \
+                "syscall" \
                 : "+a"(n_read), "+S"(rsi) \
                 : "D"(STDIN_FILENO), "d"(65536) \
                 : "rcx", "r11" \
@@ -301,9 +299,9 @@ struct istream_impl {
                 arg2 asm("x2") = 65536, \
                 syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read; \
             asm volatile( \
-                "svc 0" SVC "; strb %4, [x1, x0]" \
+                "svc 0" SVC \
                 : "+r"(n_read), "+r"(arg1) \
-                : "r"(syscall_no), "r"(arg2), "r"('\n') \
+                : "r"(syscall_no), "r"(arg2) \
             ); \
             ptr = (NonAliasingChar*)arg1; \
 @end
@@ -318,6 +316,8 @@ struct istream_impl {
             ReadFile(GetStdHandle(STD_INPUT_HANDLE), ptr = buffer, 65536, &n_read, NULL);
 @end
             end = ptr + n_read;
+            // This matches the behavior we have with files
+            *end = '\n';
 !ifdef STDIN_EOF
             if (!n_read) {
                 // This is an attempt to read past EOF. Simulate this just like with files, with

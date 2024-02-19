@@ -399,7 +399,6 @@ def repl(s):
         ("stat_buf", "D"),
 
         ("buffer", "E"),
-        ("mask", "E"),
         ("do_flush", "E"),
         ("interval", "E"),
         ("stdout_handle", "E"),

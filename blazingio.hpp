@@ -517,14 +517,19 @@ struct istream_impl {
 @match
 @case *-x86_64+avx2 wrap
             auto p = (__m256i*)ptr;
-            auto mask = _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff);
             __m256i vec, vec1, vec2;
             while (
                 vec = _mm256_loadu_si256(p),
                 _mm256_testz_si256(
                     vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
                     // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                    vec2 = _mm256_shuffle_epi8(_mm256_set_m128i(mask, mask), vec)
+                    vec2 = _mm256_shuffle_epi8(
+                        _mm256_set_epi64x(
+                            0x0000ff0000ff0000, 0x00000000000000ff,
+                            0x0000ff0000ff0000, 0x00000000000000ff
+                        ),
+                        vec
+                    )
                 )
             )
                 p++;

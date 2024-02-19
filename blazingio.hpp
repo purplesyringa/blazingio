@@ -801,8 +801,16 @@ struct blazingio_ostream {
         ensure(~n_written)
         UNIX_FLUSH_CLOSING
 @case windows-*
+        auto handle = ReOpenFile(
+            GetStdHandle(STD_OUTPUT_HANDLE),
+            GENERIC_WRITE,
+            FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,  // be as general as possible
+            FILE_FLAG_NO_BUFFERING
+        );
+        ensure(handle != INVALID_HANDLE_VALUE)
         DWORD n_written;
-        ensure(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), base, (char*)ptr - base, &n_written, NULL))
+        ensure(WriteFile(handle, base, ((char*)ptr - base + 4095) & -4096, &n_written, NULL))
+        ensure(~_chsize(1, (char*)ptr - base))
 @end
 !ifdef INTERACTIVE
         ptr = (NonAliasingChar*)base;

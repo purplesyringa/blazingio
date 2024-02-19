@@ -288,6 +288,11 @@ consts = {
     "STATUS_GUARD_PAGE_VIOLATION": 0x80000001,
     "EXCEPTION_CONTINUE_SEARCH": 0,
     "EXCEPTION_CONTINUE_EXECUTION": -1,
+    "GENERIC_WRITE": 0x40000000,
+    "FILE_SHARE_READ": 1,
+    "FILE_SHARE_WRITE": 2,
+    "FILE_SHARE_DELETE": 4,
+    "FILE_FLAG_NO_BUFFERING": 0x20000000,
 }
 
 def repl(s):
@@ -380,6 +385,7 @@ def repl(s):
         ("MaxDigits", "C"),
         ("zipped", "C"),
         ("exception_record", "C"),
+        ("handle", "C"),
 
         ("line_t", "D"),
         ("base", "D"),
@@ -433,6 +439,7 @@ def repl(s):
         ("false", "0"),
         ("true", "1"),
         ("MAP_FAILED", "(void*)-1"),
+        ("INVALID_HANDLE_VALUE", "(void*)-1"),
     ]:
         s = re.sub(r"\b" + re.escape(old) + r"\b", new, s)
 

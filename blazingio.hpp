@@ -217,7 +217,7 @@ struct istream_impl {
 
 !ifdef INTERACTIVE
     INLINE void fetch() {
-        if (Interactive && __builtin_expect(ptr == end, 0)) {
+        if (Interactive && ptr == end) {
 !ifdef HOIST_GLOBALS_ON_INTERACTIVE_INPUT
             // There's a bit of ridiculous code with questionable choices below. What we *want* is:
             //     off_t n_read = read(STDIN_FILENO, buffer, 65536);
@@ -710,7 +710,7 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        __builtin_expect(!!file.end, 1)
+        file.end
             ? file.rshift_impl(value)
             : interactive.rshift_impl(value);
         return *this;
@@ -721,7 +721,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return __builtin_expect(!!file.end, 1) ? !file : !interactive;
+        return file.end ? !file : !interactive;
     }
 !endif
 };
@@ -1046,7 +1046,7 @@ namespace std {
 
 !ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (__builtin_expect(!blazingio_cin.file.end, 0))
+        if (!blazingio_cin.file.end)
             stream.do_flush();
         return stream;
     }

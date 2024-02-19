@@ -128,14 +128,12 @@ struct istream_impl {
         // Aligning the sizes to 64k, we then remap the last 64k with rw memory and read it from
         // file. This is a mix mmap-based file handling with read-based file handling and is
         // hopefully more efficient than a pure read-based method.
-        // Round to page size.
-        (file_size += 4095) &= -4096;
         // Find free space
-        char* base = (char*)VirtualAlloc(NULL, file_size + 4096, MEM_RESERVE, PAGE_NOACCESS);
+        char* base = (char*)VirtualAlloc(NULL, (file_size + 8191) & -4096, MEM_RESERVE, PAGE_NOACCESS);
         ensure(base)
         ensure(VirtualFree(base, 0, MEM_RELEASE))
         // Map the file there
-        size_t mmaped_region_size = (file_size + 4096) & -65536;
+        size_t mmaped_region_size = (file_size + 8191) & -65536;
         // If we remove this if and always call CreateFileMapping, it's going to interpret 0 as
         // "max", which we don't want.
         if (mmaped_region_size)
@@ -189,13 +187,12 @@ struct istream_impl {
         // operator>> while skipping whitespace, or in input(). In the former case, the right thing
         // to do is stop the loop by encountering a non-space character; in the latter case, the
         // right thing to do is to stop the loop by encountering a space character. Something like
-        // "\00" works for both cases: it stops (for instance) integer parsing immediately with a
-        // zero, and also stops whitespace parsing *soon*.
+        // "\n0" works for both cases: it stops (for instance) integer parsing immediately with a
+        // zero, and also stops whitespace parsing *soon*. \n is chosen instead of \0 so that
+        // getline can detect EOL by scanning for \n and \r\n without caring about \0.
 @end
         end = (NonAliasingChar*)base + file_size;
-@ondemand linux-*
-        *end = 0;
-@end
+        *end = '\n';
 !ifdef STDIN_EOF
         // We only really need to do this if we're willing to keep going "after" EOF, not just
         // handle 4k-aligned non-whitespace-terminated input.
@@ -532,8 +529,8 @@ struct istream_impl {
                 // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                 vec2 = _mm256_shuffle_epi8(
                     _mm256_set_epi64x(
-                        0x0000ff0000ff0000, 0x00000000000000ff,
-                        0x0000ff0000ff0000, 0x00000000000000ff
+                        0x0000ff0000ff0000, 0,
+                        0x0000ff0000ff0000, 0
                     ),
                     vec
                 )
@@ -549,7 +546,7 @@ struct istream_impl {
                 vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
                 // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
                 vec2 = _mm_shuffle_epi8(
-                    _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff),
+                    _mm_set_epi64x(0x0000ff0000ff0000, 0),
                     vec
                 )
             )
@@ -557,14 +554,14 @@ struct istream_impl {
             ptr++;
         return _mm_movemask_epi8(_mm_and_si128(vec1, vec2));
 @case *-aarch64+neon wrap
-        uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
+        uint64_t table[] = {0, 0x0000ff0000ff0000};
         uint64x2_t vec;
         while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *ptr), !(vec[0] | vec[1]))
             ptr++;
         return vec;
 @case *-x86_64+none,*-aarch64+none
         char* p = (char*)ptr;
-        while (*p != '\0' && *p != '\r' && *p != '\n')
+        while (*p != '\r' && *p != '\n')
             p++;
         ptr = (SIMD_TYPE*)p;
         return 1;
@@ -572,22 +569,12 @@ struct istream_impl {
     }
 
     SIMD void input(line_t& line) {
-!ifdef STDIN_EOF
-        // Detect if we're at the end of the file. getline has to be handled differently from other
-        // inputs because it treats a null byte as a line terminator and would thus wrongly assume
-        // there's an empty line after EOF.
-        if (FETCH !*ptr) {
-            // Trigger EOF condition.
-            end = NULL;
-            return;
-        }
-!endif
-
         input_string_like(line.value, input_line_impl);
 
-        // Skip \n and \r\n
+        // Skip \n and \r\n, but avoid skipping \n if the terminator is part of EOF and we have read
+        // a non-empty string (so as not to trigger EOF after reading a non-terminated line)
         ptr += *ptr == '\r';
-        ptr += *ptr == '\n';
+        ptr += (line.value.empty() || ptr < end) && *ptr == '\n';
     }
 
 !ifdef COMPLEX

@@ -362,6 +362,7 @@ def repl(s):
         ("yes", "A"),
         ("mmaped_region_size", "A"),
         ("exception_info", "A"),
+        ("do_trace", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),
@@ -435,6 +436,10 @@ def repl(s):
         ("rshift_impl", "Q"),
 
         ("BITSET_SHIFT", "R"),
+
+        ("input_string_impl", "S"),
+
+        ("input_line_impl", "T"),
 
         ("NULL", "0"),
         ("false", "0"),

@@ -44,6 +44,11 @@
 @case *-x86_64+avx2 __m256i
 @case *-x86_64+sse4.1 __m128i
 @case *-aarch64+neon uint8x16_t
+@case *-x86_64+none,*-aarch64+none uint8_t
+@end
+
+@define BITSET_SIMD_TYPE
+@case *-x86_64+avx2,*-x86_64+sse4.1,*-aarch64+neon SIMD_TYPE
 @case *-x86_64+none,*-aarch64+none uint64_t
 @end
 
@@ -427,9 +432,30 @@ struct istream_impl {
     }
 !endif
 
-    SIMD void input_string_like(string& value, NonAliasingChar* (*trace)(NonAliasingChar*)) {
+    template<typename T>
+    SIMD void input_string_like(string& value, T trace) {
         auto start = ptr;
-        ptr = trace(ptr);
+
+        auto do_trace = [&] SIMD {
+            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+            // interleave ptr modification with SIMD loading, there's going to be an extra memory
+            // write on every iteration.
+            auto p = (SIMD_TYPE*)ptr;
+            auto vec = trace(p);
+            ptr = (NonAliasingChar*)p +
+@match
+@case *-x86_64+avx2
+            __bsfd(_mm256_movemask_epi8(vec))
+@case *-x86_64+sse4.1
+            __bsfd(_mm_movemask_epi8(vec))
+@case *-aarch64+neon
+            (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8
+@case *-x86_64+none,*-aarch64+none
+            0
+@end
+            ;
+        };
+        do_trace();
 
         // We know that [start; ptr) does not overlap 'value'. std::string::assign doesn't
         // know that and will perform a runtime check to determine if it need to handle
@@ -454,48 +480,92 @@ struct istream_impl {
             }
             // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
             // start.
-            ptr = trace(ptr);
+            do_trace();
             value.append(buffer, ptr);
         }
 !endif
     }
 
-    SIMD void input(string& value) {
-        input_string_like(value, [](NonAliasingChar* ptr) SIMD {
-            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-            // interleave ptr modification with SIMD loading, there's going to be an extra memory
-            // write on every iteration.
+    static SIMD auto input_string_impl(SIMD_TYPE*& ptr) {
 @match
 @case *-x86_64+avx2 wrap
-            auto p = (__m256i*)ptr;
-            __m256i vec, space = _mm256_set1_epi8(' ');
-            while (
-                vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p))),
-                _mm256_testz_si256(vec, vec)
-            )
-                p++;
-            return (NonAliasingChar*)p + __bsfd(_mm256_movemask_epi8(vec));
+        __m256i vec, space = _mm256_set1_epi8(' ');
+        while (
+            vec = _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(ptr))),
+            _mm256_testz_si256(vec, vec)
+        )
+            ptr++;
+        return vec;
 @case *-x86_64+sse4.1 wrap
-            auto p = (__m128i*)ptr;
-            __m128i vec, space = _mm_set1_epi8(' ');
-            while (
-                vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p))),
-                _mm_testz_si128(vec, vec)
-            )
-                p++;
-            return (NonAliasingChar*)p + __bsfd(_mm_movemask_epi8(vec));
+        __m128i vec, space = _mm_set1_epi8(' ');
+        while (
+            vec = _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(ptr))),
+            _mm_testz_si128(vec, vec)
+        )
+            ptr++;
+        return vec;
 @case *-aarch64+neon wrap
-            auto p = (uint8x16_t*)ptr;
-            uint64x2_t vec;
-            while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
-                p++;
-            return (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
+        uint64x2_t vec;
+        while (vec = (uint64x2_t)(*ptr <= ' '), !(vec[0] | vec[1]))
+            ptr++;
+        return vec;
 @case *-x86_64+none,*-aarch64+none
-            while (*ptr < 0 || *ptr > ' ')
-                ptr++;
-            return ptr;
+        while (*ptr < 0 || *ptr > ' ')
+            ptr++;
+        return 0;
 @end
-        });
+    }
+
+    SIMD void input(string& value) {
+        input_string_like(value, input_string_impl);
+    }
+
+    static SIMD auto input_line_impl(SIMD_TYPE*& ptr) {
+@match
+@case *-x86_64+avx2 wrap
+        __m256i vec, vec1, vec2;
+        while (
+            vec = _mm256_loadu_si256(ptr),
+            _mm256_testz_si256(
+                vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
+                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                vec2 = _mm256_shuffle_epi8(
+                    _mm256_set_epi64x(
+                        0x0000ff0000ff0000, 0x00000000000000ff,
+                        0x0000ff0000ff0000, 0x00000000000000ff
+                    ),
+                    vec
+                )
+            )
+        )
+            ptr++;
+        return _mm256_and_si256(vec1, vec2);
+@case *-x86_64+sse4.1 wrap
+        __m128i vec, vec1, vec2;
+        while (
+            vec = _mm_loadu_si128(ptr),
+            _mm_testz_si128(
+                vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
+                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
+                vec2 = _mm_shuffle_epi8(
+                    _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff),
+                    vec
+                )
+            )
+        )
+            ptr++;
+        return _mm_and_si128(vec1, vec2);
+@case *-aarch64+neon wrap
+        uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
+        uint64x2_t vec;
+        while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *ptr), !(vec[0] | vec[1]))
+            ptr++;
+        return vec;
+@case *-x86_64+none,*-aarch64+none
+        while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n')
+            ptr++;
+        return 0;
+@end
     }
 
     SIMD void input(line_t& line) {
@@ -510,59 +580,7 @@ struct istream_impl {
         }
 !endif
 
-        input_string_like(line.value, [](NonAliasingChar* ptr) SIMD {
-            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-            // interleave ptr modification with SIMD loading, there's going to be an extra memory
-            // write on every iteration.
-@match
-@case *-x86_64+avx2 wrap
-            auto p = (__m256i*)ptr;
-            __m256i vec, vec1, vec2;
-            while (
-                vec = _mm256_loadu_si256(p),
-                _mm256_testz_si256(
-                    vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
-                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                    vec2 = _mm256_shuffle_epi8(
-                        _mm256_set_epi64x(
-                            0x0000ff0000ff0000, 0x00000000000000ff,
-                            0x0000ff0000ff0000, 0x00000000000000ff
-                        ),
-                        vec
-                    )
-                )
-            )
-                p++;
-            return (NonAliasingChar*)p + __bsfd(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
-@case *-x86_64+sse4.1 wrap
-            auto p = (__m128i*)ptr;
-            __m128i vec, vec1, vec2;
-            while (
-                vec = _mm_loadu_si128(p),
-                _mm_testz_si128(
-                    vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
-                    // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                    vec2 = _mm_shuffle_epi8(
-                        _mm_set_epi64x(0x0000ff0000ff0000, 0x00000000000000ff),
-                        vec
-                    )
-                )
-            )
-                p++;
-            return (NonAliasingChar*)p + __bsfd(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
-@case *-aarch64+neon wrap
-            auto p = (uint8x16_t*)ptr;
-            uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};
-            uint64x2_t vec;
-            while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *p), !(vec[0] | vec[1]))
-                p++;
-            return (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
-@case *-x86_64+none,*-aarch64+none
-            while (*ptr != '\0' && *ptr != '\r' && *ptr != '\n')
-                ptr++;
-            return ptr;
-@end
-        });
+        input_string_like(line.value, input_line_impl);
 
         // Skip \n and \r\n
         ptr += *ptr == '\r';
@@ -611,7 +629,7 @@ struct istream_impl {
         while (i % SIMD_SIZE)
             value[--i] = *ptr++ == '1';
 !endif
-                auto p = (SIMD_TYPE*)ptr;
+                auto p = (BITSET_SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
                 for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
 !else
@@ -972,7 +990,7 @@ struct blazingio_ostream {
         auto i = N;
         while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
-        auto p = (SIMD_TYPE*)ptr;
+        auto p = (BITSET_SIMD_TYPE*)ptr;
         i /= SIMD_SIZE;
         while (i) {
 @match

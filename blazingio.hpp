@@ -474,7 +474,7 @@ struct istream_impl {
                 _mm256_testz_si256(vec, vec)
             )
                 p++;
-            return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(vec));
+            return (NonAliasingChar*)p + __bsfd(_mm256_movemask_epi8(vec));
 @case *-x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, space = _mm_set1_epi8(' ');
@@ -483,7 +483,7 @@ struct istream_impl {
                 _mm_testz_si128(vec, vec)
             )
                 p++;
-            return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(vec));
+            return (NonAliasingChar*)p + __bsfd(_mm_movemask_epi8(vec));
 @case *-aarch64+neon wrap
             auto p = (uint8x16_t*)ptr;
             uint64x2_t vec;
@@ -533,7 +533,7 @@ struct istream_impl {
                 )
             )
                 p++;
-            return (NonAliasingChar*)p + __builtin_ctz(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
+            return (NonAliasingChar*)p + __bsfd(_mm256_movemask_epi8(_mm256_and_si256(vec1, vec2)));
 @case *-x86_64+sse4.1 wrap
             auto p = (__m128i*)ptr;
             __m128i vec, vec1, vec2;
@@ -549,7 +549,7 @@ struct istream_impl {
                 )
             )
                 p++;
-            return (NonAliasingChar*)p + __builtin_ctz(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
+            return (NonAliasingChar*)p + __bsfd(_mm_movemask_epi8(_mm_and_si128(vec1, vec2)));
 @case *-aarch64+neon wrap
             auto p = (uint8x16_t*)ptr;
             uint64_t table[] = {0x00000000000000ff, 0x0000ff0000ff0000};

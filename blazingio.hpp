@@ -739,7 +739,7 @@ struct blazingio_istream {
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {
-        file.end
+        file.ptr
             ? file.rshift_impl(value)
             : interactive.rshift_impl(value);
         return *this;
@@ -750,7 +750,7 @@ struct blazingio_istream {
         return !!*this;
     }
     bool operator!() {
-        return file.end ? !file : !interactive;
+        return file.ptr ? !file : !interactive;
     }
 !endif
 };
@@ -1086,7 +1086,7 @@ namespace std {
 
 !ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
-        if (!blazingio_cin.file.end)
+        if (!blazingio_cin.file.ptr)
             stream.do_flush();
         return stream;
     }

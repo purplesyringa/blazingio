@@ -805,7 +805,7 @@ struct blazingio_ostream {
             stdout_handle,
             GENERIC_WRITE,
             FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,  // be as general as possible
-            FILE_FLAG_NO_BUFFERING
+            FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH
         );
         DWORD n_written;
         if (handle == INVALID_HANDLE_VALUE) {

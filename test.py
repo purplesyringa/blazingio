@@ -34,7 +34,9 @@ else:
 
 def iterate_config(config, props = []):
     if not config:
-        yield props
+        if "interactive=y" in props:
+            yield props, True
+        yield props, False
         return
     (name, values), *tail = config
     if not isinstance(values, list):
@@ -44,6 +46,19 @@ def iterate_config(config, props = []):
         if name == "architecture" and arch not in value:
             continue
         yield from iterate_config(tail, new_props)
+
+
+def run(name, input, output, use_pipe):
+    if use_pipe:
+        with open(input, "rb") as f_stdin:
+            input = f_stdin.read()
+        proc = subprocess.run([name], input=input, stdout=subprocess.PIPE, check=True)
+        with open(output, "wb") as f_stdout:
+            f_stdout.write(proc.stdout)
+    else:
+        with open(input, "rb") as f_stdin:
+            with open(output, "wb") as f_stdout:
+                subprocess.run([name], stdin=f_stdin, stdout=f_stdout, check=True)
 
 
 for test_name in os.listdir("tests"):
@@ -58,8 +73,8 @@ for test_name in os.listdir("tests"):
         test = f.read()
 
     config = list(manifest.get("config", {}).items())
-    for props in iterate_config(config):
-        print(f"  Props {' '.join(props)}")
+    for props, use_pipe in iterate_config(config):
+        print(f"  Props {' '.join(props)}, {'pipe' if use_pipe else 'file'}")
 
         print("    Minimizing")
         subprocess.run([sys.executable, "minimize.py", "--override"] + props, stdout=subprocess.DEVNULL, check=True)
@@ -68,24 +83,18 @@ for test_name in os.listdir("tests"):
             print("    Compiling")
             compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
             print("    Running")
-            with open(f"{tmp}/blazingio-test", "rb") as f:
-                with open(f"{tmp}/blazingio-out", "wb") as f2:
-                    subprocess.run(["./a.out"], stdin=f, stdout=f2, check=True)
-                with open(f"{tmp}/blazingio-out", "rb") as f2:
-                    assert test.replace(b"\r\n", b"\n") == f2.read()
+            run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)
+            with open(f"{tmp}/blazingio-out", "rb") as f:
+                assert test.replace(b"\r\n", b"\n") == f.read()
         elif manifest["type"] == "compare-std":
             print("    Compiling with blazingio")
             compile(f"tests/{test_name}/source.cpp", "a.out.blazingio", "blazingio.min.hpp")
             print("    Compiling without blazingio")
             compile(f"tests/{test_name}/source.cpp", "a.out.std", "empty.hpp")
             print("    Running with blazingio")
-            with open(f"{tmp}/blazingio-test", "rb") as f:
-                with open(f"{tmp}/blazingio-out-blazingio", "wb") as f2:
-                    subprocess.run(["./a.out.blazingio"], stdin=f, stdout=f2, check=True)
+            run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-blazingio", use_pipe)
             print("    Running with std")
-            with open(f"{tmp}/blazingio-test", "rb") as f:
-                with open(f"{tmp}/blazingio-out-std", "wb") as f2:
-                    subprocess.run(["./a.out.std"], stdin=f, stdout=f2, check=True)
+            run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
             with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
                 with open(f"{tmp}/blazingio-out-std", "rb") as f2:
                     assert f.read() == f2.read().replace(b"\r\n", b"\n")
@@ -93,5 +102,4 @@ for test_name in os.listdir("tests"):
             print("    Compiling")
             compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
             print("    Running")
-            with open(f"{tmp}/blazingio-test", "rb") as f:
-                subprocess.run(["./a.out"], stdin=f, check=True)
+            run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)

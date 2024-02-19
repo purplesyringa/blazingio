@@ -1,5 +1,6 @@
 import re
 import subprocess
+import os
 import sys
 
 from common import CONFIG_OPTS, ARCHITECTURES, OSES
@@ -21,12 +22,12 @@ target_bases = []
 config_str = ""
 for line in lines:
     if line.startswith("os="):
-        for os in line.partition("=")[2].split(","):
-            if os not in OSES:
-                print(f"Invalid OS {os}")
+        for os_ in line.partition("=")[2].split(","):
+            if os_ not in OSES:
+                print(f"Invalid OS {os_}")
                 raise SystemExit(1)
-            target_oses.append(os)
-            config_str += OSES[os]
+            target_oses.append(os_)
+            config_str += OSES[os_]
     elif line.startswith("architecture="):
         for architecture in line.partition("=")[2].split(","):
             base, *extensions = architecture.split("+")
@@ -213,8 +214,9 @@ blazingio = re.sub(r"(@match|@ondemand .*|@define .*|@include)\n[\s\S]*?@end\n",
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
 blazingio = re.sub(r"^!", "#", blazingio, flags=re.M)
 proc = subprocess.run(
-    ["cpp", "-P"] + [f"-D{opt}" for opt in opts],
+    os.environ.get("CPP", "cpp") + " -P" + "".join(f" -D{opt}" for opt in opts),
     input=blazingio.encode(),
+    shell=True,
     capture_output=True,
     check=True,
 )
@@ -233,7 +235,10 @@ blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 # Add multiarch/multiOS support
 if "IF_X86_64" in needed_factor_macros:
-    blazingio = "#if __x86_64__\n#define IF_X86_64(yes, no) yes\n#else\n#define IF_X86_64(yes, no) no\n#endif\n" + blazingio
+    cond = "__x86_64__"
+    if "windows" in target_oses:
+        cond += " | _M_X64"
+    blazingio = f"#if {cond}\n#define IF_X86_64(yes, no) yes\n#else\n#define IF_X86_64(yes, no) no\n#endif\n" + blazingio
 if "IF_WINDOWS" in needed_factor_macros:
     blazingio = "#if _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio
 if "IF_MACOS" in needed_factor_macros:

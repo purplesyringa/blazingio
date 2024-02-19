@@ -28,10 +28,29 @@
 @case windows-* <io.h>
 @end
 
-@define #SIMD
+!define UNLESS_MSVC_START1
+!define UNLESS_MSVC_START2
+!define UNLESS_MSVC_START3
+!define UNLESS_MSVC_END
+@ondemand windows-*
+!define UNLESS_MSVC_START1 #ifdef _MSC_VER
+!define UNLESS_MSVC_START2 #define SIMD
+!define UNLESS_MSVC_START3 #else
+!define UNLESS_MSVC_END #endif
+@end
+
+@ondemand *-x86_64+avx2,*-x86_64+sse4.1
+UNLESS_MSVC_START1
+UNLESS_MSVC_START2
+UNLESS_MSVC_START3
+@end
+@define SIMD
 @case *-x86_64+avx2 __attribute__((target("avx2")))
 @case *-x86_64+sse4.1 __attribute__((target("sse4.1")))
 @case *-x86_64+none,*-aarch64
+@end
+@ondemand *-x86_64+avx2,*-x86_64+sse4.1
+UNLESS_MSVC_END
 @end
 
 @define SIMD_SIZE
@@ -48,8 +67,12 @@
 @end
 
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
-// otherwise it resorts to way too many memory accesses.
-#define INLINE __attribute__((always_inline))
+// otherwise it resorts to way too many memory accesses. XXX: is this necessary on MSVC?
+// MinGW eats up __forceinline just fine
+@define INLINE
+@case linux-*,macos-* __attribute__((always_inline))
+@case windows-* __forceinline
+@end
 
 !ifdef INTERACTIVE
 #define FETCH fetch(),
@@ -464,6 +487,17 @@ struct istream_impl {
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
             SIMD_TYPE* p = (SIMD_TYPE*)ptr;
+@ondemand windows-*
+            ULONG index;
+@end
+@define !BSFD(x)
+@case linux-*,macos-* __bsfd(x)
+@case windows-* (_BitScanForward(&index, x), index)
+@end
+@define !BSFQ(x)
+@case linux-*,macos-* __bsfq(x)
+@case windows-* (_BitScanForward64(&index, x), index)
+@end
 @match
 @case *-x86_64+avx2 wrap
             int mask;
@@ -474,7 +508,7 @@ struct istream_impl {
                 ))
             )
                 p++;
-            ptr = (NonAliasingChar*)p + __bsfd(mask);
+            ptr = (NonAliasingChar*)p + BSFD(mask);
 @case *-x86_64+sse4.1 wrap
             int mask;
             __m128i space = _mm_set1_epi8(' ');
@@ -484,12 +518,12 @@ struct istream_impl {
                 ))
             )
                 p++;
-            ptr = (NonAliasingChar*)p + __bsfd(mask);
+            ptr = (NonAliasingChar*)p + BSFD(mask);
 @case *-aarch64+neon wrap
             uint64x2_t vec;
             while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
                 p++;
-            ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
+            ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + BSFQ(vec[0] ?: vec[1]) / 8;
 @case *-x86_64+none,*-aarch64+none
             // This is a variation on Mycroft's algorithm. See
             // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for
@@ -497,7 +531,7 @@ struct istream_impl {
             uint64_t vec;
             while (!(vec = ((*p - ONE_BYTES * 33) & ~*p & (ONE_BYTES << 7))))
                 p++;
-            ptr = (NonAliasingChar*)p + __builtin_ctzll(vec) / 8;
+            ptr = (NonAliasingChar*)p + BSFQ(vec) / 8;
 @end
         });
     }
@@ -569,7 +603,7 @@ struct istream_impl {
 @case *-x86_64+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = -1ULL / 65025;
-                    ((uint32_t*)&value)[i / 32] = __builtin_bswap32(
+                    ((uint32_t*)&value)[i / 32] = _byteswap_ulong(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
                                 _mm256_slli_epi32(_mm256_loadu_si256(p++), 7),

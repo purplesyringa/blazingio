@@ -1,4 +1,3 @@
-#include <array>
 !ifdef BITSET
 #include <bitset>
 !endif
@@ -389,7 +388,7 @@ struct istream_impl {
         if (0 <= exponent && exponent < 41) {
             // This generates {1e-20, 1e-14, ..., 1e14, 1e20}
             static constexpr auto exps = [] {
-                array<T, 41> exps{};
+                T exps[41];
                 T x = 1;
                 for (int i = 21; i--; ) {
                     exps[40 - i] = x;

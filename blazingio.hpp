@@ -547,7 +547,7 @@ struct istream_impl {
         if (N >= 4096 && !*this)
             return;
 !endif
-        ssize_t i = N;
+        ptrdiff_t i = N;
 !ifdef INTERACTIVE
         while (i) {
             if (FETCH i % SIMD_SIZE || end - ptr < SIMD_SIZE)

@@ -276,7 +276,7 @@ struct istream_impl {
             off_t n_read = SYS_read; \
             NonAliasingChar* rsi = buffer; \
             asm volatile( \
-                /* Put a 0 byte after data for convenience of parsing routines. For some reason,
+                /* Put a \n byte after data for convenience of parsing routines. For some reason,
                    doing this in an asm statement results in better codegen.
                    XXX: Handling errors here is complicated, because on Linux syscall will return
                    a small negative number in rax, leading to OOB write, while on XNU the syscall
@@ -285,7 +285,7 @@ struct istream_impl {
                    'ensure(n_read >= 0)' just hides the error, so let us explicitly state we don't
                    support errors returned from read(2) for now. This should probably be fixed
                    later. */ \
-                "syscall; movb $0, (%%rsi,%%rax);" \
+                "syscall; movb $10, (%%rsi,%%rax);" \
                 : "+a"(n_read), "+S"(rsi) \
                 : "D"(STDIN_FILENO), "d"(65536) \
                 : "rcx", "r11" \
@@ -300,9 +300,9 @@ struct istream_impl {
                 arg2 asm("x2") = 65536, \
                 syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read; \
             asm volatile( \
-                "svc 0" SVC "; strb wzr, [x1, x0]" \
+                "svc 0" SVC "; strb %4, [x1, x0]" \
                 : "+r"(n_read), "+r"(arg1) \
-                : "r"(syscall_no), "r"(arg2) \
+                : "r"(syscall_no), "r"(arg2), "r"('\n') \
             ); \
             ptr = (NonAliasingChar*)arg1; \
 @end
@@ -320,9 +320,8 @@ struct istream_impl {
 !ifdef STDIN_EOF
             if (!n_read) {
                 // This is an attempt to read past EOF. Simulate this just like with files, with
-                // "\00". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
+                // "\n0". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
-                buffer[0] = 0;
                 buffer[1] = '0';
                 // We want ptr == end to evaluate to false.
                 end = NULL;
@@ -427,25 +426,7 @@ struct istream_impl {
     template<typename T>
     SIMD void input_string_like(string& value, T trace) {
         auto start = ptr;
-
-        auto do_trace = [&] SIMD {
-            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
-            // interleave ptr modification with SIMD loading, there's going to be an extra memory
-            // write on every iteration.
-            auto p = (SIMD_TYPE*)ptr;
-            auto vec = trace(p);
-            ptr = (NonAliasingChar*)p +
-@match
-@case *-x86_64+avx2,*-x86_64+sse4.1
-            __bsfd(vec)
-@case *-aarch64+neon
-            (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8
-@case *-x86_64+none,*-aarch64+none
-            __builtin_ctzll(vec) / 8
-@end
-            ;
-        };
-        do_trace();
+        trace();
 
         // We know that [start; ptr) does not overlap 'value'. std::string::assign doesn't
         // know that and will perform a runtime check to determine if it need to handle
@@ -470,106 +451,60 @@ struct istream_impl {
             }
             // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
             // start.
-            do_trace();
+            trace();
             value.append(buffer, ptr);
         }
 !endif
     }
 
-    static SIMD auto input_string_impl(SIMD_TYPE*& ptr) {
-@match
-@case *-x86_64+avx2 wrap
-        int mask;
-        __m256i space = _mm256_set1_epi8(' ');
-        while (
-            !(mask = _mm256_movemask_epi8(
-                _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(ptr)))
-            ))
-        )
-            ptr++;
-        return mask;
-@case *-x86_64+sse4.1 wrap
-        int mask;
-        __m128i space = _mm_set1_epi8(' ');
-        while (
-            !(mask = _mm_movemask_epi8(
-                _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(ptr)))
-            ))
-        )
-            ptr++;
-        return mask;
-@case *-aarch64+neon wrap
-        uint64x2_t vec;
-        while (vec = (uint64x2_t)(*ptr <= ' '), !(vec[0] | vec[1]))
-            ptr++;
-        return vec;
-@case *-x86_64+none,*-aarch64+none
-        // This is a variation on Mycroft's algorithm. See
-        // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for the
-        // original code.
-        uint64_t vec;
-        while (!(vec = ((*ptr - ONE_BYTES * 33) & ~*ptr & (ONE_BYTES << 7))))
-            ptr++;
-        return vec;
-@end
-    }
-
     SIMD void input(string& value) {
-        input_string_like(value, input_string_impl);
-    }
-
-    static SIMD auto input_line_impl(SIMD_TYPE*& ptr) {
+        input_string_like(value, [&] SIMD {
+            // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
+            // interleave ptr modification with SIMD loading, there's going to be an extra memory
+            // write on every iteration.
+            SIMD_TYPE* p = (SIMD_TYPE*)ptr;
 @match
 @case *-x86_64+avx2 wrap
-        __m256i vec, vec1, vec2;
-        while (
-            vec = _mm256_loadu_si256(ptr),
-            _mm256_testz_si256(
-                vec1 = _mm256_cmpgt_epi8(_mm256_set1_epi8(16), vec),
-                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                vec2 = _mm256_shuffle_epi8(
-                    _mm256_set_epi64x(
-                        0x0000000000ff0000, 0,
-                        0x0000000000ff0000, 0
-                    ),
-                    vec
-                )
+            int mask;
+            __m256i space = _mm256_set1_epi8(' ');
+            while (
+                !(mask = _mm256_movemask_epi8(
+                    _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p)))
+                ))
             )
-        )
-            ptr++;
-        return _mm256_movemask_epi8(_mm256_and_si256(vec1, vec2));
+                p++;
+            ptr = (NonAliasingChar*)p + __bsfd(mask);
 @case *-x86_64+sse4.1 wrap
-        __m128i vec, vec1, vec2;
-        while (
-            vec = _mm_loadu_si128(ptr),
-            _mm_testz_si128(
-                vec1 = _mm_cmpgt_epi8(_mm_set1_epi8(16), vec),
-                // pshufb handles leading 1 in vec as a 0, which is what we want with Unicode
-                vec2 = _mm_shuffle_epi8(
-                    _mm_set_epi64x(0x0000000000ff0000, 0),
-                    vec
-                )
+            int mask;
+            __m128i space = _mm_set1_epi8(' ');
+            while (
+                !(mask = _mm_movemask_epi8(
+                    _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p)))
+                ))
             )
-        )
-            ptr++;
-        return _mm_movemask_epi8(_mm_and_si128(vec1, vec2));
+                p++;
+            ptr = (NonAliasingChar*)p + __bsfd(mask);
 @case *-aarch64+neon wrap
-        uint64_t table[] = {0, 0x0000000000ff0000};
-        uint64x2_t vec;
-        while (vec = (uint64x2_t)vqtbl1q_u8(*(uint8x16_t*)table, *ptr), !(vec[0] | vec[1]))
-            ptr++;
-        return vec;
+            uint64x2_t vec;
+            while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
+                p++;
+            ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + __builtin_ctzll(vec[0] ?: vec[1]) / 8;
 @case *-x86_64+none,*-aarch64+none
-        char* p = (char*)ptr;
-        while (*p != '\n')
-            p++;
-        ptr = (SIMD_TYPE*)p;
-        return 1;
+            // This is a variation on Mycroft's algorithm. See
+            // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for
+            // the original code.
+            uint64_t vec;
+            while (!(vec = ((*p - ONE_BYTES * 33) & ~*p & (ONE_BYTES << 7))))
+                p++;
+            ptr = (NonAliasingChar*)p + __builtin_ctzll(vec) / 8;
 @end
+        });
     }
 
     SIMD void input(line_t& line) {
-        input_string_like(line.value, input_line_impl);
+        input_string_like(line.value, [&] {
+            ptr = (NonAliasingChar*)memchr(ptr, '\n', end - ptr + 1);
+        });
 
         if (line.value.size() && line.value.back() == '\r') {
             line.value.pop_back();

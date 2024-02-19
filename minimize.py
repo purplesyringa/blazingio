@@ -272,7 +272,6 @@ consts = {
     "STDOUT_FILENO": 1,
     "SEEK_SET": 0,
     "SEEK_END": 2,
-    "SPLICE_F_GIFT": 8,
     "SYS_read": {
         "linux-x86_64": 0,
         "linux-aarch64": 63,

@@ -20,11 +20,6 @@ float=y
 # Whether to support <complex> I/O. Choose 'y' if unsure.
 complex=y
 
-# Whether to use a more optimal implementation in environments which redirect stdout to a pipe.
-# Using 'y' increases performance in this case, increasing code size in return. Choose 'y' if
-# unsure.
-splice=y
-
 # Whether to support inputs other than regular files, mostly useful for interactive tasks and local
 # debugging. Using 'n' will cause the program to crash unless run with redirected input. Using 'y'
 # will increase code size significantly. Choose 'y' if unsure.

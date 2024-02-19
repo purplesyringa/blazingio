@@ -5,9 +5,6 @@
 #include <complex>
 !endif
 #include <cstring>
-!ifdef SPLICE
-#include <fcntl.h>
-!endif
 @include
 @case *-x86_64+avx2,*-x86_64+sse4.1 <immintrin.h>
 @case *-aarch64+neon <arm_neon.h>
@@ -773,31 +770,13 @@ struct blazingio_ostream {
 
     void do_flush() {
 !endif
-@ondemand linux-*
-!ifdef SPLICE
-!define SPLICE_ENABLED
-!endif
-@end
-!ifdef SPLICE_ENABLED
-@define !UNIX_FLUSH_OPENING
-@case linux-* UNWRAP(do { iovec iov{start, (size_t)ptr - (size_t)start}; start += (n_written = vmsplice(STDOUT_FILENO, &iov, 1, SPLICE_F_GIFT)); } while (n_written > 0); if (n_written) { start++;)
-@case macos-* {
-@end
-!define UNIX_FLUSH_CLOSING }
-!else
-!define UNIX_FLUSH_OPENING
-!define UNIX_FLUSH_CLOSING
-!endif
 @match
 @case linux-*,macos-*
         auto start = base;
         ssize_t n_written;
-        UNIX_FLUSH_OPENING
-        do
-            start += (n_written = write(STDOUT_FILENO, start, (char*)ptr - start));
-        while (n_written > 0);
+        while ((n_written = write(STDOUT_FILENO, start, (char*)ptr - start)) > 0)
+            start += n_written;
         ensure(~n_written)
-        UNIX_FLUSH_CLOSING
 @case windows-*
         auto stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
         auto handle = ReOpenFile(

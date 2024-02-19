@@ -571,7 +571,7 @@ struct istream_impl {
                     ((uint32_t*)&value)[i / 32] = __builtin_bswap32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
-                                _mm256_loadu_si256(p++) << 7,
+                                _mm256_slli_epi32(_mm256_loadu_si256(p++), 7),
                                 _mm256_set_epi64x(
                                     a + ONE_BYTES * 24,
                                     a + ONE_BYTES * 16,
@@ -586,7 +586,7 @@ struct istream_impl {
                     uint64_t a = -1ULL / 65025;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
-                            _mm_loadu_si128(p++) << 7,
+                            _mm_slli_epi32(_mm_loadu_si128(p++), 7),
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );

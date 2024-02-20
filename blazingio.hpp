@@ -750,8 +750,8 @@ struct blazingio_ostream {
 !ifdef LUT
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++)
-            decimal_lut[i * 2] = '0' + i / 10,
-            decimal_lut[i * 2 + 1] = '0' + i % 10;
+            decimal_lut[i * 2] = char('0' + i / 10),
+            decimal_lut[i * 2 + 1] = char('0' + i % 10);
 !endif
     }
     ~blazingio_ostream() {

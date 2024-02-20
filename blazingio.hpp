@@ -357,8 +357,8 @@ struct istream_impl {
             x = x * 10 + (*ptr++ - '0');
     }
 
-    template<typename T, T = 1>
-    INLINE void input(T& x) {
+    template<typename T>
+    INLINE decltype((void)T{1}) input(T& x) {
         bool negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);

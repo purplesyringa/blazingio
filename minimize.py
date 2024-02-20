@@ -515,6 +515,12 @@ elif "_mm_" in blazingio:
 
 blazingio = blazingio.strip()
 
+# Codeforces limits compiler log output, so users won't be able to receive any useful information
+# about a CE if we trigger any warning, 'cause that'll make GCC emit the whiole long line into
+# stderr. Codeforces enables -Wall, which includes -Wmisleading-indentation, which warns (among
+# other things) if a line gets longer than approximately 4 kilobytes. Insert a linebreak.
+blazingio = re.sub(r"\s*SPLIT_HERE\s*", "\n", blazingio)
+
 # Add comments
 blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a minified build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Options: {config_str or '(none)'}\n{blazingio}\n// End of blazingio\n"
 

@@ -532,7 +532,7 @@ struct istream_impl {
         });
     }
 
-    SIMD void input(line_t& line) {
+    SIMD void SPLIT_HERE input(line_t& line) {
         input_string_like(line.value, [&]() {
             ptr = (NonAliasingChar*)memchr(ptr, '\n', end - ptr + 1);
         });

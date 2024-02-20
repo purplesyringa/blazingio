@@ -714,13 +714,13 @@ struct blazingio_istream {
 };
 !endif
 
+!ifdef LUT
+char decimal_lut[200];
+!endif
+
 struct blazingio_ostream {
     char* base;
     NonAliasingChar* ptr;
-
-!ifdef LUT
-    inline static char decimal_lut[200];
-!endif
 
     blazingio_ostream() {
         // We *could* use 'base = new char[0x40000000];' instead of mmap-based allocation here, but

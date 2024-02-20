@@ -54,13 +54,13 @@ hoist_globals_on_interactive_input=y
 os=windows,linux,macos
 
 # Which architectures and instruction sets to generate code for. The supported architectures are
-# 'x86_64' (amd64) and 'aarch64' (arm64). Additionally, ISA extensions may be specified by naming
-# them after '+'. The supported extensions are 'avx2' and 'sse4.1' for x86_64; 'neon' for aarch64.
-# If an extension is listed, it is assumed to always be present: there is no way to perform smart
-# detection after blazingio is built. Most x64 CPUs support AVX2 these days, including Codeforces
-# invokers and likely your computer, so 'x86_64+avx2' will work in most use cases. 'x86_64+sse4.1'
-# is a middle-ground option available since Silvermont. NEON is always present on aarch64; it is
-# only opt-in due to code size considerations. If you are using M1, you will need to list 'aarch64'
-# among the options. Listing more than one target or enabling SIMD will increase code size. Choose
-# 'x86_64+avx2,aarch64+neon' if unsure.
-architecture=x86_64+avx2,aarch64+neon
+# 'x86_64' (amd64), 'i386', and 'aarch64' (arm64). Additionally, ISA extensions may be specified by
+# naming them after '+'. The supported extensions are 'avx2' and 'sse4.1' for x86_64 and i386;
+# 'neon' for aarch64. If an extension is listed, it is assumed to always be present: there is no way
+# to perform smart detection after blazingio is built. Most x86 CPUs support AVX2 these days,
+# including Codeforces invokers and likely your computer, so 'x86_64+avx2' will work in most use
+# cases. 'x86_64+sse4.1' is a middle-ground option available since Silvermont. NEON is always
+# present on aarch64; it is only opt-in due to code size considerations. If you are using M1, you
+# will need to list 'aarch64' among the options. Listing more than one target or enabling SIMD will
+# increase code size. Choose 'x86_64+avx2,i386+avx2,aarch64+neon' if unsure.
+architecture=x86_64+avx2,i386+avx2,aarch64+neon

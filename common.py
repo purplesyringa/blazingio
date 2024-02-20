@@ -23,7 +23,15 @@ CONFIG_OPTS = {
 
 ARCHITECTURES = {
     "x86_64": ({"sse4.1": "s", "avx2": "a"}, "X"),
+    "i386": ({"sse4.1": "s", "avx2": "a"}, "I"),
     "aarch64": ({"neon": "n"}, "A"),
+}
+
+ARCHITECTURE_SELECTORS = {
+    "x86_64": {"x86_64"},
+    "i386": {"i386"},
+    "x86": {"x86_64", "i386"},
+    "aarch64": {"aarch64"},
 }
 
 OSES = {

@@ -1,6 +1,15 @@
 type: round-trip
 config:
-  architecture: [x86_64, x86_64+sse4.1, x86_64+avx2, aarch64, aarch64+neon, "x86_64+avx2,aarch64+neon"]
+  architecture:
+    - x86_64
+    - x86_64+sse4.1
+    - x86_64+avx2
+    - i386
+    - i386+sse4.1
+    - i386+avx2
+    - aarch64
+    - aarch64+neon
+    - x86_64+avx2,i386+avx2,aarch64+neon
   os: windows,linux,macos
   stdin_eof: y
   interactive: [y, n]

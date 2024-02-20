@@ -9,9 +9,9 @@
 !endif
 #include <cstring>
 @include
-@case *-x86_64+avx2,*-x86_64+sse4.1 <immintrin.h>
+@case *-x86+avx2,*-x86+sse4.1 <immintrin.h>
 @case *-aarch64+neon <arm_neon.h>
-@case *-x86_64+none,*-aarch64+none none
+@case *-x86+none,*-aarch64+none none
 @end
 @ondemand windows-*
 #include <stdint.h>
@@ -39,31 +39,31 @@
 !define UNLESS_MSVC_END #endif
 @end
 
-@ondemand *-x86_64+avx2,*-x86_64+sse4.1
+@ondemand *-x86+avx2,*-x86+sse4.1
 UNLESS_MSVC_START1
 UNLESS_MSVC_START2
 UNLESS_MSVC_START3
 @end
 @define SIMD
-@case *-x86_64+avx2 __attribute__((target("avx2")))
-@case *-x86_64+sse4.1 __attribute__((target("sse4.1")))
-@case *-x86_64+none,*-aarch64
+@case *-x86+avx2 __attribute__((target("avx2")))
+@case *-x86+sse4.1 __attribute__((target("sse4.1")))
+@case *-x86+none,*-aarch64
 @end
-@ondemand *-x86_64+avx2,*-x86_64+sse4.1
+@ondemand *-x86+avx2,*-x86+sse4.1
 UNLESS_MSVC_END
 @end
 
 @define SIMD_SIZE
-@case *-x86_64+avx2 32
-@case *-x86_64+sse4.1,*-aarch64+neon 16
-@case *-x86_64+none,*-aarch64+none 8
+@case *-x86+avx2 32
+@case *-x86+sse4.1,*-aarch64+neon 16
+@case *-x86+none,*-aarch64+none 8
 @end
 
 @define #SIMD_TYPE
-@case *-x86_64+avx2 __m256i
-@case *-x86_64+sse4.1 __m128i
+@case *-x86+avx2 __m256i
+@case *-x86+sse4.1 __m128i
 @case *-aarch64+neon uint8x16_t
-@case *-x86_64+none,*-aarch64+none uint64_t
+@case *-x86+none,*-aarch64+none uint64_t
 @end
 
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
@@ -85,7 +85,7 @@ UNLESS_MSVC_END
 @match
 @case linux-*,macos-*
 @case windows-*
-LONG vectored_exception_handler(_EXCEPTION_POINTERS*);
+LONG WINAPI vectored_exception_handler(_EXCEPTION_POINTERS*);
 @end
 
 // Using unary minus on unsigned numbers triggers an MSVC warning. The fix is rather simple, but
@@ -114,7 +114,7 @@ struct NonAliasingChar {
 
 const uint64_t ONE_BYTES = ~0ULL / 255
 !ifdef BITSET
-@ondemand *-x86_64+none,*-aarch64+none
+@ondemand *-x86+none,*-aarch64+none
 , BITSET_SHIFT = 0x8040201008040201
 @end
 !endif
@@ -311,11 +311,23 @@ struct istream_impl {
 @case linux-*
 @case macos-* "x80"
 @end
+@define !INSN
+@case *-x86_64 "syscall"
+@case *-i386 "int $128"
+@end
+@define !ARGS
+@case *-x86_64 "+S"(arg1) : "D"
+@case *-i386 "+c"(arg1) : "b"
+@end
+@define !CLOBBERS
+@case *-x86_64 UNWRAP(: "rcx", "r11")
+@case *-i386
+@end
 !define UNIX_READ \
 @match
-@case *-x86_64 \
+@case *-x86 \
             off_t n_read = SYS_read; \
-            NonAliasingChar* rsi = buffer; \
+            NonAliasingChar* arg1 = buffer; \
             asm volatile( \
                 /* XXX: Handling errors here is complicated, because on Linux syscall will return
                    a small negative number in rax, leading to OOB write, while on XNU the syscall
@@ -324,12 +336,11 @@ struct istream_impl {
                    'ensure(n_read >= 0)' just hides the error, so let us explicitly state we don't
                    support errors returned from read(2) for now. This should probably be fixed
                    later. */ \
-                "syscall" \
-                : "+a"(n_read), "+S"(rsi) \
-                : "D"(STDIN_FILENO), "d"(65536) \
-                : "rcx", "r11" \
+                INSN \
+                : "+a"(n_read), ARGS(STDIN_FILENO), "d"(65536) \
+                CLOBBERS \
             ); \
-            ptr = rsi; \
+            ptr = arg1; \
 @case *-aarch64 wrap
             /* Linux:  svc 0, syscall number in x8
                Mac OS: svc 0x80, syscall number in x16 */ \
@@ -518,12 +529,16 @@ struct istream_impl {
 @case linux-*,macos-* __builtin_ctz(x)
 @case windows-* (_BitScanForward(&index, x), index)
 @end
-@define !BSFQ(x)
+@define !BSFQ_64BIT(x)
 @case linux-*,macos-* __builtin_ctzll(x)
 @case windows-* (_BitScanForward64(&index, x), index)
 @end
+@define !BSFQ(x)
+@case linux-*,macos-*,windows-x86_64,windows-aarch64 BSFQ_64BIT(x)
+@case windows-i386 (_BitScanForward(&index, (ULONG)x) || (_BitScanForward(&index, ULONG(x >> 32)), index += 32), index)
+@end
 @match
-@case *-x86_64+avx2 wrap
+@case *-x86+avx2 wrap
             int mask;
             __m256i space = _mm256_set1_epi8(' ');
             while (
@@ -533,7 +548,7 @@ struct istream_impl {
             )
                 p++;
             ptr = (NonAliasingChar*)p + BSFD(mask);
-@case *-x86_64+sse4.1 wrap
+@case *-x86+sse4.1 wrap
             int mask;
             __m128i space = _mm_set1_epi8(' ');
             while (
@@ -547,8 +562,8 @@ struct istream_impl {
             uint64x2_t vec;
             while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
                 p++;
-            ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + BSFQ(vec[0] ?: vec[1]) / 8;
-@case *-x86_64+none,*-aarch64+none
+            ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
+@case *-x86+none,*-aarch64+none
             // This is a variation on Mycroft's algorithm. See
             // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for
             // the original code.
@@ -627,7 +642,7 @@ struct istream_impl {
 @case windows-* _byteswap_ulong
 @end
 @match
-@case *-x86_64+avx2
+@case *-x86+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
                     ((uint32_t*)&value)[i / 32] = BSWAP32(
@@ -643,7 +658,7 @@ struct istream_impl {
                             )
                         )
                     );
-@case *-x86_64+sse4.1
+@case *-x86+sse4.1
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
@@ -658,7 +673,7 @@ struct istream_impl {
                     ((uint16_t*)&value)[i / 16] = vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     );
-@case *-x86_64+none,*-aarch64+none
+@case *-x86+none,*-aarch64+none
                     ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
 @end
                 }
@@ -751,8 +766,10 @@ struct blazingio_ostream {
     NonAliasingChar* ptr;
 
     blazingio_ostream() {
-        // We *could* use 'base = new char[0x40000000];' instead of mmap-based allocation here, but
+        // We *could* use 'base = new char[0x20000000];' instead of mmap-based allocation here, but
         // that would lead to problems on systems without overcommit, such as Windows.
+        // The size is limited by a bit greater than 0x20000000 because 32-bit WINE only allows to
+        // allocate that much.
 @match
 @case linux-*,macos-*
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
@@ -760,7 +777,7 @@ struct blazingio_ostream {
         // because we'll only use the fd in the destructor.
         base = (char*)mmap(
             NULL,
-            0x40000000,
+            0x20000000,
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
             -1,
@@ -770,7 +787,7 @@ struct blazingio_ostream {
 @case windows-*
         // Windows doesn't support anything like MAP_NORESERVE or overcommit. Therefore, reserve
         // memory and use guard pages to extend the committed region.
-        ensure(base = (char*)VirtualAlloc(NULL, 0x40000000, MEM_RESERVE, PAGE_READWRITE))
+        ensure(base = (char*)VirtualAlloc(NULL, 0x20000000, MEM_RESERVE, PAGE_READWRITE))
         ensure(VirtualAlloc(base, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
         AddVectoredExceptionHandler(true, vectored_exception_handler);
 @end
@@ -977,7 +994,7 @@ struct blazingio_ostream {
         i /= SIMD_SIZE;
         while (i) {
 @match
-@case *-x86_64+avx2
+@case *-x86+avx2
             auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
             _mm256_storeu_si256(
                 p++,
@@ -995,7 +1012,7 @@ struct blazingio_ostream {
                     )
                 )
             );
-@case *-x86_64+sse4.1
+@case *-x86+sse4.1
             auto b = _mm_set1_epi64x(POWERS_OF_TWO);
             _mm_storeu_si128(
                 p++,
@@ -1019,7 +1036,7 @@ struct blazingio_ostream {
                 vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
                 (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
             );
-@case *-x86_64+none,*-aarch64+none
+@case *-x86+none,*-aarch64+none
             *p++ = ((BITSET_SHIFT * (((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
 @end
         }
@@ -1095,7 +1112,7 @@ namespace std {
 @match
 @case linux-*,macos-*
 @case windows-*
-LONG vectored_exception_handler(_EXCEPTION_POINTERS* exception_info) {
+LONG WINAPI vectored_exception_handler(_EXCEPTION_POINTERS* exception_info) {
     auto exception_record = exception_info->ExceptionRecord;
     char* trigger_address = (char*)exception_record->ExceptionInformation[1];
     if (

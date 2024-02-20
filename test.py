@@ -12,11 +12,11 @@ tmp = os.environ.get("TEMP", "/tmp")
 if len(sys.argv) >= 2 and sys.argv[1] == "--cross":
     arch = sys.argv[2]
     def compile(source, target, blazingio):
-        subprocess.run([f"{arch}-linux-gnu-g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
+        subprocess.run([f"{gcc_arch}-linux-gnu-g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
 elif len(sys.argv) >= 2 and sys.argv[1] == "--cross-windows":
-    arch = platform.machine()
+    arch = sys.argv[2]
     def compile(source, target, blazingio):
-        subprocess.run([f"{arch}-w64-mingw32-g++", "-static", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
+        subprocess.run([f"{gcc_arch}-w64-mingw32-g++", "-static", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
 elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
     arch = platform.machine()
     def compile(source, target, blazingio):
@@ -30,6 +30,8 @@ else:
 
 if arch == "AMD64":
     arch = "x86_64"
+
+gcc_arch = "i686" if arch == "i386" else arch
 
 
 def iterate_config(config, props = []):

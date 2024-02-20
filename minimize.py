@@ -3,7 +3,7 @@ import subprocess
 import os
 import sys
 
-from common import CONFIG_OPTS, ARCHITECTURES, OSES
+from common import CONFIG_OPTS, ARCHITECTURES, ARCHITECTURE_SELECTORS, OSES
 
 
 if len(sys.argv) >= 2 and sys.argv[1] == "--override":
@@ -67,10 +67,14 @@ def does_selector_match(selector):
     selector_os, selector_arch = selector.split("-")
     if selector_os != "*" and selector_os not in target_oses:
         return False
-    if selector_arch != "*":
-        if selector_arch not in (target_architectures if "+" in selector_arch else target_bases):
-            return False
-    return True
+    if selector_arch == "*":
+        return True
+    selector_base, *extensions = selector_arch.split("+")
+    extensions = "".join(f"+{extension}" for extension in extensions)
+    return any(
+        arch + extensions in (target_architectures if extensions else target_bases)
+        for arch in ARCHITECTURE_SELECTORS[selector_base]
+    )
 
 def does_selector_match_particular(selector, os, base):
     selector_os, selector_arch = selector.split("-")
@@ -80,8 +84,11 @@ def does_selector_match_particular(selector, os, base):
         and (
             selector_arch == "*"
             or (
-                selector_arch.split("+")[0] == base
-                and selector_arch in (target_architectures if "+" in selector_arch else target_bases)
+                base in ARCHITECTURE_SELECTORS[selector_arch.split("+")[0]]
+                and (
+                    ARCHITECTURE_SELECTORS[selector_arch]
+                    & set(target_architectures if "+" in selector_arch else target_bases)
+                )
             )
         )
     )
@@ -113,6 +120,12 @@ def generate_multicase_code(cases):
         return f"{macro}({codegen(true_cases)}, {codegen(false_cases)})"
 
     factors = [
+        lambda cases: factor_out(
+            cases,
+            lambda case: case[1] == "*",
+            lambda case: case[1] in ("x86_64", "i386", "x86"),
+            "IF_X86"
+        ),
         lambda cases: factor_out(
             cases,
             lambda case: case[1] == "*",
@@ -234,6 +247,11 @@ blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typ
 blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 # Add multiarch/multiOS support
+if "IF_X86" in needed_factor_macros:
+    cond = "__x86_64__ | __i386__"
+    if "windows" in target_oses:
+        cond += " | _M_X64 | _M_I386"
+    blazingio = f"#if {cond}\n#define IF_X86(yes, no) yes\n#else\n#define IF_X86(yes, no) no\n#endif\n" + blazingio
 if "IF_X86_64" in needed_factor_macros:
     cond = "__x86_64__"
     if "windows" in target_oses:
@@ -345,7 +363,8 @@ def repl(s):
         ("SIMD_TYPE", "$t"),
         ("INLINE", "$I"),
         ("FETCH", "$F"),
-        ("IF_X86_64", "$S"),
+        ("IF_X86_64", "$H"),
+        ("IF_X86", "$S"),
         ("IF_WINDOWS", "$w"),
         ("IF_MACOS", "$m"),
         ("UNWRAP", "$u"),
@@ -384,7 +403,6 @@ def repl(s):
 
         ("ONE_BYTES", "C"),
         ("file_size", "C"),
-        ("rsi", "C"),
         ("syscall_no", "C"),
         ("has_dot", "C"),
         ("trace", "C"),

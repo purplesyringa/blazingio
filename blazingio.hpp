@@ -903,8 +903,8 @@ struct blazingio_ostream {
             value = -value;
         // At least it isn't \write18...
         auto write12 = [&]() {
-            value *= 1e12;
-            write_int_split<uint64_t, 12, 12>(value, value);
+            auto x = uint64_t(value * 1e12);
+            write_int_split<uint64_t, 12, 12>(x, x);
         };
         if (!value)
             return print('0');
@@ -919,7 +919,7 @@ struct blazingio_ostream {
             print('e');
             print(exponent);
         } else if (value >= 1) {
-            uint64_t whole = value;
+            auto whole = (uint64_t)value;
             print(whole);
             if (value -= whole)
                 print('.'),

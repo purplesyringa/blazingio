@@ -405,7 +405,6 @@ def repl(s):
         ("stat_buf", "D"),
 
         ("buffer", "E"),
-        ("do_flush", "E"),
         ("interval", "E"),
         ("stdout_handle", "E"),
         ("tmp_n_read", "E"),

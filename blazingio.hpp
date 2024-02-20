@@ -756,10 +756,10 @@ struct blazingio_ostream {
     }
     ~blazingio_ostream() {
 !ifdef INTERACTIVE
-        do_flush();
+        flush();
     }
 
-    void do_flush() {
+    void flush() {
 !endif
 @match
 @case linux-*,macos-*
@@ -1023,7 +1023,7 @@ namespace std {
 !ifdef INTERACTIVE
     blazingio::blazingio_ostream& flush(blazingio::blazingio_ostream& stream) {
         if (!blazingio_cin.file.ptr)
-            stream.do_flush();
+            stream.flush();
         return stream;
     }
     blazingio::blazingio_ostream& endl(blazingio::blazingio_ostream& stream) {

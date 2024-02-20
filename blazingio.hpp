@@ -476,7 +476,7 @@ struct istream_impl {
     }
 
     SIMD void input(string& value) {
-        input_string_like(value, [&] SIMD {
+        input_string_like(value, [&]() SIMD {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.

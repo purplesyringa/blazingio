@@ -97,7 +97,19 @@ for test_name in os.listdir("tests"):
             run("./a.out.std", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
             with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
                 with open(f"{tmp}/blazingio-out-std", "rb") as f2:
-                    assert f.read() == f2.read().replace(b"\r\n", b"\n")
+                    blazingio = f.read()
+                    std = f2.read().replace(b"\r\n", b"\n")
+                    if "approx" in manifest:
+                        approx = manifest["approx"]
+                        blazingio = blazingio.split()
+                        std = std.split()
+                        assert len(blazingio) == len(std)
+                        for a, b in zip(blazingio, std):
+                            a_n = float(a)
+                            b_n = float(b)
+                            assert abs(a_n - b_n) / max(1, min(abs(a_n), abs(b_n))) < approx, (a, b)
+                    else:
+                        assert blazingio == std
         elif manifest["type"] == "exit-code":
             print("    Compiling")
             compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")

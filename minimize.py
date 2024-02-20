@@ -413,6 +413,7 @@ def repl(s):
         ("Interactive", "F"),
         ("print", "F"),
         ("low_digits", "F"),
+        ("likely_regular_file", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),

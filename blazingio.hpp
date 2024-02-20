@@ -755,11 +755,15 @@ struct blazingio_ostream {
 !endif
     }
     ~blazingio_ostream() {
+!define WRAP_REOPEN(x) x
 !ifdef INTERACTIVE
-        flush();
-    }
-
-    void flush() {
+!define CODE flush(); } void flush() {
+// Avoid trying to ReOpenFile if it's a pipe
+!define WRAP_REOPEN(x) likely_regular_file ? x : INVALID_HANDLE_VALUE
+@ondemand windows-*
+!define CODE flush(true); } void flush(int likely_regular_file = false) {
+@end
+CODE
 !endif
 @match
 @case linux-*,macos-*
@@ -770,12 +774,13 @@ struct blazingio_ostream {
         ensure(~n_written)
 @case windows-*
         auto stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-        auto handle = ReOpenFile(
+        auto handle = WRAP_REOPEN(ReOpenFile(
             stdout_handle,
             GENERIC_WRITE,
-            FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,  // be as general as possible
+            // Be as general as possible
+            FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
             FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH
-        );
+        ));
         DWORD n_written;
         ensure(
             handle == INVALID_HANDLE_VALUE

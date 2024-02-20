@@ -401,7 +401,7 @@ struct istream_impl {
             exponent += new_exponent;
 
         // This generates {1e-20, 1e-14, ..., 1e14, 1e20}
-        static constexpr auto exps = [] {
+        static constexpr auto exps = []() {
             T exps[41];
             T x = 1;
             for (int i = 21; i--; )
@@ -533,7 +533,7 @@ struct istream_impl {
     }
 
     SIMD void input(line_t& line) {
-        input_string_like(line.value, [&] {
+        input_string_like(line.value, [&]() {
             ptr = (NonAliasingChar*)memchr(ptr, '\n', end - ptr + 1);
         });
 
@@ -819,7 +819,7 @@ struct blazingio_ostream {
                 print(decimal_lut[interval * 2 + 1]);
 !endif
         } else {
-            constexpr auto computed = [] {
+            constexpr auto computed = []() {
                 int low_digits = 1;
                 T coeff = 10;
                 while ((low_digits *= 2) < MaxDigits)
@@ -858,7 +858,7 @@ struct blazingio_ostream {
             print('-'),
             value = -value;
         // At least it isn't \write18...
-        auto write12 = [&] {
+        auto write12 = [&]() {
             value *= 1e12;
             write_int_split<uint64_t, 12, 12>(value, value);
         };

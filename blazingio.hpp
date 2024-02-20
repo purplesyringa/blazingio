@@ -589,7 +589,7 @@ struct istream_impl {
 !endif
                 auto p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
-                for (size_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
+                for (int64_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
 !else
                 while (i) {
 !endif
@@ -981,7 +981,7 @@ CODE
                 (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
             );
 @case *-x86_64+none,*-aarch64+none
-            *p++ = ((BITSET_SHIFT * ((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES | (ONE_BYTES * 0x30);
+            *p++ = ((BITSET_SHIFT * (((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
 @end
         }
         ptr = (NonAliasingChar*)p;

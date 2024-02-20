@@ -12,11 +12,11 @@ tmp = os.environ.get("TEMP", "/tmp")
 if len(sys.argv) >= 2 and sys.argv[1] == "--cross":
     arch = sys.argv[2]
     def compile(source, target, blazingio):
-        subprocess.run([f"{arch}-linux-gnu-g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\""], check=True)
+        subprocess.run([f"{arch}-linux-gnu-g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
 elif len(sys.argv) >= 2 and sys.argv[1] == "--cross-windows":
     arch = platform.machine()
     def compile(source, target, blazingio):
-        subprocess.run([f"{arch}-w64-mingw32-g++", "-static", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\""], check=True)
+        subprocess.run([f"{arch}-w64-mingw32-g++", "-static", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
 elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
     arch = platform.machine()
     def compile(source, target, blazingio):
@@ -26,7 +26,7 @@ elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
 else:
     arch = platform.machine()
     def compile(source, target, blazingio):
-        subprocess.run(["g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17"], check=True)
+        subprocess.run(["g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-Wall", "-Werror"], check=True)
 
 if arch == "AMD64":
     arch = "x86_64"

@@ -1,3 +1,6 @@
+!ifdef FLOAT
+#include <array>
+!endif
 !ifdef BITSET
 #include <bitset>
 !endif
@@ -375,7 +378,15 @@ struct istream_impl {
     }
 
     template<typename T>
-    INLINE decltype((void)T{1}) input(T& x) {
+    INLINE
+    // Without float support, only integers can be cast to 1. With floating-point support, we can't
+    // use this trick.
+!ifdef FLOAT
+    enable_if_t<is_integral_v<T>>
+!else
+    decltype((void)T{1})
+!endif
+    input(T& x) {
         bool negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
@@ -383,8 +394,8 @@ struct istream_impl {
     }
 
 !ifdef FLOAT
-    template<typename T, typename = decltype(T{1.})>
-    INLINE void input(T& x) {
+    template<typename T>
+    INLINE decltype((void)T{1.}) input(T& x) {
         bool negative = (FETCH *ptr == '-');
         ptr += negative;
         FETCH ptr += *ptr == '+';
@@ -419,7 +430,7 @@ struct istream_impl {
 
         // This generates {1e-20, 1e-14, ..., 1e14, 1e20}
         static constexpr auto exps = []() {
-            T exps[41];
+            array<T, 41> exps{};
             T x = 1;
             for (int i = 21; i--; )
                 exps[40 - i] = x,
@@ -860,8 +871,9 @@ struct blazingio_ostream {
         }
     }
 
-    template<typename T, T = 1>
-    void print(T value) {
+    template<typename T>
+    // We can't use decltype((void)T{1}) here because that's going to conflict with std::string.
+    enable_if_t<is_integral_v<T>> print(T value) {
         make_unsigned_t<T> abs = value;
         if (value < 0)
             print('-'),
@@ -879,8 +891,8 @@ struct blazingio_ostream {
     }
 
 !ifdef FLOAT
-    template<typename T, typename = decltype(T{1.})>
-    void print(T value) {
+    template<typename T>
+    decltype((void)T{1.}) print(T value) {
         if (value < 0)
             print('-'),
             value = -value;

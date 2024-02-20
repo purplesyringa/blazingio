@@ -94,7 +94,7 @@ for test_name in os.listdir("tests"):
             print("    Running with blazingio")
             run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-blazingio", use_pipe)
             print("    Running with std")
-            run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
+            run("./a.out.std", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
             with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
                 with open(f"{tmp}/blazingio-out-std", "rb") as f2:
                     assert f.read() == f2.read().replace(b"\r\n", b"\n")

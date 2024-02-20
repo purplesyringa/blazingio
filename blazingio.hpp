@@ -410,7 +410,7 @@ struct istream_impl {
         for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++)
             n = n * 10 + *ptr++ - '0',
             exponent -= has_dot;
-        x = n;
+        x = (T)n;
         while ((FETCH *ptr & 0xf0) == 0x30)
             x = x * 10 + *ptr++ - '0',
             exponent -= has_dot;

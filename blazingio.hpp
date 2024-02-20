@@ -85,6 +85,14 @@ UNLESS_MSVC_END
 LONG vectored_exception_handler(_EXCEPTION_POINTERS*);
 @end
 
+// Using unary minus on unsigned numbers triggers an MSVC warning. The fix is rather simple, but
+// I'd rather it was isolated so that it could be rolled back if MSVC zero-warning support is
+// dropped.
+!define NEGATE_MAYBE_UNSIGNED(x) -x
+@ondemand windows-*
+!define NEGATE_MAYBE_UNSIGNED(x) 1 + ~x
+@end
+
 namespace blazingio {
 
 using namespace std;
@@ -101,7 +109,7 @@ struct NonAliasingChar {
     }
 };
 
-const uint64_t ONE_BYTES = -1ULL / 255
+const uint64_t ONE_BYTES = ~0ULL / 255
 !ifdef BITSET
 @ondemand *-x86_64+none,*-aarch64+none
 , BITSET_SHIFT = 0x8040201008040201
@@ -110,7 +118,7 @@ const uint64_t ONE_BYTES = -1ULL / 255
 ;
 
 // Actually 0x0102040810204080
-!define POWERS_OF_TWO -3ULL / 254
+!define POWERS_OF_TWO ~2ULL / 254
 
 struct line_t {
     string& value;
@@ -135,7 +143,16 @@ struct istream_impl {
     void init_assume_file(off_t file_size) {
 !else
     blazingio_istream() {
-        off_t file_size = lseek(STDIN_FILENO, 0, SEEK_END);
+        off_t file_size =
+        // Windows works just fine with lseek, but MSVC throws a warning we'd like to avoid.
+        // interactive=n is a rare case, so why not?
+@match
+@case linux-*,macos-*
+        lseek
+@case windows-*
+        _lseek
+@end
+        (STDIN_FILENO, 0, SEEK_END);
         ensure(~file_size)
 !endif
 @match
@@ -362,7 +379,7 @@ struct istream_impl {
         bool negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
-        x = negative ? -x : x;
+        x = negative ? NEGATE_MAYBE_UNSIGNED(x) : x;
     }
 
 !ifdef FLOAT
@@ -601,7 +618,7 @@ struct istream_impl {
 @match
 @case *-x86_64+avx2
                     // This is actually 0x0001020304050607
-                    uint64_t a = -1ULL / 65025;
+                    uint64_t a = ~0ULL / 65025;
                     ((uint32_t*)&value)[i / 32] = BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
@@ -617,7 +634,7 @@ struct istream_impl {
                     );
 @case *-x86_64+sse4.1
                     // This is actually 0x0001020304050607
-                    uint64_t a = -1ULL / 65025;
+                    uint64_t a = ~0ULL / 65025;
                     ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_slli_epi32(_mm_loadu_si128(p++), 7),
@@ -815,7 +832,7 @@ CODE
     void write_int_split(T value, T interval) {
         if constexpr (MaxDigits == 1) {
             if (MinDigits || value >= Factor)
-                *ptr++ = '0' + interval;
+                *ptr++ = char('0' + interval);
 !ifdef LUT
         } else if constexpr (MaxDigits == 2) {
             if (MinDigits >= 2 || value >= 10 * Factor)
@@ -843,7 +860,7 @@ CODE
         make_unsigned_t<T> abs = value;
         if (value < 0)
             print('-'),
-            abs = -abs;
+            abs = NEGATE_MAYBE_UNSIGNED(abs);
         write_int_split<
             decltype(abs),
             1,

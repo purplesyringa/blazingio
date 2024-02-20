@@ -20,7 +20,7 @@ elif len(sys.argv) >= 2 and sys.argv[1] == "--cross-windows":
 elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
     arch = platform.machine()
     def compile(source, target, blazingio):
-        subprocess.run([f"cl", source, "/I.", f"/DBLAZINGIO=\"{blazingio}\"", f"/Fe{target}", "/std:c++17", "/EHsc", "/nologo"], check=True)
+        subprocess.run([f"cl", source, "/I.", f"/DBLAZINGIO=\"{blazingio}\"", f"/Fe{target}", "/std:c++17", "/EHsc", "/nologo", "/W2", "/WX"], check=True)
     os.environ["CPP"] = "C:\\msys64\\usr\\bin\\bash.exe -l -c \"exec cpp $*\" cpp"
     os.environ["MSYSTEM"] = "UCRT64"
 else:

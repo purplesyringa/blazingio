@@ -772,16 +772,17 @@ struct blazingio_ostream {
 !endif
     }
     ~blazingio_ostream() {
-!define WRAP_REOPEN(x) x
-!ifdef INTERACTIVE
-!define CODE flush(); } void flush() {
-// Avoid trying to ReOpenFile if it's a pipe
-!define WRAP_REOPEN(x) likely_regular_file ? x : INVALID_HANDLE_VALUE
+        flush(
 @ondemand windows-*
-!define CODE flush(true); } void flush(int likely_regular_file = false) {
+            true
 @end
-CODE
-!endif
+        );
+    }
+    void flush(
+@ondemand windows-*
+        int likely_regular_file = false
+@end
+    ) {
 @match
 @case linux-*,macos-*
         auto start = base;
@@ -791,6 +792,10 @@ CODE
         ensure(~n_written)
 @case windows-*
         auto stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+!define WRAP_REOPEN(x) x
+!ifdef INTERACTIVE
+!define WRAP_REOPEN(x) likely_regular_file ? x : INVALID_HANDLE_VALUE
+!endif
         auto handle = WRAP_REOPEN(ReOpenFile(
             stdout_handle,
             GENERIC_WRITE,

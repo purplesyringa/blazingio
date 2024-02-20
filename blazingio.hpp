@@ -783,6 +783,7 @@ struct blazingio_ostream {
 !endif
     }
     ~blazingio_ostream() {
+!ifdef INTERACTIVE
         flush(
 @ondemand windows-*
             true
@@ -794,6 +795,7 @@ struct blazingio_ostream {
         int likely_regular_file = false
 @end
     ) {
+!endif
 @match
 @case linux-*,macos-*
         auto start = base;
@@ -828,6 +830,9 @@ struct blazingio_ostream {
         ptr = (NonAliasingChar*)base;
 !endif
     }
+!ifndef INTERACTIVE
+    void flush() {}
+!endif
 
     void print(char value) {
         *ptr++ = value;

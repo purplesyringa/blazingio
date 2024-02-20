@@ -26,7 +26,7 @@ elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
 else:
     arch = platform.machine()
     def compile(source, target, blazingio):
-        subprocess.run(["g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\""], check=True)
+        subprocess.run(["g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17"], check=True)
 
 if arch == "AMD64":
     arch = "x86_64"

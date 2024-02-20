@@ -412,13 +412,13 @@ struct istream_impl {
             exponent -= has_dot;
         x = n;
         while ((FETCH *ptr & 0xf0) == 0x30)
-            x = n * 10 + *ptr++ - '0',
+            x = x * 10 + *ptr++ - '0',
             exponent -= has_dot;
         if (*ptr == '.')
             ptr++,
             has_dot = true;
         while ((FETCH *ptr & 0xf0) == 0x30)
-            x = n * 10 + *ptr++ - '0',
+            x = x * 10 + *ptr++ - '0',
             exponent -= has_dot;
 
         int new_exponent;

@@ -376,7 +376,7 @@ def repl(s):
         ("line", "A"),
         ("real_part", "A"),
         ("file", "A"),
-        ("decimal_lut", "A"),
+        # ("decimal_lut", "A"),
         ("n_written", "A"),
         ("computed", "A"),
         ("abs", "A"),

@@ -900,16 +900,24 @@ struct blazingio_ostream {
         if (value < 0)
             print('-'),
             abs = NEGATE_MAYBE_UNSIGNED(abs);
-        write_int_split<
-            decltype(abs),
-            1,
-            // This maps size in bytes to maximal decimal length
-            // 1 => 3
-            // 2 => 5
-            // 4 => 10
-            // 8 => 20
-            (5 * sizeof(value) + 1) / 2
-        >(abs, abs);
+
+        // This is vitaut's algoithm. It's faster than write_int_split on random 32-bit and 64-bit
+        // ints on my machine.
+        char buf[20 + 32];
+        char* p = buf + 20;
+        while (abs >= 100) {
+            T lower = abs % 100;
+            *--p = decimal_lut[lower * 2 + 1];
+            *--p = decimal_lut[lower * 2];
+            abs /= 100;
+        }
+        *--p = decimal_lut[abs * 2 + 1];
+        if (abs >= 10) {
+            *--p = decimal_lut[abs * 2];
+        }
+
+        memcpy(ptr, p, 32);
+        ptr += buf + 20 - p;
     }
 
 !ifdef FLOAT

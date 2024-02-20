@@ -398,7 +398,6 @@ def repl(s):
         ("line_t", "D"),
         ("base", "D"),
         ("new_exponent", "D"),
-        ("exps", "D"),
         ("vec2", "D"),
         ("Factor", "D"),
         ("table", "D"),
@@ -410,6 +409,7 @@ def repl(s):
         ("interval", "E"),
         ("stdout_handle", "E"),
         ("tmp_n_read", "E"),
+        ("exps", "E"),
 
         ("Interactive", "F"),
         ("print", "F"),

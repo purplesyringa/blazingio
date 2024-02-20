@@ -339,14 +339,13 @@ struct istream_impl {
             // This matches the behavior we have with files
             *end = '\n';
 !ifdef STDIN_EOF
-            if (!n_read) {
+            if (!n_read)
                 // This is an attempt to read past EOF. Simulate this just like with files, with
                 // "\n0". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
-                buffer[1] = '0';
+                buffer[1] = '0',
                 // We want ptr == end to evaluate to false.
                 end = NULL;
-            }
 !endif
         }
     }
@@ -380,45 +379,40 @@ struct istream_impl {
         int exponent = 20;  // Offset by 20, for reasons
         bool has_dot = *ptr == '.';
         ptr += has_dot;
-        for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++) {
-            n = n * 10 + *ptr++ - '0';
+        for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++)
+            n = n * 10 + *ptr++ - '0',
             exponent -= has_dot;
-        }
         x = n;
-        while ((FETCH *ptr & 0xf0) == 0x30) {
-            x = n * 10 + *ptr++ - '0';
+        while ((FETCH *ptr & 0xf0) == 0x30)
+            x = n * 10 + *ptr++ - '0',
             exponent -= has_dot;
-        }
-        if (*ptr == '.') {
-            ptr++;
+        if (*ptr == '.')
+            ptr++,
             has_dot = true;
-        }
-        while ((FETCH *ptr & 0xf0) == 0x30) {
-            x = n * 10 + *ptr++ - '0';
+        while ((FETCH *ptr & 0xf0) == 0x30)
+            x = n * 10 + *ptr++ - '0',
             exponent -= has_dot;
-        }
 
-        if ((*ptr | 0x20) == 'e') {
-            ptr++;
-            FETCH ptr += *ptr == '+';
-            int new_exponent;
-            input(new_exponent);
+        int new_exponent;
+        if ((*ptr | 0x20) == 'e')
+            ptr++,
+            FETCH ptr += *ptr == '+',
+            input(new_exponent),
             exponent += new_exponent;
-        }
-        if (0 <= exponent && exponent < 41) {
-            // This generates {1e-20, 1e-14, ..., 1e14, 1e20}
-            static constexpr auto exps = [] {
-                T exps[41];
-                T x = 1;
-                for (int i = 21; i--; ) {
-                    exps[40 - i] = x;
-                    exps[i] = 1 / x;
-                    x *= 10;
-                }
-                return exps;
-            }();
+
+        // This generates {1e-20, 1e-14, ..., 1e14, 1e20}
+        static constexpr auto exps = [] {
+            T exps[41];
+            T x = 1;
+            for (int i = 21; i--; )
+                exps[40 - i] = x,
+                exps[i] = 1 / x,
+                x *= 10;
+            return exps;
+        }();
+        if (0 <= exponent && exponent < 41)
             x *= exps[exponent];
-        } else {
+        else {
             while (exponent-- > 20)
                 x *= 10;
             while (++exponent < 20)
@@ -543,13 +537,13 @@ struct istream_impl {
             ptr = (NonAliasingChar*)memchr(ptr, '\n', end - ptr + 1);
         });
 
-        if (line.value.size() && line.value.back() == '\r') {
+        if (line.value.size() && line.value.back() == '\r')
             line.value.pop_back();
-        }
 
         // Skip \n unless the terminator is part of EOF and we have read a non-empty string (so as
         // not to trigger EOF after reading a non-terminated line)
-        ptr += (line.value.empty() || ptr < end) && *ptr == '\n';
+        if (line.value.empty() || ptr < end)
+            ptr += *ptr == '\n';
     }
 
 !ifdef COMPLEX
@@ -559,14 +553,13 @@ struct istream_impl {
         if (FETCH *ptr == '(') {
             ptr++;
             input(real_part);
-            if (FETCH *ptr++ == ',') {
+            if (FETCH *ptr++ == ',')
 !ifdef INTERACTIVE
-                rshift_impl(imag_part);
+                rshift_impl(imag_part),
 !else
-                *this >> imag_part;
+                *this >> imag_part,
 !endif
                 ptr++;
-            }
         } else
             input(real_part);
         value = {real_part, imag_part};
@@ -586,7 +579,7 @@ struct istream_impl {
 !endif
         ptrdiff_t i = N;
 !ifdef INTERACTIVE
-        while (i) {
+        while (i)
             if (FETCH i % SIMD_SIZE || end - ptr < SIMD_SIZE)
                 value[--i] = *ptr++ == '1';
             else {
@@ -644,7 +637,6 @@ struct istream_impl {
                 ptr = (NonAliasingChar*)p;
 !ifdef INTERACTIVE
             }
-        }
 !endif
     }
 !endif
@@ -757,10 +749,9 @@ struct blazingio_ostream {
         ptr = (NonAliasingChar*)base;
 !ifdef LUT
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
-        for (int i = 0; i < 100; i++) {
-            decimal_lut[i * 2] = '0' + i / 10;
+        for (int i = 0; i < 100; i++)
+            decimal_lut[i * 2] = '0' + i / 10,
             decimal_lut[i * 2 + 1] = '0' + i % 10;
-        }
 !endif
     }
     ~blazingio_ostream() {
@@ -786,12 +777,14 @@ struct blazingio_ostream {
             FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH
         );
         DWORD n_written;
-        if (handle == INVALID_HANDLE_VALUE) {
-            ensure(WriteFile(stdout_handle, base, (char*)ptr - base, &n_written, NULL))
-        } else {
-            ensure(WriteFile(handle, base, ((char*)ptr - base + 4095) & -4096, &n_written, NULL))
-            ensure(~_chsize(1, (char*)ptr - base))
-        }
+        ensure(
+            handle == INVALID_HANDLE_VALUE
+                ? WriteFile(stdout_handle, base, (char*)ptr - base, &n_written, NULL)
+                : (
+                    WriteFile(handle, base, ((char*)ptr - base + 4095) & -4096, &n_written, NULL)
+                    && ~_chsize(1, (char*)ptr - base)
+                )
+        )
 @end
 !ifdef INTERACTIVE
         ptr = (NonAliasingChar*)base;
@@ -843,10 +836,9 @@ struct blazingio_ostream {
     template<typename T, T = 1>
     void print(T value) {
         make_unsigned_t<T> abs = value;
-        if (value < 0) {
-            print('-');
+        if (value < 0)
+            print('-'),
             abs = -abs;
-        }
         write_int_split<
             decltype(abs),
             1,
@@ -862,10 +854,9 @@ struct blazingio_ostream {
 !ifdef FLOAT
     template<typename T, typename = decltype(T{1.})>
     void print(T value) {
-        if (value < 0) {
-            print('-');
+        if (value < 0)
+            print('-'),
             value = -value;
-        }
         // At least it isn't \write18...
         auto write12 = [&] {
             value *= 1e12;
@@ -876,10 +867,9 @@ struct blazingio_ostream {
         if (value >= 1e16) {
             value *= 1e-16;
             int exponent = 16;
-            while (value >= 1) {
-                value *= .1;
+            while (value >= 1)
+                value *= .1,
                 exponent++;
-            }
             print("0.");
             write12();
             print('e');
@@ -887,14 +877,12 @@ struct blazingio_ostream {
         } else if (value >= 1) {
             uint64_t whole = value;
             print(whole);
-            if (value -= whole) {
-                print('.');
+            if (value -= whole)
+                print('.'),
                 write12();
-            }
-        } else {
-            print("0.");
+        } else
+            print("0."),
             write12();
-        }
     }
 !endif
 
@@ -1065,13 +1053,16 @@ namespace std {
 @case windows-*
 LONG vectored_exception_handler(_EXCEPTION_POINTERS* exception_info) {
     auto exception_record = exception_info->ExceptionRecord;
-    if (exception_record->ExceptionCode == STATUS_GUARD_PAGE_VIOLATION) {
-        char* trigger_address = (char*)exception_record->ExceptionInformation[1];
-        if ((size_t)(trigger_address - std::blazingio_cout.base) < 0x40000000) {
-            ensure(VirtualAlloc(trigger_address, 0x1000000, MEM_COMMIT, PAGE_READWRITE))
-            ensure(VirtualAlloc(trigger_address + 0x1000000, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
-            return EXCEPTION_CONTINUE_EXECUTION;
-        }
+    char* trigger_address = (char*)exception_record->ExceptionInformation[1];
+    if (
+        exception_record->ExceptionCode == STATUS_GUARD_PAGE_VIOLATION
+        && (size_t)(trigger_address - std::blazingio_cout.base) < 0x40000000
+    ) {
+        ensure(
+            VirtualAlloc(trigger_address, 0x1000000, MEM_COMMIT, PAGE_READWRITE)
+            && VirtualAlloc(trigger_address + 0x1000000, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD)
+        )
+        return EXCEPTION_CONTINUE_EXECUTION;
     }
     return EXCEPTION_CONTINUE_SEARCH;
 }

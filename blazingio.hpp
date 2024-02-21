@@ -899,6 +899,9 @@ struct blazingio_ostream {
             print('-'),
             abs = NEGATE_MAYBE_UNSIGNED(abs);
 
+        // write_int_split<uint32_t, 10>(value, value, ptr);
+        // return;
+
         if constexpr (sizeof(T) == 1) {
             int digits = (abs >= 10) + (abs >= 100);
 
@@ -936,33 +939,31 @@ struct blazingio_ostream {
         // This is a variation on Terje Mathisen's algorithm. See
         // http://computer-programming-forum.com/46-asm/7aa4b50bce8dd985.htm
 
-        // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the low
-        // 57 low bits are the real part. 7 bits are used because that's the shortest amount of bits
-        // 99 fits in.
-
         if constexpr (sizeof(T) == 2) {
-            // abs / 1e4 in fixed point
-            uint64_t n = 14411518807586ULL * abs;
+            // We use a 32-bit fixed-point format here. The high 7 bits are the whole part and the
+            // low 25 low bits are the real part. 7 bits are used because that's the shortest amount
+            // of bits 99 fits in.
 
-            int shift = 57;
-            uint64_t mask = 0x01ffffffffffffff;
+            // abs / 1e3 in fixed point. 2^25 / 1e3 is actually 33554.432, but rounding it up to
+            // 33555 would introduce too big an error. We compensate for it by effectively using
+            // 33554.5 as the factor. The computed value, when multiplied back by 1e3, will have the
+            // whole part equal to (33554.5e3 * abs) >> 25. We want this to be less than 1 far from
+            // abs, i.e.
+            //     (33554.5e3 * abs) >> 25 - abs < 1,
+            // or
+            //     (33554.5e3 - 2^25) * abs < 2^25.
+            // Luckily, this is true from all abs up to 2^16.
+            // The computation is a bit off for odd abs: in this case n is 1/2 larger than the
+            // theoretical value, which is a ridiculously small error, so the check still passes.
+            uint32_t n = 33555 * abs - abs / 2;
 
-            uint64_t buf = '0' + (n >> shift);
-            n = (n & mask) * 25;
-            shift -= 2;
-            mask >>= 2;
+            uint64_t buf = ((uint16_t*)decimal_lut)[n >> 25];
+            n = (n & 0x01ffffff) * 25;
 
-            buf |= (uint64_t)((uint16_t*)decimal_lut)[n >> shift] << 8;
-            n = (n & mask) * 25;
-            shift -= 2;
-            mask >>= 2;
+            buf |= ((uint16_t*)decimal_lut)[n >> 23] << 16;
+            n = (n & 0x007fffff) * 5;
 
-            buf |= (uint64_t)((uint16_t*)decimal_lut)[n >> shift] << 24;
-            n = (n & mask) * 25;
-            shift -= 2;
-            mask >>= 2;
-
-            buf >>= (5 - digits) * 8;
+            buf |= (uint64_t)('0' + (n >> 22)) << 32;
 
             *(uint64_t*)ptr = buf;
             ptr += digits;
@@ -970,6 +971,10 @@ struct blazingio_ostream {
         }
 
         if constexpr (sizeof(T) == 4) {
+            // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the
+            // low 57 low bits are the real part. 7 bits are used because that's the shortest amount
+            // of bits 99 fits in.
+
             // abs / 1e8 in fixed point. 2^57 / 1e8 is actually 1441151880.7585588..., so we round
             // it up. This introduces an error. The computed value, when multiplied back by 1e8,
             // will have the whole part equal to (1441151881e8 * abs) >> 57. We want this to be less
@@ -991,6 +996,8 @@ struct blazingio_ostream {
                 mask >>= 2;
             }
 
+            // Always copying 16 bytes enables us to always mov ymmword as opposed to multiple
+            // instructions.
             memcpy(ptr, (NonAliasingChar*)buf + 10 - digits, 16);
             ptr += digits;
             return;

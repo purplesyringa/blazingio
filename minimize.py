@@ -386,7 +386,7 @@ def repl(s):
         ("mmaped_region_size", "A"),
         ("exception_info", "A"),
         ("do_trace", "A"),
-        ("mask", "A"),
+        # ("mask", "A"),
         ("length", "A"),
 
         ("NonAliasingChar", "B"),

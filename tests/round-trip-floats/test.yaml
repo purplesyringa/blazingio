@@ -3,7 +3,6 @@ approx: 0.00000000001
 config:
   architecture: x86_64,i386,aarch64
   os: windows,linux,macos
-  lut: [y, n]
   float: y
   interactive: [y, n]
   stdin_eof: y

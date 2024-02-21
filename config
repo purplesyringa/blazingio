@@ -1,8 +1,3 @@
-# Whether to use a precomputed 200-byte lookup table for integer output. This typically increases
-# performance, but might affect cache negatively in cache-intensive tasks. Slightly increases code
-# size. Choose 'y' if unsure.
-lut=y
-
 # Whether to treat int8_t/signed char and uint8_t/unsigned char just like char, as a symbol as
 # opposed to an integer. This also enables printing of '(un)signed char*' strings in addition to the
 # 'char*' strings, which are enabled by default. This is mostly an STL compatibility option than

@@ -1,6 +1,4 @@
 CONFIG_OPTS = {
-    "lut=n": ("", ""),
-    "lut=y": ("LUT", "l"),
     "char_with_sign_is_glyph=n": ("", ""),
     "char_with_sign_is_glyph=y": ("CHAR_WITH_SIGN_IS_GLYPH", "c"),
     "bitset=n": ("", ""),

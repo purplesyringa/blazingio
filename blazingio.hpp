@@ -757,9 +757,7 @@ struct blazingio_istream {
 };
 !endif
 
-!ifdef LUT
 char decimal_lut[200];
-!endif
 
 struct blazingio_ostream {
     char* base;
@@ -792,12 +790,10 @@ struct blazingio_ostream {
         AddVectoredExceptionHandler(true, vectored_exception_handler);
 @end
         ptr = (NonAliasingChar*)base;
-!ifdef LUT
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++)
             decimal_lut[i * 2] = char('0' + i / 10),
             decimal_lut[i * 2 + 1] = char('0' + i % 10);
-!endif
     }
     ~blazingio_ostream() {
 !ifdef INTERACTIVE
@@ -866,43 +862,114 @@ struct blazingio_ostream {
         *ptr++ = '0' + value;
     }
 
-    template<typename T, int MinDigits, int MaxDigits, T Factor = 1>
-    void write_int_split(T value, T interval) {
-        if constexpr (MaxDigits == 1) {
-            if (MinDigits || value >= Factor)
-                *ptr++ = char('0' + interval);
-!ifdef LUT
-        } else if constexpr (MaxDigits == 2) {
-            if (MinDigits >= 2 || value >= 10 * Factor)
-                print(decimal_lut[interval * 2]);
-            if (MinDigits || value >= Factor)
-                print(decimal_lut[interval * 2 + 1]);
-!endif
+    template<typename T, int Digits, T Factor = 1>
+    void write_int_split(T value, T interval, NonAliasingChar*& p) {
+        if constexpr (Digits == 1) {
+            *p++ = '0' + interval;
+        } else if constexpr (Digits == 2) {
+            *p++ = decimal_lut[interval * 2];
+            *p++ = decimal_lut[interval * 2 + 1];
         } else {
             constexpr auto computed = []() {
                 int low_digits = 1;
                 T coeff = 10;
-                while ((low_digits *= 2) < MaxDigits)
+                while ((low_digits *= 2) < Digits)
                     coeff *= coeff;
                 return pair{low_digits / 2, coeff};
             }();
             constexpr int low_digits = computed.first;
             constexpr T coeff = computed.second;
-            write_int_split<T, max(0, MinDigits - low_digits), MaxDigits - low_digits, T(Factor * coeff)>(value, interval / coeff);
-            write_int_split<T, min(MinDigits, low_digits), low_digits, Factor>(value, interval % coeff);
+            write_int_split<T, Digits - low_digits, T(Factor * coeff)>(value, interval / coeff, p);
+            write_int_split<T, low_digits, Factor>(value, interval % coeff, p);
         }
     }
 
     template<typename T>
     // We can't use decltype((void)T{1}) here because that's going to conflict with std::string.
     enable_if_t<is_integral_v<T>> print(T value) {
+        if (value == 0) {
+            print('0');
+            return;
+        }
+
         make_unsigned_t<T> abs = value;
         if (value < 0)
             print('-'),
             abs = NEGATE_MAYBE_UNSIGNED(abs);
 
-        // This is vitaut's algoithm. It's faster than write_int_split on random 32-bit and 64-bit
-        // ints on my machine.
+        static const char max_digits_by_log2[] = {
+            1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,
+            6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10,
+            10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15,
+            15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20
+        };
+
+        if constexpr (sizeof(T) == 4) {
+            // We somehow need to skip leading zeroes. Do that by computing decimal length
+            // separately.
+            static const uint32_t powers_of_ten[] = {
+                0,
+                10,
+                100,
+                1000,
+                10000,
+                100000,
+                1000000,
+                10000000,
+                100000000,
+                1000000000,
+                // 10000000000,
+                // 100000000000,
+                // 1000000000000,
+                // 10000000000000,
+                // 100000000000000,
+                // 1000000000000000,
+                // 10000000000000000,
+                // 100000000000000000,
+                // 1000000000000000000,
+                // 10000000000000000000U
+            };
+            int digits = max_digits_by_log2[
+                // This compiles to a single instruction on x64.
+                31 - __builtin_clz(abs)
+            ];
+            digits -= abs < powers_of_ten[digits - 1];
+
+            // This is a variation on Terje Mathisen's algorithm. See
+            // http://computer-programming-forum.com/46-asm/7aa4b50bce8dd985.htm
+
+            // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the
+            // low 57 low bits are the real part. 7 bits are used because that's the shortest amount
+            // of bits 99 fits in.
+
+            // abs / 1e8 in fixed point. 2^57 / 1e8 is actually 1441151880.7585588..., so we round
+            // it up. This introduces an error. The computed value, when multiplied back by 1e8,
+            // will have the whole part equal to (1441151881e8 * abs) >> 57. We want this to be less
+            // than 1 far from abs, i.e.
+            //     (1441151881e8 * abs) >> 57 - abs < 1,
+            // or
+            //     (1441151881e8 - 2^57) * abs < 2^57.
+            // Luckily, this is true from all abs up to 2^32.
+            uint64_t n = (uint64_t)1441151881 * abs;
+
+            uint16_t buf[5 + 8];
+            int shift = 57;
+            uint64_t mask = 0x01ffffffffffffff;
+#pragma GCC unroll 5
+            for (int i = 0; i < 5; i++) {
+                buf[i] = ((uint16_t*)decimal_lut)[n >> shift];
+                n = (n & mask) * 25;
+                shift -= 2;
+                mask >>= 2;
+            }
+
+            memcpy(ptr, (NonAliasingChar*)buf + 10 - digits, 16);
+            ptr += digits;
+            return;
+        }
+
+        // This is vitaut's algoithm. It's faster than write_int_split on random 64-bit ints on my
+        // machine.
         char buf[20 + 32];
         char* p = buf + 20;
         while (abs >= 100) {
@@ -929,7 +996,7 @@ struct blazingio_ostream {
         // At least it isn't \write18...
         auto write12 = [&]() {
             auto x = uint64_t(value * 1e12);
-            write_int_split<uint64_t, 12, 12>(x, x);
+            write_int_split<uint64_t, 12>(x, x, ptr);
         };
         if (!value)
             return print('0');

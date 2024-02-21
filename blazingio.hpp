@@ -904,6 +904,60 @@ struct blazingio_ostream {
             15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20
         };
 
+        if constexpr (sizeof(T) == 1) {
+            int digits = (abs >= 10) + (abs >= 100);
+
+            NonAliasingChar buf[3 + 3];
+            memcpy(buf, decimal_lut + abs / 10 * 2, 2);
+            buf[2] = '0' + abs % 10;
+            memcpy(ptr, buf + 3 - digits, 4);
+            ptr += digits;
+            return;
+        }
+
+        if constexpr (sizeof(T) == 2) {
+            // We somehow need to skip leading zeroes. Do that by computing decimal length
+            // separately.
+            static const uint16_t powers_of_ten[] = {
+                0,
+                10,
+                100,
+                1000,
+                10000,
+            };
+            int digits = max_digits_by_log2[
+                // This compiles to a single instruction on x64.
+                31 - __builtin_clz(abs)
+            ];
+            digits -= abs < powers_of_ten[digits - 1];
+
+            // abs / 1e4 in fixed point
+            uint64_t n = 14411518807586ULL * abs;
+
+            NonAliasingChar buf[5 + 7];
+            int shift = 57;
+            uint64_t mask = 0x01ffffffffffffff;
+
+            buf[0] = '0' + (n >> shift);
+            n = (n & mask) * 25;
+            shift -= 2;
+            mask >>= 2;
+
+            memcpy(buf + 1, decimal_lut + (n >> shift) * 2, 2);
+            n = (n & mask) * 25;
+            shift -= 2;
+            mask >>= 2;
+
+            memcpy(buf + 3, decimal_lut + (n >> shift) * 2, 2);
+            n = (n & mask) * 25;
+            shift -= 2;
+            mask >>= 2;
+
+            memcpy(ptr, buf + 5 - digits, 8);
+            ptr += digits;
+            return;
+        }
+
         if constexpr (sizeof(T) == 4) {
             // We somehow need to skip leading zeroes. Do that by computing decimal length
             // separately.

@@ -892,17 +892,12 @@ struct blazingio_ostream {
             return;
         }
 
-        make_unsigned_t<T> abs = value;
+        using AbsT = make_unsigned_t<T>;
+
+        AbsT abs = value;
         if (value < 0)
             print('-'),
             abs = NEGATE_MAYBE_UNSIGNED(abs);
-
-        static const char max_digits_by_log2[] = {
-            1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,
-            6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10,
-            10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15,
-            15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20
-        };
 
         if constexpr (sizeof(T) == 1) {
             int digits = (abs >= 10) + (abs >= 100);
@@ -915,87 +910,66 @@ struct blazingio_ostream {
             return;
         }
 
-        if constexpr (sizeof(T) == 2) {
-            // We somehow need to skip leading zeroes. Do that by computing decimal length
-            // separately.
-            static const uint16_t powers_of_ten[] = {
-                0,
-                10,
-                100,
-                1000,
-                10000,
-            };
-            int digits = max_digits_by_log2[
-                // This compiles to a single instruction on x64.
-                31 - __builtin_clz(abs)
-            ];
-            digits -= abs < powers_of_ten[digits - 1];
+        static constexpr char max_digits_by_log2[] = {
+            1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,
+            6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10,
+            10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15,
+            15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20
+        };
 
+        // We somehow need to skip leading zeroes. Do that by computing decimal length separately.
+        static constexpr auto powers_of_ten = []() {
+            array<AbsT, sizeof(T) == 2 ? 5 : 10> powers_of_ten{};
+            AbsT n = 1;
+            for (int i = 1; i < powers_of_ten.size(); i++) {
+                n *= 10;
+                powers_of_ten[i] = n;
+            }
+            return powers_of_ten;
+        }();
+        int digits = max_digits_by_log2[
+            // This compiles to a single instruction on x64.
+            31 - __builtin_clz(abs)
+        ];
+        digits -= abs < powers_of_ten[digits - 1];
+
+        // This is a variation on Terje Mathisen's algorithm. See
+        // http://computer-programming-forum.com/46-asm/7aa4b50bce8dd985.htm
+
+        // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the low
+        // 57 low bits are the real part. 7 bits are used because that's the shortest amount of bits
+        // 99 fits in.
+
+        if constexpr (sizeof(T) == 2) {
             // abs / 1e4 in fixed point
             uint64_t n = 14411518807586ULL * abs;
 
-            NonAliasingChar buf[5 + 7];
             int shift = 57;
             uint64_t mask = 0x01ffffffffffffff;
 
-            buf[0] = '0' + (n >> shift);
+            uint64_t buf = '0' + (n >> shift);
             n = (n & mask) * 25;
             shift -= 2;
             mask >>= 2;
 
-            memcpy(buf + 1, decimal_lut + (n >> shift) * 2, 2);
+            buf |= (uint64_t)((uint16_t*)decimal_lut)[n >> shift] << 8;
             n = (n & mask) * 25;
             shift -= 2;
             mask >>= 2;
 
-            memcpy(buf + 3, decimal_lut + (n >> shift) * 2, 2);
+            buf |= (uint64_t)((uint16_t*)decimal_lut)[n >> shift] << 24;
             n = (n & mask) * 25;
             shift -= 2;
             mask >>= 2;
 
-            memcpy(ptr, buf + 5 - digits, 8);
+            buf >>= (5 - digits) * 8;
+
+            *(uint64_t*)ptr = buf;
             ptr += digits;
             return;
         }
 
         if constexpr (sizeof(T) == 4) {
-            // We somehow need to skip leading zeroes. Do that by computing decimal length
-            // separately.
-            static const uint32_t powers_of_ten[] = {
-                0,
-                10,
-                100,
-                1000,
-                10000,
-                100000,
-                1000000,
-                10000000,
-                100000000,
-                1000000000,
-                // 10000000000,
-                // 100000000000,
-                // 1000000000000,
-                // 10000000000000,
-                // 100000000000000,
-                // 1000000000000000,
-                // 10000000000000000,
-                // 100000000000000000,
-                // 1000000000000000000,
-                // 10000000000000000000U
-            };
-            int digits = max_digits_by_log2[
-                // This compiles to a single instruction on x64.
-                31 - __builtin_clz(abs)
-            ];
-            digits -= abs < powers_of_ten[digits - 1];
-
-            // This is a variation on Terje Mathisen's algorithm. See
-            // http://computer-programming-forum.com/46-asm/7aa4b50bce8dd985.htm
-
-            // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the
-            // low 57 low bits are the real part. 7 bits are used because that's the shortest amount
-            // of bits 99 fits in.
-
             // abs / 1e8 in fixed point. 2^57 / 1e8 is actually 1441151880.7585588..., so we round
             // it up. This introduces an error. The computed value, when multiplied back by 1e8,
             // will have the whole part equal to (1441151881e8 * abs) >> 57. We want this to be less
@@ -1004,7 +978,7 @@ struct blazingio_ostream {
             // or
             //     (1441151881e8 - 2^57) * abs < 2^57.
             // Luckily, this is true from all abs up to 2^32.
-            uint64_t n = (uint64_t)1441151881 * abs;
+            uint64_t n = 1441151881ULL * abs;
 
             uint16_t buf[5 + 8];
             int shift = 57;

@@ -862,28 +862,6 @@ struct blazingio_ostream {
         *ptr++ = '0' + value;
     }
 
-    template<typename T, int Digits, T Factor = 1>
-    void write_int_split(T value, T interval, NonAliasingChar*& p) {
-        if constexpr (Digits == 1) {
-            *p++ = '0' + interval;
-        } else if constexpr (Digits == 2) {
-            *p++ = decimal_lut[interval] & 0xff;
-            *p++ = decimal_lut[interval] >> 8;
-        } else {
-            constexpr auto computed = []() {
-                int low_digits = 1;
-                T coeff = 10;
-                while ((low_digits *= 2) < Digits)
-                    coeff *= coeff;
-                return pair{low_digits / 2, coeff};
-            }();
-            constexpr int low_digits = computed.first;
-            constexpr T coeff = computed.second;
-            write_int_split<T, Digits - low_digits, T(Factor * coeff)>(value, interval / coeff, p);
-            write_int_split<T, low_digits, Factor>(value, interval % coeff, p);
-        }
-    }
-
     template<typename T>
     // We can't use decltype((void)T{1}) here because that's going to conflict with std::string.
     enable_if_t<is_integral_v<T>> print(T value) {
@@ -995,17 +973,17 @@ struct blazingio_ostream {
             // better.
             //
             // We shall approximate 'abs * 2^64 * 1e-18' as
-            //     ((abs * (2^128 // 10^18 + 1)) >> 64) + 1
+            //     ((abs * (2^128 // 1e18 + 1)) >> 64) + 1
             // This is clearly an upper bound. How precise is it? Just like in the 32-bit case, we
             // want
             //     (((((abs * 340282366920938463464) >> 64) + 1) * 1e18) >> 64) - abs < 1
             // This translates to
             //     (((abs * 340282366920938463464) >> 64) + 1) * 1e18 < (abs + 1) * 2^64,
             // which follows from
-            //     abs * 340282366920938463464 / 2^64 * 1e18 < (abs + 1) * 2^64,
+            //     (abs * 340282366920938463464 / 2^64 + 1) * 1e18 < (abs + 1) * 2^64,
             // which is clearly true because
-            //     abs * (340282366920938463464e18 - 2^128) < 2^128
-            // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of 2^128. We
+            //     abs * (340282366920938463464e18 - 2^128) < 2^128 - 2^64 * 1e18
+            // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We
             // prefer 2^128 to slightly lower powers because this enables us to replace right-shift
             // by 64 with a single register read.
             auto n = (__int128)18 * abs + (((__int128)8240973594166534376 * abs) >> 64) + 1;
@@ -1031,7 +1009,29 @@ struct blazingio_ostream {
         // At least it isn't \write18...
         auto write12 = [&]() {
             auto x = uint64_t(value * 1e12);
-            write_int_split<uint64_t, 12>(x, x, ptr);
+
+            // This is a variation on Terje Mathisen's algorithm, just like in integer output. The
+            // reason for yet another reimplementation in this lambda as opposed to reusing existing
+            // code is because 'x' contains just 12 digits, not 20 supported by the general
+            // implementation, and that lets us use a less precise approximation.
+
+            // We shall approximate 'abs * 2^64 * 1e-10' as
+            //     ((abs * (2^72 // 1e10 + 1)) >> 8) + 1
+            // This is clearly an upper bound. To be correct, we want
+            //     (((((abs * 472236648287) >> 8) + 1) * 1e10) >> 64) - abs < 1
+            // This translates to
+            //     (((abs * 472236648287) >> 8) + 1) * 1e10 < (abs + 1) * 2^64
+            // which follows from
+            //     (abs * 472236648287 / 2^8 + 1) * 1e10 < (abs + 1) * 2^64
+            // which is clearly true because
+            //     abs * (472236648287e10 - 2^72) < 2^72 - 2^8 * 1e10
+            // holds for all abs up to 1e12. We choose 72 as the initial precision instead of
+            // something bigger to reduce length of the constant in source code.
+            auto n = ((__int128)472236648287 * x >> 8) + 1;
+            for (int i = 0; i < 6; i++)
+                memcpy(ptr, decimal_lut + (n >> 64), 2),
+                ptr += 2,
+                n = (n & ~0ULL) * 100;
         };
         if (!value)
             return print('0');

@@ -379,7 +379,6 @@ def repl(s):
         ("decimal_lut", "A"),
         ("n_written", "A"),
         ("computed", "A"),
-        ("write12", "A"),
         ("func", "A"),
         ("yes", "A"),
         ("mmaped_region_size", "A"),
@@ -439,6 +438,7 @@ def repl(s):
         ("write_int_split", "G"),
         ("arg2", "G"),
         ("digits", "G"),
+        ("write12", "G"),
 
         ("end", "H"),
         ("coeff", "H"),

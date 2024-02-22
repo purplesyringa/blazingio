@@ -41,6 +41,7 @@
 #include<sys/stat.h>
 #include $w(<io.h>,<unistd.h>)
 #ifdef _MSC_VER
+#include<__msvc_int128.hpp>
 #define int128_t _Signed128
 #define $s
 #else

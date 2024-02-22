@@ -755,7 +755,7 @@ struct blazingio_istream {
 };
 !endif
 
-char decimal_lut[200];
+uint16_t decimal_lut[100];
 
 struct blazingio_ostream {
     char* base;
@@ -790,8 +790,7 @@ struct blazingio_ostream {
         ptr = (NonAliasingChar*)base;
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++)
-            decimal_lut[i * 2] = char('0' + i / 10),
-            decimal_lut[i * 2 + 1] = char('0' + i % 10);
+            decimal_lut[i] = ('0' + i / 10) | (('0' + i % 10) << 8);
     }
     ~blazingio_ostream() {
 !ifdef INTERACTIVE
@@ -865,8 +864,8 @@ struct blazingio_ostream {
         if constexpr (Digits == 1) {
             *p++ = '0' + interval;
         } else if constexpr (Digits == 2) {
-            *p++ = decimal_lut[interval * 2];
-            *p++ = decimal_lut[interval * 2 + 1];
+            *p++ = decimal_lut[interval] & 0xff;
+            *p++ = decimal_lut[interval] >> 8;
         } else {
             constexpr auto computed = []() {
                 int low_digits = 1;
@@ -904,7 +903,7 @@ struct blazingio_ostream {
             int digits = 1 + (abs >= 10) + (abs >= 100);
 
             NonAliasingChar buf[3 + 3];
-            memcpy(buf, decimal_lut + abs / 10 * 2, 2);
+            memcpy(buf, decimal_lut + abs / 10, 2);
             buf[2] = '0' + abs % 10;
             memcpy(ptr, buf + 3 - digits, 4);
             ptr += digits;
@@ -955,10 +954,10 @@ struct blazingio_ostream {
             // theoretical value, which is a ridiculously small error, so the check still passes.
             uint32_t n = 33555 * abs - abs / 2;
 
-            uint64_t buf = ((uint16_t*)decimal_lut)[n >> 25];
+            uint64_t buf = decimal_lut[n >> 25];
             n = (n & 0x01ffffff) * 25;
 
-            buf |= ((uint16_t*)decimal_lut)[n >> 23] << 16;
+            buf |= decimal_lut[n >> 23] << 16;
             n = (n & 0x007fffff) * 5;
 
             buf |= (uint64_t)('0' + (n >> 22)) << 32;
@@ -990,13 +989,13 @@ struct blazingio_ostream {
             uint64_t mask = 0x01ffffffffffffff;
 #pragma GCC unroll 5
             for (int i = 0; i < 5; i++) {
-                buf[i] = ((uint16_t*)decimal_lut)[n >> shift];
+                buf[i] = decimal_lut[n >> shift];
                 n = (n & mask) * 25;
                 shift -= 2;
                 mask >>= 2;
             }
 
-            // Always copying 16 bytes enables us to always mov ymmword as opposed to multiple
+            // Always copying 16 bytes enables us to always mov xmmword as opposed to multiple
             // instructions.
             memcpy(ptr, (NonAliasingChar*)buf + 10 - digits, 16);
             ptr += digits;
@@ -1034,11 +1033,11 @@ struct blazingio_ostream {
         uint16_t buf[10 + 10];
 #pragma GCC unroll 10
         for (int i = 0; i < 10; i++) {
-            buf[i] = ((uint16_t*)decimal_lut)[n >> 64];
+            buf[i] = decimal_lut[n >> 64];
             n = (__int128)(uint64_t)n * 100;
         }
 
-        // Always copying 20 bytes enables us to always mov ymmword+r32 as opposed to multiple
+        // Always copying 20 bytes enables us to always mov xmmword+r32 as opposed to multiple
         // instructions.
         memcpy(ptr, (NonAliasingChar*)buf + 20 - digits, 20);
         ptr += digits;

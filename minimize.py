@@ -376,17 +376,15 @@ def repl(s):
         ("line", "A"),
         ("real_part", "A"),
         ("file", "A"),
-        # ("decimal_lut", "A"),
+        ("decimal_lut", "A"),
         ("n_written", "A"),
         ("computed", "A"),
-        ("abs", "A"),
         ("write12", "A"),
         ("func", "A"),
         ("yes", "A"),
         ("mmaped_region_size", "A"),
         ("exception_info", "A"),
         ("do_trace", "A"),
-        # ("mask", "A"),
         ("length", "A"),
 
         ("NonAliasingChar", "B"),
@@ -412,6 +410,7 @@ def repl(s):
         ("zipped", "C"),
         ("exception_record", "C"),
         ("handle", "C"),
+        ("abs", "C"),
 
         ("line_t", "D"),
         ("base", "D"),
@@ -421,6 +420,7 @@ def repl(s):
         ("table", "D"),
         ("arg1", "D"),
         ("stat_buf", "D"),
+        ("AbsT", "D"),
 
         ("buffer", "E"),
         ("interval", "E"),
@@ -432,23 +432,29 @@ def repl(s):
         ("print", "F"),
         ("low_digits", "F"),
         ("likely_regular_file", "F"),
+        ("powers_of_ten", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),
         ("write_int_split", "G"),
         ("arg2", "G"),
+        ("digits", "G"),
 
         ("end", "H"),
         ("coeff", "H"),
+        ("buf", "H"),
 
         ("ptr", "I"),
 
         ("blazingio_istream", "J"),
+        ("mask", "J"),
 
         ("value", "K"),
         ("init_assume_file", "K"),
+        ("shift", "K"),
 
         ("init_assume_interactive", "L"),
+        ("max_digits_by_log2", "L"),
 
         ("fetch", "M"),
 

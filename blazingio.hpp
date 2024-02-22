@@ -895,8 +895,8 @@ struct blazingio_ostream {
 
         // We somehow need to skip leading zeroes. Do that by computing decimal length separately.
         int digits = max_digits_by_log2[
-            // This compiles to a single instruction on x64.
-            63 - __builtin_clzll(abs)
+            // This compiles to a single instruction on x64. |1 is to handle abs == 0 gracefully.
+            63 ^ __builtin_clzll(abs | 1)
         ];
         digits -= abs < powers_of_ten[digits - 1];
 

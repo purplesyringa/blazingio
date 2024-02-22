@@ -469,9 +469,7 @@ def repl(s):
 
         ("BITSET_SHIFT", "R"),
 
-        ("input_string_impl", "S"),
-
-        ("input_line_impl", "T"),
+        ("int128_t", "S"),
 
         ("NULL", "0"),
         ("false", "0"),

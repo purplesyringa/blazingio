@@ -34,11 +34,11 @@
 @ondemand windows-*
 #ifdef _MSC_VER
 #include <__msvc_int128.hpp>
-#define int128_t _Signed128
+using int128_t = _Signed128;
 UNSET_SIMD
 #else
 @end
-#define int128_t __int128
+using int128_t = __int128;
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))
 @case *-x86+sse4.1 __attribute__((target("sse4.1")))

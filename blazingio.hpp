@@ -31,7 +31,6 @@
 !define UNSET_SIMD #define SIMD
 @end
 
-@ondemand windows-*
 #ifdef _MSC_VER
 #include <__msvc_int128.hpp>
 #define int128_t _Signed128
@@ -996,7 +995,7 @@ struct blazingio_ostream {
             auto n = int128_t{18} * abs + ((int128_t{8240973594166534376} * abs) >> 64) + 1;
 
             for (int i = 0; i < 10; i++)
-                buf[i] = decimal_lut[n >> 64],
+                buf[i] = decimal_lut[int(n >> 64)],
                 n = (n & ~0ULL) * 100;
 
             // Always copying 20 bytes enables us to always mov xmmword+r32 as opposed to multiple
@@ -1036,7 +1035,7 @@ struct blazingio_ostream {
             // something bigger to reduce length of the constant in source code.
             auto n = (int128_t{472236648287} * x >> 8) + 1;
             for (int i = 0; i < 6; i++)
-                memcpy(ptr, decimal_lut + (n >> 64), 2),
+                memcpy(ptr, decimal_lut + int(n >> 64), 2),
                 ptr += 2,
                 n = (n & ~0ULL) * 100;
         };

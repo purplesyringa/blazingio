@@ -26,29 +26,25 @@
 @case windows-* <io.h>
 @end
 
-!define UNLESS_MSVC_START1
-!define UNLESS_MSVC_START2
-!define UNLESS_MSVC_START3
-!define UNLESS_MSVC_END
-@ondemand windows-*
-!define UNLESS_MSVC_START1 #ifdef _MSC_VER
-!define UNLESS_MSVC_START2 #define SIMD
-!define UNLESS_MSVC_START3 #else
-!define UNLESS_MSVC_END #endif
+!define UNSET_SIMD
+@ondemand *-x86+avx2,*-x86+sse4.1
+!define UNSET_SIMD #define SIMD
 @end
 
-@ondemand *-x86+avx2,*-x86+sse4.1
-UNLESS_MSVC_START1
-UNLESS_MSVC_START2
-UNLESS_MSVC_START3
+@ondemand windows-*
+#ifdef _MSC_VER
+#define int128_t _Signed128
+UNSET_SIMD
+#else
 @end
+#define int128_t __int128
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))
 @case *-x86+sse4.1 __attribute__((target("sse4.1")))
 @case *-x86+none,*-aarch64
 @end
-@ondemand *-x86+avx2,*-x86+sse4.1
-UNLESS_MSVC_END
+@ondemand windows-*
+#endif
 @end
 
 @define SIMD_SIZE
@@ -986,7 +982,7 @@ struct blazingio_ostream {
             // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We
             // prefer 2^128 to slightly lower powers because this enables us to replace right-shift
             // by 64 with a single register read.
-            auto n = (__int128)18 * abs + (((__int128)8240973594166534376 * abs) >> 64) + 1;
+            auto n = int128_t{18} * abs + ((int128_t{8240973594166534376} * abs) >> 64) + 1;
 
             for (int i = 0; i < 10; i++)
                 buf[i] = decimal_lut[n >> 64],
@@ -1027,7 +1023,7 @@ struct blazingio_ostream {
             //     abs * (472236648287e10 - 2^72) < 2^72 - 2^8 * 1e10
             // holds for all abs up to 1e12. We choose 72 as the initial precision instead of
             // something bigger to reduce length of the constant in source code.
-            auto n = ((__int128)472236648287 * x >> 8) + 1;
+            auto n = (int128_t{472236648287} * x >> 8) + 1;
             for (int i = 0; i < 6; i++)
                 memcpy(ptr, decimal_lut + (n >> 64), 2),
                 ptr += 2,

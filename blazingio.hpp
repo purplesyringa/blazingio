@@ -891,16 +891,17 @@ struct blazingio_ostream {
             print('-'),
             abs = NEGATE_MAYBE_UNSIGNED(abs);
 
+!ifndef CHAR_WITH_SIGN_IS_GLYPH
         if constexpr (sizeof(T) == 1) {
             int digits = 1 + (abs >= 10) + (abs >= 100);
-
-            NonAliasingChar buf[3 + 3];
+            NonAliasingChar buf[6];
             memcpy(buf, decimal_lut + abs / 10, 2);
             buf[2] = '0' + abs % 10;
             memcpy(ptr, buf + 3 - digits, 4);
             ptr += digits;
             return;
         }
+!endif
 
         static constexpr char max_digits_by_log2[] = {
             1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,

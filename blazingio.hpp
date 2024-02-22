@@ -1,6 +1,4 @@
-!ifdef FLOAT
 #include <array>
-!endif
 !ifdef BITSET
 #include <bitset>
 !endif
@@ -903,7 +901,7 @@ struct blazingio_ostream {
         // return;
 
         if constexpr (sizeof(T) == 1) {
-            int digits = (abs >= 10) + (abs >= 100);
+            int digits = 1 + (abs >= 10) + (abs >= 100);
 
             NonAliasingChar buf[3 + 3];
             memcpy(buf, decimal_lut + abs / 10 * 2, 2);
@@ -922,9 +920,9 @@ struct blazingio_ostream {
 
         // We somehow need to skip leading zeroes. Do that by computing decimal length separately.
         static constexpr auto powers_of_ten = []() {
-            array<AbsT, sizeof(T) == 2 ? 5 : 10> powers_of_ten{};
+            array<AbsT, sizeof(T) == 2 ? 5 : sizeof(T) == 4 ? 10 : 20> powers_of_ten{};
             AbsT n = 1;
-            for (int i = 1; i < powers_of_ten.size(); i++) {
+            for (size_t i = 1; i < powers_of_ten.size(); i++) {
                 n *= 10;
                 powers_of_ten[i] = n;
             }
@@ -932,7 +930,7 @@ struct blazingio_ostream {
         }();
         int digits = max_digits_by_log2[
             // This compiles to a single instruction on x64.
-            31 - __builtin_clz(abs)
+            63 - __builtin_clzll(abs)
         ];
         digits -= abs < powers_of_ten[digits - 1];
 
@@ -949,7 +947,7 @@ struct blazingio_ostream {
             // 33554.5 as the factor. The computed value, when multiplied back by 1e3, will have the
             // whole part equal to (33554.5e3 * abs) >> 25. We want this to be less than 1 far from
             // abs, i.e.
-            //     (33554.5e3 * abs) >> 25 - abs < 1,
+            //     ((33554.5e3 * abs) >> 25) - abs < 1,
             // or
             //     (33554.5e3 - 2^25) * abs < 2^25.
             // Luckily, this is true from all abs up to 2^16.
@@ -965,6 +963,8 @@ struct blazingio_ostream {
 
             buf |= (uint64_t)('0' + (n >> 22)) << 32;
 
+            buf >>= (5 - digits) * 8;
+
             *(uint64_t*)ptr = buf;
             ptr += digits;
             return;
@@ -979,7 +979,7 @@ struct blazingio_ostream {
             // it up. This introduces an error. The computed value, when multiplied back by 1e8,
             // will have the whole part equal to (1441151881e8 * abs) >> 57. We want this to be less
             // than 1 far from abs, i.e.
-            //     (1441151881e8 * abs) >> 57 - abs < 1,
+            //     ((1441151881e8 * abs) >> 57) - abs < 1,
             // or
             //     (1441151881e8 - 2^57) * abs < 2^57.
             // Luckily, this is true from all abs up to 2^32.
@@ -1003,23 +1003,45 @@ struct blazingio_ostream {
             return;
         }
 
-        // This is vitaut's algoithm. It's faster than write_int_split on random 64-bit ints on my
-        // machine.
-        char buf[20 + 32];
-        char* p = buf + 20;
-        while (abs >= 100) {
-            T lower = abs % 100;
-            *--p = decimal_lut[lower * 2 + 1];
-            *--p = decimal_lut[lower * 2];
-            abs /= 100;
-        }
-        *--p = decimal_lut[abs * 2 + 1];
-        if (abs >= 10) {
-            *--p = decimal_lut[abs * 2];
+        // This is a variation on James Anhalt's algorithm. See
+        // https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
+
+        // We use a 128-bit fixed-point format here. 7.121 would be inefficient because there are no
+        // 128-bit operations in x86, but 64.64 works just fine because there is mul r64, and
+        // extracting the whole and real parts is just a question of using this or that register.
+        //
+        // We want to compute abs / 1e18 in fixed point. We could compute that as
+        //     abs * (2^64 // 1e18 + 1),
+        // but the approximation of 1e-18 in 64.64 is way too imprecise for large 'abs': it's just
+        // 19. However, is that not too few bits compared to the seemingly suficient 64? Indeed, the
+        // cause of the problem is not the precision of the fixed-point format, but double rounding.
+        // If 1e-18 itself wasn't rounded initially, the accuracy would be much better.
+        //
+        // We shall approximate 'abs * 2^64 * 1e-18' as '((abs * (2^128 // 10^18 + 1)) >> 64) + 1'.
+        // This is clearly an upper bound. How precise is it? Just like in the 32-bit case, we want
+        //     (((((abs * 340282366920938463464) >> 64) + 1) * 1e18) >> 64) - abs < 1
+        // This translates to
+        //     (((abs * 340282366920938463464) >> 64) + 1) * 1e18 < (abs + 1) * 2^64,
+        // which follows from
+        //     abs * 340282366920938463464 / 2^64 * 1e18 < (abs + 1) * 2^64,
+        // which is clearly true because
+        //     abs * (340282366920938463464e18 - 2^128) < 2^128
+        // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of 2^128. We prefer
+        // 2^128 to slightly lower powers because this enables us to replace right-shift by 64 with
+        // a single register read.
+        auto n = (__int128)18 * abs + (((__int128)8240973594166534376 * abs) >> 64) + 1;
+
+        uint16_t buf[10 + 10];
+#pragma GCC unroll 10
+        for (int i = 0; i < 10; i++) {
+            buf[i] = ((uint16_t*)decimal_lut)[n >> 64];
+            n = (__int128)(uint64_t)n * 100;
         }
 
-        memcpy(ptr, p, 32);
-        ptr += buf + 20 - p;
+        // Always copying 20 bytes enables us to always mov ymmword+r32 as opposed to multiple
+        // instructions.
+        memcpy(ptr, (NonAliasingChar*)buf + 20 - digits, 20);
+        ptr += digits;
     }
 
 !ifdef FLOAT

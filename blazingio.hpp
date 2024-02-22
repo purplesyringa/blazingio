@@ -884,20 +884,12 @@ struct blazingio_ostream {
     template<typename T>
     // We can't use decltype((void)T{1}) here because that's going to conflict with std::string.
     enable_if_t<is_integral_v<T>> print(T value) {
-        if (value == 0) {
-            print('0');
-            return;
-        }
-
         using AbsT = make_unsigned_t<T>;
 
         AbsT abs = value;
         if (value < 0)
             print('-'),
             abs = NEGATE_MAYBE_UNSIGNED(abs);
-
-        // write_int_split<uint32_t, 10>(value, value, ptr);
-        // return;
 
         if constexpr (sizeof(T) == 1) {
             int digits = 1 + (abs >= 10) + (abs >= 100);

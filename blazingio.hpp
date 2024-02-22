@@ -890,9 +890,19 @@ struct blazingio_ostream {
         }();
 
         // We somehow need to skip leading zeroes. Do that by computing decimal length separately.
+@match
+@case linux-*,macos-*
+@case windows-*
+        ULONG ilog2;
+@end
         int digits = max_digits_by_log2[
+@match
+@case windows-*
+            (_BitScanReverse64(&ilog2, abs | 1), ilog2)
+@case linux-*,macos-*
             // This compiles to a single instruction on x64. |1 is to handle abs == 0 gracefully.
             63 ^ __builtin_clzll(abs | 1)
+@end
         ];
         digits -= abs < powers_of_ten[digits - 1];
 

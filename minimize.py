@@ -457,6 +457,7 @@ def repl(s):
         ("max_digits_by_log2", "L"),
 
         ("fetch", "M"),
+        ("ilog2", "M"),
 
         ("collect_digits", "N"),
 

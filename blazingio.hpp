@@ -31,6 +31,7 @@
 !define UNSET_SIMD #define SIMD
 @end
 
+@ondemand windows-*
 #ifdef _MSC_VER
 #include <__msvc_int128.hpp>
 #define int128_t _Signed128

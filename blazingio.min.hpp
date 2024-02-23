@@ -42,7 +42,7 @@
 #include $w(<io.h>,<unistd.h>)
 #ifdef _MSC_VER
 #include<__msvc_int128.hpp>
-using $Z=_Signed128;
+#define $Z _Signed128
 #define $s
 #else
 #define $Z __int128

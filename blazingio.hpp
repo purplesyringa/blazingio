@@ -1052,7 +1052,7 @@ struct SPLIT_HERE blazingio_ostream {
                 uint32_t n = ((429497ULL * b[i]) >> 7) + 1;
                 NonAliasingChar* p = buf + i * 5;
                 *p = '0' + (n >> 25);
-                n = (n & (~0U >> 7)) * 5;
+                n = (n & (~0U >> 7)) * 25;
                 memcpy(p + 1, decimal_lut + (n >> 23), 2);
                 memcpy(p + 3, decimal_lut + (((n & (~0U >> 9)) * 25) >> 21), 2);
             }

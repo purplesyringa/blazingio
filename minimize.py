@@ -146,11 +146,11 @@ def generate_multicase_code(cases):
         ),
     ]
 
-    def codegen(cases):
+    def codegen(cases, external = False):
         assert cases
         if all(case[2:] == cases[0][2:] for case in cases):
             _, _, code, flags = cases[0]
-            if "wrap" in flags:
+            if "wrap" in flags and not external:
                 needed_factor_macros.add("UNWRAP")
                 code = f"UNWRAP({code})"
             return code
@@ -165,7 +165,7 @@ def generate_multicase_code(cases):
         return min(variants, key=len)
 
     try:
-        return codegen(filtered_cases)
+        return codegen(filtered_cases, True)
     except StopIteration:
         raise ValueError(f"Cannot factor cases {filtered_cases}") from None
 

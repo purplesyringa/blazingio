@@ -1046,7 +1046,7 @@ struct SPLIT_HERE blazingio_ostream {
             //     (((429497 * b) >> 7) + 1) * 1e4 < (1 + b) * 2^25,
             // which follows from
             //     (429497e4 - 2^32) * b < 2^32 - 1e4 * 2^7,
-            // which is true for b up to 1e5.
+            // which is true for b up to 1e5 (and 1e6, really).
             NonAliasingChar buf[40];
             for (int i = 0; i < 4; i++) {
                 uint32_t n = ((429497ULL * b[i]) >> 7) + 1;
@@ -1076,6 +1076,8 @@ struct SPLIT_HERE blazingio_ostream {
         auto write12 = [&]() {
             auto x = uint64_t(value * 1e12);
 
+@match
+@case *-x86_64,*-aarch64 wrap
             // This is a variation on Terje Mathisen's algorithm, just like in integer output. The
             // reason for yet another reimplementation in this lambda as opposed to reusing existing
             // code is because 'x' contains just 12 digits, not 20 supported by the general
@@ -1098,6 +1100,23 @@ struct SPLIT_HERE blazingio_ostream {
                 memcpy(ptr, decimal_lut + int(n >> 64), 2),
                 ptr += 2,
                 n = (n & ~0ULL) * 100;
+@case *-i386 wrap
+            // Split the 12-digit integer into two 6-digit parts. Then for each part x, apply the
+            // same algorithm as the one used in u64.
+            uint32_t n[] {
+                uint32_t((x / 1000000 * 429497) >> 7) + 1,
+                uint32_t((x % 1000000 * 429497) >> 7) + 1
+            };
+            int shift = 25, mask = ~0U >> 7;
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 2; j++)
+                    memcpy(ptr + i * 2 + j * 6, decimal_lut + (n[j] >> shift), 2),
+                    n[j] = (n[j] & mask) * 25;
+                shift -= 2;
+                mask >>= 2;
+            }
+            ptr += 12;
+@end
         };
         if (!value)
             return print('0');

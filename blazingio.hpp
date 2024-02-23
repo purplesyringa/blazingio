@@ -38,7 +38,7 @@ using int128_t = _Signed128;
 UNSET_SIMD
 #else
 @end
-using int128_t = __int128;
+#define int128_t __int128
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))
 @case *-x86+sse4.1 __attribute__((target("sse4.1")))
@@ -679,7 +679,7 @@ struct istream_impl {
     }
 !endif
 
-    template<typename SPLIT_HERE T>
+    template<typename T>
 !ifdef INTERACTIVE
     INLINE void rshift_impl(T& value) {
 !else
@@ -755,7 +755,7 @@ struct blazingio_istream {
 uint16_t decimal_lut[100];
 char max_digits_by_log2[64]{1};
 
-struct blazingio_ostream {
+struct SPLIT_HERE blazingio_ostream {
     char* base;
     NonAliasingChar* ptr;
 
@@ -936,6 +936,8 @@ struct blazingio_ostream {
             buf >>= 40 - digits * 8;
             memcpy(ptr, &buf, 8);
         } else if constexpr (sizeof(T) == 4) {
+@match
+@case *-x86_64,*-aarch64 wrap
             // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the
             // low 57 low bits are the rneal part. 7 bits are used because that's the shortest
             // amount of bits 99 fits in.
@@ -950,7 +952,6 @@ struct blazingio_ostream {
             // Luckily, this is true from all abs up to 2^32.
             auto n = 1441151881ULL * abs;
 
-            uint16_t buf[13];
             int shift = 57;
             auto mask = ~0ULL >> 7;
             for (int i = 0; i < 5; i++)
@@ -958,11 +959,27 @@ struct blazingio_ostream {
                 n = (n & mask) * 25,
                 shift -= 2,
                 mask >>= 2;
+@case *-i386 wrap
+            // Repeat what's going on in the above case, but use 32.32 for actual computations.
+            // Proof of correctness: we want
+            //     (((((1441151881 * abs) >> 25) + 1) * 1e8) >> 32) - abs < 1,
+            // i.e.
+            //     (((1441151881 * abs) >> 25) + 1) * 1e8 < (abs + 1) * 2^32,
+            // which follows from
+            //     (1441151881e8 - 2^57) * abs < 2^57 - 1e8 * 2^25,
+            // which holds for abs up to 2^32.
+            auto n = ((1441151881ULL * abs) >> 25) + 1;
+            for (int i = 0; i < 5; i++)
+                buf[i] = decimal_lut[n >> 32],
+                n = (n & ~0U) * 100;
+@end
 
             // Always copying 16 bytes enables us to always mov xmmword as opposed to multiple
             // instructions.
             memcpy(ptr, (NonAliasingChar*)buf + 10 - digits, 16);
-        } else {
+        } else /* if constexpr (sizeof(T) == 8) */ {
+@match
+@case *-x86_64,*-aarch64 wrap
             // This part is also based on James Anhalt's algorithm. See
             // https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
 
@@ -998,6 +1015,48 @@ struct blazingio_ostream {
             for (int i = 0; i < 10; i++)
                 buf[i] = decimal_lut[int(n >> 64)],
                 n = (n & ~0ULL) * 100;
+@case *-i386 wrap
+            // The i386 case is hard. We don't even have i128; any attempt to emulate it is going to
+            // be darn slow. We can't really output longs *fast* though, so this part of code is
+            // mostly optimized on a best-effort basis; it's mostly here for feature parity.
+
+            // Guard against people using long long where int suffices
+            if (abs < (1ULL << 32)) {
+                return print((uint32_t)abs);
+            }
+
+            // We'll first perform three divisions to split the number as follows:
+            //     01234|56789|01234|56789
+            // Each of the groups can then be resolved in 7.25 fixed point numbers.
+            uint64_t a_coeff = 1e10;
+            auto x = abs / a_coeff, y = abs % a_coeff;
+            int b_coeff = 1e5, b[] {
+                int(x / b_coeff),
+                int(x % b_coeff),
+                int(y / b_coeff),
+                int(y % b_coeff)
+            };
+
+            // We wish to compute b / 1e4 in 7.25 fixed point. The precision of the
+            //     2^25 / 1e4 = 3355.4432
+            // approximation is way too low, so we compute it in 32.32 initially. For
+            // correctness we want
+            //     (((((429497 * b) >> 7) + 1) * 1e4) >> 25) - b < 1,
+            // which reduces to
+            //     (((429497 * b) >> 7) + 1) * 1e4 < (1 + b) * 2^25,
+            // which follows from
+            //     (429497e4 - 2^32) * b < 2^32 - 1e4 * 2^7,
+            // which is true for b up to 1e5.
+            NonAliasingChar buf[40];
+            for (int i = 0; i < 4; i++) {
+                uint32_t n = ((429497ULL * b[i]) >> 7) + 1;
+                NonAliasingChar* p = buf + i * 5;
+                *p = '0' + (n >> 25);
+                n = (n & (~0U >> 7)) * 5;
+                memcpy(p + 1, decimal_lut + (n >> 23), 2);
+                memcpy(p + 3, decimal_lut + (((n & (~0U >> 9)) * 25) >> 21), 2);
+            }
+@end
 
             // Always copying 20 bytes enables us to always mov xmmword+r32 as opposed to multiple
             // instructions.

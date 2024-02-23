@@ -129,8 +129,8 @@ def generate_multicase_code(cases):
         lambda cases: factor_out(
             cases,
             lambda case: case[1] == "*",
-            lambda case: case[1] == "x86_64",
-            "IF_X86_64"
+            lambda case: case[1] == "i386",
+            "IF_I386"
         ),
         lambda cases: factor_out(
             cases,
@@ -252,11 +252,11 @@ if "IF_X86" in needed_factor_macros:
     if "windows" in target_oses:
         cond += " | _M_X64 | _M_I386"
     blazingio = f"#if {cond}\n#define IF_X86(yes, no) yes\n#else\n#define IF_X86(yes, no) no\n#endif\n" + blazingio
-if "IF_X86_64" in needed_factor_macros:
-    cond = "__x86_64__"
+if "IF_I386" in needed_factor_macros:
+    cond = "__i386__"
     if "windows" in target_oses:
-        cond += " | _M_X64"
-    blazingio = f"#if {cond}\n#define IF_X86_64(yes, no) yes\n#else\n#define IF_X86_64(yes, no) no\n#endif\n" + blazingio
+        cond += " | _M_i386"
+    blazingio = f"#if {cond}\n#define IF_I386(yes, no) yes\n#else\n#define IF_I386(yes, no) no\n#endif\n" + blazingio
 if "IF_WINDOWS" in needed_factor_macros:
     blazingio = "#if _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio
 if "IF_MACOS" in needed_factor_macros:
@@ -363,11 +363,12 @@ def repl(s):
         ("SIMD_TYPE", "$t"),
         ("INLINE", "$I"),
         ("FETCH", "$F"),
-        ("IF_X86_64", "$H"),
+        ("IF_I386", "$H"),
         ("IF_X86", "$S"),
         ("IF_WINDOWS", "$w"),
         ("IF_MACOS", "$m"),
         ("UNWRAP", "$u"),
+        ("int128_t", "$Z"),
 
         ("Inner", "A"),
         ("n_read", "A"),
@@ -448,10 +449,12 @@ def repl(s):
 
         ("blazingio_istream", "J"),
         ("mask", "J"),
+        ("a_coeff", "J"),
 
         ("value", "K"),
         ("init_assume_file", "K"),
         ("shift", "K"),
+        ("b_coeff", "K"),
 
         ("init_assume_interactive", "L"),
         ("max_digits_by_log2", "L"),
@@ -468,8 +471,6 @@ def repl(s):
         ("rshift_impl", "Q"),
 
         ("BITSET_SHIFT", "R"),
-
-        ("int128_t", "S"),
 
         ("NULL", "0"),
         ("false", "0"),

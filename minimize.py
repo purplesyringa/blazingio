@@ -291,6 +291,7 @@ consts = {
     "SEEK_SET": 0,
     "SEEK_END": 2,
     "SYS_read": {
+        "linux-i386": 3,
         "linux-x86_64": 0,
         "linux-aarch64": 63,
         # This is not documented anywhere, but it's been this for dozens of years

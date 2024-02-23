@@ -433,7 +433,6 @@ def repl(s):
         ("print", "F"),
         ("low_digits", "F"),
         ("likely_regular_file", "F"),
-        ("powers_of_ten", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),
@@ -464,6 +463,7 @@ def repl(s):
         ("ilog2", "M"),
 
         ("collect_digits", "N"),
+        ("powers_of_ten", "N"),
 
         ("input", "O"),
 

@@ -28,6 +28,7 @@
 
 !define UNSET_SIMD
 @ondemand *-x86+avx2,*-x86+sse4.1
+!undef UNSET_SIMD
 !define UNSET_SIMD #define SIMD
 @end
 
@@ -88,6 +89,7 @@ LONG WINAPI vectored_exception_handler(_EXCEPTION_POINTERS*);
 // dropped.
 !define NEGATE_MAYBE_UNSIGNED(x) -x
 @ondemand windows-*
+!undef NEGATE_MAYBE_UNSIGNED
 !define NEGATE_MAYBE_UNSIGNED(x) 1 + ~x
 @end
 
@@ -821,6 +823,7 @@ struct SPLIT_HERE blazingio_ostream {
         auto stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
 !define WRAP_REOPEN(x) x
 !ifdef INTERACTIVE
+!undef WRAP_REOPEN
 !define WRAP_REOPEN(x) likely_regular_file ? x : INVALID_HANDLE_VALUE
 !endif
         auto handle = WRAP_REOPEN(ReOpenFile(

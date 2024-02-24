@@ -1,8 +1,11 @@
 name: Test
 on: [push]
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  posix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - run: python3 test.py

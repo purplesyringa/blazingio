@@ -1108,6 +1108,14 @@ struct SPLIT_HERE blazingio_ostream {
                 ptr += 2,
                 n = (n & ~0ULL) * 100;
 @case *-i386 wrap
+            // We can't reliably force MSVC to use SSE from within the program, so we have to
+            // gracefully handle the case when FPU is used for floating-point computations. There is
+            // a minor issue here: if, at any point, 'value' is just under 1 in 80-bit precision,
+            // and it is rounded to 1 in 64-bit precision, 'x' is going to be equal to 1e12 exactly,
+            // and this breaks stringification. Fix this by introducing a small error to make the
+            // number fit in 12 decimal digits anyway.
+            x -= x == 1000000000000;
+
             // Split the 12-digit integer into two 6-digit parts. Then for each part x, apply the
             // same algorithm as the one used in u64.
             uint32_t n[] {

@@ -212,13 +212,14 @@ struct istream_impl {
         // page is zero-filled is unreliable and has to be fixed. To do that, we mmap the file
         // read-write and explicitly zero the byte after EOF.
         // Various functions assume at least a few bytes after EOF are readable. For instance,
-        // that's what vectorized implementations expect. Round that up to 4k for simplicity because
-        // we're going to map an anonymous page anyway. This also enables bitset to work more
-        // efficiently for bitsets of size up to 4095.
-        char* base = (char*)mmap(NULL, file_size + 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE, STDIN_FILENO, 0);
+        // that's what vectorized implementations expect. Round that up to page size for simplicity
+        // because we're going to map an anonymous page anyway. This also enables bitset to work
+        // more efficiently for bitsets of size up to 4095 on all architectures.
+        int page_size = getpagesize();
+        char* base = (char*)mmap(NULL, file_size + page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, STDIN_FILENO, 0);
         ensure(base != MAP_FAILED)
         // Remap the last page from anonymous mapping to avoid SIGBUS
-        ensure(mmap(base + ((file_size + 4095) & -4096), 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
+        ensure(mmap(base + ((file_size + page_size - 1) & -page_size), page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
         // Handle attempts to read beyond EOF of stdin gracefully. This would happen either in
         // operator>> while skipping whitespace, or in input(). In the former case, the right thing
         // to do is stop the loop by encountering a non-space character; in the latter case, the

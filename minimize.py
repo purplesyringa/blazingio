@@ -387,6 +387,7 @@ def repl(s):
         ("exception_info", "A"),
         ("do_trace", "A"),
         ("length", "A"),
+        ("page_size", "A"),
 
         ("NonAliasingChar", "B"),
         ("exponent", "B"),

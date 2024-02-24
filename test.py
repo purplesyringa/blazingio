@@ -3,9 +3,15 @@
 import yaml
 import os
 import platform
-import resource
 import subprocess
 import sys
+
+try:
+    import resource
+    is_windows = False
+except ModuleNotFoundError:
+    import win32process
+    is_windows = True
 
 
 tmp = os.environ.get("TEMP", "/tmp")
@@ -62,20 +68,35 @@ def iterate_config(config, props = []):
 
 
 def run(name, input, output, use_pipe):
-    rusage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    if not is_windows:
+        rusage = resource.getrusage(resource.RUSAGE_CHILDREN)
+        cpu_time_before = rusage.ru_utime + rusage.ru_stime
     if use_pipe:
         with open(input, "rb") as f_stdin:
             input = f_stdin.read()
-        proc = subprocess.run([name], input=input, stdout=subprocess.PIPE, check=True)
+        proc = subprocess.Popen(
+            [name],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE
+        )
+        stdout, _ = proc.communicate(input)
+        assert proc.poll() == 0
         with open(output, "wb") as f_stdout:
-            f_stdout.write(proc.stdout)
+            f_stdout.write(stdout)
     else:
         with open(input, "rb") as f_stdin:
             with open(output, "wb") as f_stdout:
-                subprocess.run([name], stdin=f_stdin, stdout=f_stdout, check=True)
-    rusage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
-    cpu_time_before = rusage_before.ru_utime + rusage_before.ru_stime
-    cpu_time_after = rusage_after.ru_utime + rusage_after.ru_stime
+                proc = subprocess.Popen(
+                    [name],
+                    stdin=f_stdin,
+                    stdout=f_stdout
+                )
+                assert proc.wait() == 0
+    if is_windows:
+        stat = win32process.GetProcessTimes(proc._handle)
+        return (stat["KernelTime"] + stat["UserTime"]) / 1e7
+    rusage = resource.getrusage(resource.RUSAGE_CHILDREN)
+    cpu_time_after = rusage.ru_utime + rusage.ru_stime
     return cpu_time_after - cpu_time_before
 
 

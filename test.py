@@ -3,11 +3,20 @@
 import yaml
 import os
 import platform
+import resource
 import subprocess
 import sys
 
 
 tmp = os.environ.get("TEMP", "/tmp")
+
+if "--bench" in sys.argv:
+    index = sys.argv.index("--bench")
+    benchmark_list = sys.argv[index + 1:]
+    del sys.argv[index:]
+    bench = True
+else:
+    bench = False
 
 if len(sys.argv) >= 2 and sys.argv[1] == "--cross":
     arch = sys.argv[2]
@@ -51,6 +60,7 @@ def iterate_config(config, props = []):
 
 
 def run(name, input, output, use_pipe):
+    rusage_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     if use_pipe:
         with open(input, "rb") as f_stdin:
             input = f_stdin.read()
@@ -61,59 +71,93 @@ def run(name, input, output, use_pipe):
         with open(input, "rb") as f_stdin:
             with open(output, "wb") as f_stdout:
                 subprocess.run([name], stdin=f_stdin, stdout=f_stdout, check=True)
+    rusage_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    cpu_time_before = rusage_before.ru_utime + rusage_before.ru_stime
+    cpu_time_after = rusage_after.ru_utime + rusage_after.ru_stime
+    return cpu_time_after - cpu_time_before
 
 
-for test_name in os.listdir("tests"):
-    print("Test", test_name)
-    with open(f"tests/{test_name}/test.yaml") as f:
-        manifest = yaml.safe_load(f)
+if bench:
+    print("Minimizing")
+    subprocess.run([sys.executable, "minimize.py"], stdout=subprocess.DEVNULL, check=True)
 
-    print("  Generating")
-    with open(f"{tmp}/blazingio-test", "wb") as f:
-        subprocess.run([sys.executable, f"tests/{test_name}/gen.py"], stdout=f, check=True)
-    with open(f"{tmp}/blazingio-test", "rb") as f:
-        test = f.read()
+    for benchmark_name in benchmark_list or os.listdir("benchmarks"):
+        print("Benchmark", benchmark_name)
 
-    config = list(manifest.get("config", {}).items())
-    for props, use_pipe in iterate_config(config):
-        print(f"  Props {' '.join(props)}, {'pipe' if use_pipe else 'file'}")
+        generator = f"benchmarks/{benchmark_name}/gen.py"
+        if os.path.exists(generator):
+            print("  Generating")
+            with open(f"{tmp}/blazingio-test", "wb") as f:
+                subprocess.run([sys.executable, generator], stdout=f, check=True)
+            with open(f"{tmp}/blazingio-test", "rb") as f:
+                test = f.read()
+        else:
+            test = b""
 
-        print("    Minimizing")
-        subprocess.run([sys.executable, "minimize.py", "--override"] + props, stdout=subprocess.DEVNULL, check=True)
+        for file in os.listdir(f"benchmarks/{benchmark_name}"):
+            if file.startswith("source_"):
+                print(f"  Compiling {file}")
+                compile(f"benchmarks/{benchmark_name}/{file}", "a.out", "blazingio.min.hpp")
 
-        if manifest["type"] == "round-trip":
-            print("    Compiling")
-            compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
-            print("    Running")
-            run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)
-            with open(f"{tmp}/blazingio-out", "rb") as f:
-                assert test.replace(b"\r\n", b"\n") == f.read()
-        elif manifest["type"] == "compare-std":
-            print("    Compiling with blazingio")
-            compile(f"tests/{test_name}/source.cpp", "a.out.blazingio", "blazingio.min.hpp")
-            print("    Compiling without blazingio")
-            compile(f"tests/{test_name}/source.cpp", "a.out.std", "empty.hpp")
-            print("    Running with blazingio")
-            run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-blazingio", use_pipe)
-            print("    Running with std")
-            run("./a.out.std", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
-            with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
-                with open(f"{tmp}/blazingio-out-std", "rb") as f2:
-                    blazingio = f.read()
-                    std = f2.read().replace(b"\r\n", b"\n")
-                    if "approx" in manifest:
-                        approx = manifest["approx"]
-                        blazingio = blazingio.split()
-                        std = std.split()
-                        assert len(blazingio) == len(std)
-                        for a, b in zip(blazingio, std):
-                            a_n = float(a)
-                            b_n = float(b)
-                            assert abs(a_n - b_n) / max(1, min(abs(a_n), abs(b_n))) < approx, (a, b)
-                    else:
-                        assert blazingio == std
-        elif manifest["type"] == "exit-code":
-            print("    Compiling")
-            compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
-            print("    Running")
-            run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)
+                for use_pipe in (False, True):
+                    print("    Pipe I/O" if use_pipe else "    File I/O")
+                    times = []
+                    for _ in range(10):
+                        times.append(run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe))
+                    tm = sum(times[2:-2]) / 6
+                    print(f"      Took {tm:.3} s")
+else:
+    for test_name in os.listdir("tests"):
+        print("Test", test_name)
+        with open(f"tests/{test_name}/test.yaml") as f:
+            manifest = yaml.safe_load(f)
+
+        print("  Generating")
+        with open(f"{tmp}/blazingio-test", "wb") as f:
+            subprocess.run([sys.executable, f"tests/{test_name}/gen.py"], stdout=f, check=True)
+        with open(f"{tmp}/blazingio-test", "rb") as f:
+            test = f.read()
+
+        config = list(manifest.get("config", {}).items())
+        for props, use_pipe in iterate_config(config):
+            print(f"  Props {' '.join(props)}, {'pipe' if use_pipe else 'file'}")
+
+            print("    Minimizing")
+            subprocess.run([sys.executable, "minimize.py", "--override"] + props, stdout=subprocess.DEVNULL, check=True)
+
+            if manifest["type"] == "round-trip":
+                print("    Compiling")
+                compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
+                print("    Running")
+                run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)
+                with open(f"{tmp}/blazingio-out", "rb") as f:
+                    assert test.replace(b"\r\n", b"\n") == f.read()
+            elif manifest["type"] == "compare-std":
+                print("    Compiling with blazingio")
+                compile(f"tests/{test_name}/source.cpp", "a.out.blazingio", "blazingio.min.hpp")
+                print("    Compiling without blazingio")
+                compile(f"tests/{test_name}/source.cpp", "a.out.std", "empty.hpp")
+                print("    Running with blazingio")
+                run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-blazingio", use_pipe)
+                print("    Running with std")
+                run("./a.out.std", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
+                with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
+                    with open(f"{tmp}/blazingio-out-std", "rb") as f2:
+                        blazingio = f.read()
+                        std = f2.read().replace(b"\r\n", b"\n")
+                        if "approx" in manifest:
+                            approx = manifest["approx"]
+                            blazingio = blazingio.split()
+                            std = std.split()
+                            assert len(blazingio) == len(std)
+                            for a, b in zip(blazingio, std):
+                                a_n = float(a)
+                                b_n = float(b)
+                                assert abs(a_n - b_n) / max(1, min(abs(a_n), abs(b_n))) < approx, (a, b)
+                        else:
+                            assert blazingio == std
+            elif manifest["type"] == "exit-code":
+                print("    Compiling")
+                compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
+                print("    Running")
+                run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)

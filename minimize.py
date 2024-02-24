@@ -77,32 +77,25 @@ def does_selector_match(selector):
     )
 
 def does_selector_match_particular(selector, os, base):
+    if os not in target_oses or base not in target_bases:
+        return False
     selector_os, selector_arch = selector.split("-")
-    return (
-        selector_os in ("*", os)
-        and selector_os in target_oses
-        and (
-            selector_arch == "*"
-            or (
-                base in ARCHITECTURE_SELECTORS[selector_arch.split("+")[0]]
-                and (
-                    ARCHITECTURE_SELECTORS[selector_arch]
-                    & set(target_architectures if "+" in selector_arch else target_bases)
-                )
-            )
-        )
-    )
+    if selector_os not in ("*", os):
+        return False
+    if base not in ARCHITECTURE_SELECTORS.get(selector_arch.split("+")[0], set()):
+        return False
+    return "+" not in selector_arch or base + "".join(selector_arch.partition("+")[1:]) in target_architectures
 
 def generate_multicase_code(cases):
     filtered_cases = []
-    for arg, code in cases:
-        selectors, *flags = arg.split()
-        for selector in selectors.split(","):
-            if not does_selector_match(selector):
-                continue
-            selector_os, selector_arch = selector.split("-")
-            selector_base = selector_arch.split("+")[0]
-            filtered_cases.append((selector_os, selector_base, code, flags))
+
+    for os in target_oses:
+        for base in target_bases:
+            for arg, code in cases:
+                selectors, *flags = arg.split()
+                for selector in selectors.split(","):
+                    if does_selector_match_particular(selector, os, base):
+                        filtered_cases.append((os, base, code, flags))
 
     if not filtered_cases:
         return None
@@ -123,7 +116,7 @@ def generate_multicase_code(cases):
         lambda cases: factor_out(
             cases,
             lambda case: case[1] == "*",
-            lambda case: case[1] in ("x86_64", "i386", "x86"),
+            lambda case: case[1] in ("x86_64", "i386"),
             "IF_X86"
         ),
         lambda cases: factor_out(

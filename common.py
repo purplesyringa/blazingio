@@ -30,6 +30,7 @@ ARCHITECTURE_SELECTORS = {
     "i386": {"i386"},
     "x86": {"x86_64", "i386"},
     "aarch64": {"aarch64"},
+    "*": {"x86_64", "i386", "x86", "aarch64"},
 }
 
 OSES = {

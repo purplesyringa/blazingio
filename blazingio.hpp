@@ -451,10 +451,10 @@ struct istream_impl {
         }();
 
         while (exponent > 40)
-            x *= 1e10,
+            x *= (T)1e10,
             exponent -= 10;
         while (exponent < 0)
-            x *= 1e-10,
+            x *= (T)1e-10,
             exponent += 10;
         x *= exps[exponent];
 
@@ -1136,10 +1136,10 @@ struct SPLIT_HERE blazingio_ostream {
         if (!value)
             return print('0');
         if (value >= 1e16) {
-            value *= 1e-16;
+            value *= (T)1e-16;
             int exponent = 16;
             while (value >= 1)
-                value *= .1,
+                value *= (T).1,
                 exponent++;
             print("0.");
             write12();

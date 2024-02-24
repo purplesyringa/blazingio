@@ -350,7 +350,9 @@ struct istream_impl {
                 : "+r"(n_read), "+r"(arg1) \
                 : "r"(syscall_no), "r"(arg2) \
             ); \
-            ptr = (NonAliasingChar*)arg1; \
+            /* On XNU, x1 is overridden after syscall, so we can't rely on arg1 like
+               we did in x86 case. */ \
+            ptr = launder(buffer); \
 @end
 !else
 !define UNIX_READ off_t n_read = read(STDIN_FILENO, ptr = buffer, 65536); ensure(~n_read)

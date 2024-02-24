@@ -33,7 +33,7 @@ elif len(sys.argv) >= 2 and sys.argv[1] == "--cross-windows":
     def compile(source, target, blazingio):
         subprocess.run([f"{gcc_arch}-w64-mingw32-g++", "-static", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2", "-Wall", "-Werror"], check=True)
 elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
-    arch = platform.machine()
+    arch = sys.argv[2]
     def compile(source, target, blazingio):
         subprocess.run([f"cl", source, "/I.", f"/DBLAZINGIO=\"{blazingio}\"", f"/Fe{target}", "/std:c++17", "/O2", "/EHsc", "/nologo", "/W2", "/WX"], check=True)
     if "GITHUB_RUN_ID" in os.environ:

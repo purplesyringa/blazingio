@@ -230,7 +230,7 @@ proc = subprocess.run(
     os.environ.get("CPP", "cpp") + " -P" + "".join(f" -D{opt}" for opt in opts),
     input=blazingio.encode(),
     shell=True,
-    capture_output=True,
+    stdout=subprocess.PIPE,
     check=True,
 )
 blazingio = proc.stdout.decode()

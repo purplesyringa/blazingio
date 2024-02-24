@@ -15,12 +15,12 @@
 #else
 #define $w(A,B)B
 #endif
-#if __i386__|_M_I386
+#if __i386__|_M_IX86
 #define $H(A,B)A
 #else
 #define $H(A,B)B
 #endif
-#if __x86_64__|__i386__|_M_X64|_M_I386
+#if __x86_64__|__i386__|_M_X64|_M_IX86
 #define $S(A,B)A
 #else
 #define $S(A,B)B

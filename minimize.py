@@ -243,12 +243,12 @@ blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 if "IF_X86" in needed_factor_macros:
     cond = "__x86_64__ | __i386__"
     if "windows" in target_oses:
-        cond += " | _M_X64 | _M_I386"
+        cond += " | _M_X64 | _M_IX86"
     blazingio = f"#if {cond}\n#define IF_X86(yes, no) yes\n#else\n#define IF_X86(yes, no) no\n#endif\n" + blazingio
 if "IF_I386" in needed_factor_macros:
     cond = "__i386__"
     if "windows" in target_oses:
-        cond += " | _M_I386"
+        cond += " | _M_IX86"
     blazingio = f"#if {cond}\n#define IF_I386(yes, no) yes\n#else\n#define IF_I386(yes, no) no\n#endif\n" + blazingio
 if "IF_WINDOWS" in needed_factor_macros:
     blazingio = "#if _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio

@@ -17,9 +17,10 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: C:\msys64\usr\bin\bash
+        shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
       - run: pacman -Syu mingw-w64-python
       - run: pip3 install pyyaml
       - run: python3 test.py

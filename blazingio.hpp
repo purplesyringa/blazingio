@@ -1039,7 +1039,7 @@ struct SPLIT_HERE blazingio_ostream {
             // We'll first perform three divisions to split the number as follows:
             //     01234|56789|01234|56789
             // Each of the groups can then be resolved in 7.25 fixed point numbers.
-            uint64_t a_coeff = 1e10;
+            auto a_coeff = (uint64_t)1e10;
             auto x = abs / a_coeff, y = abs % a_coeff;
             int b_coeff = 1e5, b[] {
                 int(x / b_coeff),

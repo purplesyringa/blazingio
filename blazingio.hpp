@@ -904,9 +904,13 @@ struct SPLIT_HERE blazingio_ostream {
         ULONG ilog2;
 @end
         int digits = max_digits_by_log2[
+@define !BSRQ_WINDOWS
+@case *-x86_64,*-aarch64 _BitScanReverse64(&ilog2, abs | 1)
+@case *-i386 _BitScanReverse(&ilog2, ULONG((int64_t)abs >> 32)) ? ilog2 += 32 : _BitScanReverse(&ilog2, (ULONG)abs | 1)
+@end
 @match
 @case windows-*
-            (_BitScanReverse64(&ilog2, abs | 1), ilog2)
+            (BSRQ_WINDOWS, ilog2)
 @case linux-*,macos-*
             // This compiles to a single instruction on x64. |1 is to handle abs == 0 gracefully.
             63 ^ __builtin_clzll(abs | 1)

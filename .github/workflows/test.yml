@@ -20,8 +20,6 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          cache: pip
+      - run: pacman -Syu mingw-w64-python
       - run: pip3 install pyyaml
       - run: python3 test.py

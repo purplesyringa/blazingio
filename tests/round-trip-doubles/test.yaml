@@ -1,5 +1,5 @@
 type: compare-std
-approx: 0.000001
+approx: 0.00000000001
 config:
   architecture: x86_64,i386,aarch64
   os: windows,linux,macos

@@ -18,9 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          dpkg --add-architecture i386
-          apt-get update
-          apt-get install g++-i686-linux-gnu
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install g++-i686-linux-gnu
       - uses: actions/setup-python@v5
         with:
           cache: pip

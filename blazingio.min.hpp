@@ -15,7 +15,7 @@
 #else
 #define $w(A,B)B
 #endif
-#if __i386__|_M_i386
+#if __i386__|_M_I386
 #define $H(A,B)A
 #else
 #define $H(A,B)B

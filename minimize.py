@@ -255,7 +255,7 @@ if "IF_X86" in needed_factor_macros:
 if "IF_I386" in needed_factor_macros:
     cond = "__i386__"
     if "windows" in target_oses:
-        cond += " | _M_i386"
+        cond += " | _M_I386"
     blazingio = f"#if {cond}\n#define IF_I386(yes, no) yes\n#else\n#define IF_I386(yes, no) no\n#endif\n" + blazingio
 if "IF_WINDOWS" in needed_factor_macros:
     blazingio = "#if _WIN32\n#define IF_WINDOWS(yes, no) yes\n#else\n#define IF_WINDOWS(yes, no) no\n#endif\n" + blazingio

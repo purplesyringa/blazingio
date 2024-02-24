@@ -36,7 +36,10 @@ elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
     arch = platform.machine()
     def compile(source, target, blazingio):
         subprocess.run([f"cl", source, "/I.", f"/DBLAZINGIO=\"{blazingio}\"", f"/Fe{target}", "/std:c++17", "/O2", "/EHsc", "/nologo", "/W2", "/WX"], check=True)
-    os.environ["CPP"] = "C:\\msys64\\usr\\bin\\bash.exe -l -c \"exec cpp $*\" cpp"
+    if "GITHUB_RUN_ID" in os.environ:
+        os.environ["CPP"] = "msys2 -c \"exec cpp $*\" cpp"
+    else:
+        os.environ["CPP"] = "C:\\msys64\\usr\\bin\\bash.exe -l -c \"exec cpp $*\" cpp"
     os.environ["MSYSTEM"] = "UCRT64"
 else:
     arch = platform.machine()

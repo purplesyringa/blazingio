@@ -444,14 +444,15 @@ struct istream_impl {
                 x *= 10;
             return exps;
         }();
-        if (0 <= exponent && exponent < 41)
-            x *= exps[exponent];
-        else {
-            while (exponent-- > 20)
-                x *= 10;
-            while (++exponent < 20)
-                x *= .1;
-        }
+
+        while (exponent > 40)
+            x *= 1e10,
+            exponent -= 10;
+        while (exponent < 0)
+            x *= 1e-10,
+            exponent += 10;
+        x *= exps[exponent];
+
         x = negative ? -x : x;
     }
 !endif

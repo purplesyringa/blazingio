@@ -29,3 +29,17 @@ jobs:
             mingw-w64-x86_64-python-yaml
             mingw-w64-x86_64-python-pywin32
       - run: python3 test.py
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: mingw-w64-x86_64-gcc
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/setup-python@v5
+        with:
+          cache: pip
+      - run: pip3 install pyyaml pywin32
+      - run: python3 test.py --msvc

@@ -17,7 +17,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: bash
+        shell: C:\msys64\usr\bin\bash
     steps:
       - uses: actions/checkout@v4
       - run: pacman -Syu mingw-w64-python

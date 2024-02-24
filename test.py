@@ -39,6 +39,8 @@ else:
 
 if arch == "AMD64":
     arch = "x86_64"
+elif arch == "arm64":
+    arch = "aarch64"
 
 gcc_arch = "i686" if arch == "i386" else arch
 

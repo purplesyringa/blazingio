@@ -23,6 +23,5 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           update: true
-          install: mingw-w64-x86_64-python
-      - run: pip3 install pyyaml
+          install: mingw-w64-x86_64-python mingw-w64-x86_64-python-yaml
       - run: python3 test.py

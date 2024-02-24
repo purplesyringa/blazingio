@@ -11,5 +11,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           cache: pip
-      - run: pip install pyyaml
+      - run: pip3 install pyyaml
       - run: python3 test.py

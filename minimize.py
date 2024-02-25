@@ -220,7 +220,7 @@ blazingio = re.sub(r"(@match|@ondemand .*|@define .*|@include)\n[\s\S]*?@end\n",
 blazingio = re.sub(r"^#", "cpp#", blazingio, flags=re.M)
 blazingio = re.sub(r"^!", "#", blazingio, flags=re.M)
 proc = subprocess.run(
-    os.environ.get("CPP", "cpp") + " -P" + "".join(f" -D{opt}" for opt in opts),
+    os.environ.get("CPP", "cpp") + " -Wno-invalid-pp-token -P" + "".join(f" -D{opt}" for opt in opts),
     input=blazingio.encode(),
     shell=True,
     stdout=subprocess.PIPE,

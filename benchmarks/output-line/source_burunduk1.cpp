@@ -1,6 +1,5 @@
 #include <cstdint>
 #include <cstring>
-#include <immintrin.h>
 #include <iostream>
 #include <random>
 

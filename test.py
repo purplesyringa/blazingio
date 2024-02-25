@@ -108,6 +108,8 @@ if bench:
     print("Minimizing")
     subprocess.run([sys.executable, "minimize.py"], stdout=subprocess.DEVNULL, check=True)
 
+    log = {}
+
     for benchmark_name in benchmark_list or os.listdir("benchmarks"):
         print("Benchmark", benchmark_name)
 
@@ -122,7 +124,6 @@ if bench:
         with open(f"{tmp}/blazingio-test", "rb") as f:
             test = f.read()
 
-        log = {}
         for file in os.listdir(f"benchmarks/{benchmark_name}"):
             if file.startswith("source_"):
                 impl_name = file[7:].partition(".")[0]
@@ -139,8 +140,8 @@ if bench:
                     key = f"{benchmark_name}/{impl_name}/{'pipe' if use_pipe else 'file'}"
                     log[key] = tm
 
-        with open("benchmark-results.json", "w") as f:
-            json.dump(log, f)
+    with open("benchmark-results.json", "w") as f:
+        json.dump(log, f)
 else:
     for test_name in os.listdir("tests"):
         print("Test", test_name)

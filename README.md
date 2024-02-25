@@ -14,153 +14,28 @@ Copy-paste [blazingio.min.hpp](blazingio.min.hpp) from this repository into your
 
 Yes, really. The selling point is you don't have to re-learn I/O. It's just magically optimized.
 
-One thing needs to be stressed: this library **doesn't work with interactive problems**. You're likely to encounter TL1 if you attempt to use it in an interactive problem. This also means that you have to end the input stream when running the program directly from terminal, typically via ^D on Unix and ^Z on Windows. Otherwise the program will appear to hang.
-
-
-## Back up, back up. Just how good is this?
-
-Here's a simple program in C++ to sum up numbers:
-
-```cpp
-#include <iostream>
-
-int main() {
-	int n;
-	std::cin >> n;
-
-	long long sum = 0;
-	for (int i = 0; i < n; i++) {
-		int number;
-		std::cin >> number;
-		sum += number;
-	}
-
-	std::cout << sum << std::endl;
-	return 0;
-}
-```
-
-Let's benchmark it:
-
-```shell
-$ echo 1000000 >input
-$ shuf -i 0-1000000000 -n 1000000 >>input
-$ g++ test.cpp -O2
-$ time ./a.out <input
-500274260791507
-
-real	0m0,373s
-user	0m0,368s
-sys	0m0,005s
-```
-
-Now add just this one line after `#include <iostream>`:
-
-```cpp
-#include "blazingio.min.hpp"
-```
-
-Let's try it out again:
-
-```shell
-$ g++ test.cpp -O2
-$ time ./a.out <input
-500274260791507
-
-real	0m0,020s
-user	0m0,020s
-sys	0m0,001s
-```
-
-That's much better! And -- mind you -- it's *still* much better even if we try the common tricks to speed up std:
-
-```cpp
-#include <iostream>
-
-int main() {
-	std::ios_base::sync_with_stdio(false);
-	std::cin.tie(nullptr);
-
-	int n;
-	std::cin >> n;
-
-	long long sum = 0;
-	for (int i = 0; i < n; i++) {
-		int number;
-		std::cin >> number;
-		sum += number;
-	}
-
-	std::cout << sum << std::endl;
-	return 0;
-}
-```
-
-```shell
-$ g++ test.cpp -O2
-$ time ./a.out <input
-500274260791507
-
-real	0m0,110s
-user	0m0,108s
-sys	0m0,001s
-```
-
-And it's still better than sprintf, while (arguably) easier to use:
-
-```cpp
-#include <cstdio>
-
-int main() {
-	int n;
-	scanf("%d", &n);
-
-	long long sum = 0;
-	for (int i = 0; i < n; i++) {
-		int number;
-		scanf("%d", &number);
-		sum += number;
-	}
-
-	printf("%lld\n", sum);
-	return 0;
-}
-```
-
-```shell
-$ g++ test.cpp -O2
-test.cpp: In function ‘int main()’:
-test.cpp:5:14: warning: ignoring return value of ‘int scanf(const char*, ...)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
-    5 |         scanf("%d", &n);
-      |         ~~~~~^~~~~~~~~~
-test.cpp:10:22: warning: ignoring return value of ‘int scanf(const char*, ...)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
-   10 |                 scanf("%d", &number);
-      |                 ~~~~~^~~~~~~~~~~~~~~
-$ time ./a.out <input
-500274260791507
-
-real	0m0,155s
-user	0m0,150s
-sys	0m0,005s
-```
-
-Moreover, it's even faster than a typical custom `getc`-based parser!
-
 
 ## `.min.hpp`? What's that JSism doing in my C++?
 
 Certain programming competitions impose a limit on the source code size, often 64 KiB or 256 KiB. Regardless of how minimal the library is by C++ standards, anything larger than a few kilobytes in source code is likely to hinder its use by the competitive programming community.
 
-Additionally, participants may be expected to read each other's code during a hack session, and while it's typically useful to be able to read algorithms themselves, such meager things as optimized I/O are just clutter. Indeed, blazingio can handle anything [testlib](https://github.com/MikeMirzayanov/testlib) accepts, so it can be thought of as "obviously correct" if you're looking for a logic error, just like libstdc++.
+Additionally, participants may be expected to read each other's code during a hack session, and while it's typically useful to be able to read algorithms themselves, such meager things as optimized I/O are just clutter. Indeed, blazingio can handle anything [testlib](https://github.com/MikeMirzayanov/testlib) accepts and is covered with tests, so it can be thought of as "obviously correct" if you're looking for a logic error, just like libstdc++.
 
-So here's a compromise: I compress the library so that it's so small and tidy there are no downsides in copy-pasting it straight to your template. The compressed version also includes a link to this repository so that the code is not considered obfuscated.
+So here's a compromise: I compress the library so that it's so small and tidy there are few downsides in copy-pasting it straight to your template. The compressed version also includes a link to this repository so that the code is not considered obfuscated.
 
 
 ## What are the limitations?
 
-First and foremost, it can't be used in interactive problems because it reads out all input at the start of the program and writes out all the output at the end. Interactive problems are typically not bound by performance of I/O itself, so any room for improvement is unlikely anyway.
+blazingio's mocked `std::cin` can read most types `std::iostream` can via `operator>>`:
 
-blazingio's mocked `std::cin` can read most types `std::iostream` can via `operator>>`, but other methods are not supported. `std::getline` is available, though.
+- `char`
+- non-`char` integral types, e.g. `int`
+- `float`, `double`
+- `std::complex<T>`
+- `std::string`, `std::string_view`, `const char*`, etc.
+- `std::bitset<N>`
+
+Other methods are not supported. `std::getline` is available, though.
 
 The differences in format are:
 
@@ -189,4 +64,4 @@ With `-DONLINE_JUDGE` (enabled on Codeforces, among others), `std::cerr` is repl
 
 `freopen` works with blazingio's streams, provided that you call `freopen` before any other I/O.
 
-Here's a neat bonus: you can make your own slim build of blazingio, stripped of anything you don't need and thus much smaller, by editing the configuration file at `config` and running `python3 minimize.py`. You might need to patch the script by replacing the path to clang-format, though.
+Here's a neat bonus: you can make your own slim build of blazingio, stripped of anything you don't need and thus much smaller, by editing the configuration file at `config` and running `python3 minimize.py`.

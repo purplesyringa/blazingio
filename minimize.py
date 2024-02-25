@@ -116,8 +116,8 @@ def generate_multicase_code(cases):
         lambda cases: factor_out(
             cases,
             lambda case: case[1] == "*",
-            lambda case: case[1] in ("x86_64", "i386"),
-            "IF_X86"
+            lambda case: case[1] == "aarch64",
+            "IF_AARCH64"
         ),
         lambda cases: factor_out(
             cases,
@@ -240,11 +240,8 @@ blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typ
 blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
 
 # Add multiarch/multiOS support
-if "IF_X86" in needed_factor_macros:
-    cond = "__x86_64__ | __i386__"
-    if "windows" in target_oses:
-        cond += " | _M_X64 | _M_IX86"
-    blazingio = f"#if {cond}\n#define IF_X86(yes, no) yes\n#else\n#define IF_X86(yes, no) no\n#endif\n" + blazingio
+if "IF_AARCH64" in needed_factor_macros:
+    blazingio = f"#if __aarch64__\n#define IF_AARCH64(yes, no) yes\n#else\n#define IF_AARCH64(yes, no) no\n#endif\n" + blazingio
 if "IF_I386" in needed_factor_macros:
     cond = "__i386__"
     if "windows" in target_oses:
@@ -350,7 +347,7 @@ def repl(s):
         ("INLINE", "$I"),
         ("FETCH", "$F"),
         ("IF_I386", "$H"),
-        ("IF_X86", "$S"),
+        ("IF_AARCH64", "$a"),
         ("IF_WINDOWS", "$w"),
         ("IF_MACOS", "$m"),
         ("UNWRAP", "$u"),

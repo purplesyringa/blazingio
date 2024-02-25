@@ -2,7 +2,9 @@
 
 ![Tests](https://github.com/purplesyringa/blazingio/actions/workflows/test.yml/badge.svg)
 
-**blazingio** is a performant minimal drop-in replacement for C++ standard input and output facilities. It's stupid, doesn't guard against invalid data and can't do much, but it can read/write integers, strings, and other primitives 10x faster than libstdc++, and that's what matters in areas like competitive programming.
+**blazingio** is a performant minimal drop-in replacement for C++ standard input and output facilities. It's stupid, doesn't guard against invalid data and can't do much, but it can read/write integers, strings, and other primitives 5x faster than libstdc++ with `sync_with_stdio(false);`, and that's what matters in areas like competitive programming.
+
+![Aggregated benchmark](aggregated-benchmark.svg)
 
 
 ## How do I use this in produciton?

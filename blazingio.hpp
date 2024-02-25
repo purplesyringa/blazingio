@@ -32,14 +32,88 @@
 !define UNSET_SIMD #define SIMD
 @end
 
+!define MINTIME_OUTPUT_64BIT_INT \
+    /* This part is based on James Anhalt's algorithm. See
+       https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
+
+       We use a 128-bit fixed-point format here. 7.121 would be inefficient because there are no
+       128-bit operations in x86, but 64.64 works just fine because there is mul r64, and extracting
+       the whole and real parts is just a question of using this or that register.
+
+       We want to compute abs / 1e18 in fixed point. We could compute that as
+           abs * (2^64 // 1e18 + 1),
+       but the approximation of 1e-18 in 64.64 is way too imprecise for large 'abs': it's just 19.
+       However, is that not too few bits compared to the seemingly suficient 64? Indeed, the cause
+       of the problem is not the precision of the fixed-point format, but double rounding. If 1e-18
+       itself wasn't rounded initially, the accuracy would be much better.
+
+       We shall approximate 'abs * 2^64 * 1e-18' as
+           ((abs * (2^128 // 1e18 + 1)) >> 64) + 1
+       This is clearly an upper bound. How precise is it? Just like in the 32-bit case, we want
+           (((((abs * 340282366920938463464) >> 64) + 1) * 1e18) >> 64) - abs < 1
+       This translates to
+           (((abs * 340282366920938463464) >> 64) + 1) * 1e18 < (abs + 1) * 2^64,
+       which follows from
+           (abs * 340282366920938463464 / 2^64 + 1) * 1e18 < (abs + 1) * 2^64,
+       which is clearly true because
+           abs * (340282366920938463464e18 - 2^128) < 2^128 - 2^64 * 1e18
+       holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We prefer 2^128
+       to slightly lower powers because this enables us to replace right-shift by 64 with a single
+       register read. */ \
+    auto n = __int128{18} * abs + (__int128{0x725dd1d243aba0e8} * abs >> 64) + 1; \
+    for (int i = 0; i < 10; i++) \
+        buf[i] = decimal_lut[n >> 64], \
+        n = (n & ~0ULL) * 100;
+!define MINTIME_OUTPUT_MANTISSA \
+    /* This is a variation on Terje Mathisen's algorithm, just like in integer output. The reason
+       for yet another reimplementation in this lambda as opposed to reusing existing code is
+       because 'x' contains just 12 digits, not 20 supported by the general implementation, and that
+       lets us use a less precise approximation.
+
+       We shall approximate 'abs * 2^64 * 1e-10' as
+           ((abs * (2^72 // 1e10 + 1)) >> 8) + 1
+       This is clearly an upper bound. To be correct, we want
+           (((((abs * 472236648287) >> 8) + 1) * 1e10) >> 64) - abs < 1
+       This translates to
+           (((abs * 472236648287) >> 8) + 1) * 1e10 < (abs + 1) * 2^64
+       which follows from
+           (abs * 472236648287 / 2^8 + 1) * 1e10 < (abs + 1) * 2^64
+       which is clearly true because
+           abs * (472236648287e10 - 2^72) < 2^72 - 2^8 * 1e10
+       holds for all abs up to 1e12. We choose 72 as the initial precision instead of something
+       bigger to reduce length of the constant in source code. */ \
+    auto n = (__int128{472236648287} * x >> 8) + 1; \
+    for (int i = 0; i < 6; i++) \
+        memcpy(ptr, decimal_lut + (n >> 64), 2), \
+        ptr += 2, \
+        n = (n & ~0ULL) * 100;
+
+!define OUTPUT_64BIT_INT MINTIME_OUTPUT_64BIT_INT
+!define OUTPUT_MANTISSA MINTIME_OUTPUT_MANTISSA
 @ondemand windows-*
+!undef OUTPUT_64BIT_INT
+!undef OUTPUT_MANTISSA
+#define OUTPUT_64BIT_INT MINTIME_OUTPUT_64BIT_INT
+#define OUTPUT_MANTISSA MINTIME_OUTPUT_MANTISSA
 #ifdef _MSC_VER
-#include <__msvc_int128.hpp>
-#define int128_t _Signed128
+#define OUTPUT_64BIT_INT \
+    uint64_t high, low, tmp; \
+    _umul128(0x725dd1d243aba0e8, abs, &tmp); \
+    _addcarry_u64(_addcarry_u64(1, _umul128(18, abs, &high), tmp, &low), 0, high, &high); \
+    for (int i = 0; i < 10; i++) \
+        buf[i] = decimal_lut[high], \
+        low = _umul128(100, low, &high);
+#define OUTPUT_MANTISSA \
+    uint64_t high, low = _umul128(472236648287, x, &high) >> 8 | high << 56; \
+    high >>= 8; \
+    _addcarry_u64(_addcarry_u64(0, 1, low, &low), 0, high, &high); \
+    for (int i = 0; i < 6; i++) \
+        memcpy(ptr, decimal_lut + high, 2), \
+        ptr += 2, \
+        low = _umul128(100, low, &high);
 UNSET_SIMD
 #else
 @end
-#define int128_t __int128
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))
 @case *-x86+sse4.1 __attribute__((target("sse4.1")))
@@ -684,7 +758,7 @@ struct istream_impl {
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     );
 @case *-x86+none,*-aarch64+none
-                    ((char*)&value)[i / 8] = ((*p++ & ONE_BYTES) * BITSET_SHIFT) >> 56;
+                    ((char*)&value)[i / 8] = (*p++ & ONE_BYTES) * BITSET_SHIFT >> 56;
 @end
                 }
                 ptr = (NonAliasingChar*)p;
@@ -954,7 +1028,7 @@ struct SPLIT_HERE blazingio_ostream {
             uint64_t buf = decimal_lut[n >> 25];
             n = (n & 0x01ffffff) * 25;
             buf |= decimal_lut[n >> 23] << 16;
-            buf |= uint64_t('0' + (((n & 0x007fffff) * 5) >> 22)) << 32;
+            buf |= uint64_t('0' + ((n & 0x007fffff) * 5 >> 22)) << 32;
             buf >>= 40 - digits * 8;
             memcpy(ptr, &buf, 8);
         } else if constexpr (sizeof(T) == 4) {
@@ -1003,43 +1077,8 @@ struct SPLIT_HERE blazingio_ostream {
             memcpy(ptr, (NonAliasingChar*)buf + 10 - digits, 16);
         } else /* if constexpr (sizeof(T) == 8) */ {
 @match
-@case *-x86_64,*-aarch64
-            // This part is also based on James Anhalt's algorithm. See
-            // https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
-
-            // We use a 128-bit fixed-point format here. 7.121 would be inefficient because there
-            // are no 128-bit operations in x86, but 64.64 works just fine because there is mul r64,
-            // and extracting the whole and real parts is just a question of using this or that
-            // register.
-            //
-            // We want to compute abs / 1e18 in fixed point. We could compute that as
-            //     abs * (2^64 // 1e18 + 1),
-            // but the approximation of 1e-18 in 64.64 is way too imprecise for large 'abs': it's
-            // just 19. However, is that not too few bits compared to the seemingly suficient 64?
-            // Indeed, the cause of the problem is not the precision of the fixed-point format, but
-            // double rounding. If 1e-18 itself wasn't rounded initially, the accuracy would be much
-            // better.
-            //
-            // We shall approximate 'abs * 2^64 * 1e-18' as
-            //     ((abs * (2^128 // 1e18 + 1)) >> 64) + 1
-            // This is clearly an upper bound. How precise is it? Just like in the 32-bit case, we
-            // want
-            //     (((((abs * 340282366920938463464) >> 64) + 1) * 1e18) >> 64) - abs < 1
-            // This translates to
-            //     (((abs * 340282366920938463464) >> 64) + 1) * 1e18 < (abs + 1) * 2^64,
-            // which follows from
-            //     (abs * 340282366920938463464 / 2^64 + 1) * 1e18 < (abs + 1) * 2^64,
-            // which is clearly true because
-            //     abs * (340282366920938463464e18 - 2^128) < 2^128 - 2^64 * 1e18
-            // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We
-            // prefer 2^128 to slightly lower powers because this enables us to replace right-shift
-            // by 64 with a single register read.
-            auto n = int128_t{18} * abs + ((int128_t{0x725dd1d243aba0e8} * abs) >> 64) + 1;
-
-            for (int i = 0; i < 10; i++) {
-                buf[i] = decimal_lut[int(n >> 64)];
-                n = (n & ~0ULL) * 100;
-            }
+@case *-x86_64,*-aarch64 wrap
+            OUTPUT_64BIT_INT
 @case *-i386 wrap
             // The i386 case is hard. We don't even have i128; any attempt to emulate it is going to
             // be darn slow. We can't really output longs *fast* though, so this part of code is
@@ -1074,12 +1113,12 @@ struct SPLIT_HERE blazingio_ostream {
             // which is true for b up to 1e5 (and 1e6, really).
             NonAliasingChar buf[40];
             for (int i = 0; i < 4; i++) {
-                uint32_t n = ((429497ULL * b[i]) >> 7) + 1;
+                uint32_t n = (429497ULL * b[i] >> 7) + 1;
                 NonAliasingChar* p = buf + i * 5;
                 *p = '0' + (n >> 25);
-                n = (n & (~0U >> 7)) * 25;
+                n = (n & ~0U >> 7) * 25;
                 memcpy(p + 1, decimal_lut + (n >> 23), 2);
-                memcpy(p + 3, decimal_lut + (((n & (~0U >> 9)) * 25) >> 21), 2);
+                memcpy(p + 3, decimal_lut + ((n & ~0U >> 9) * 25 >> 21), 2);
             }
 @end
 
@@ -1102,30 +1141,8 @@ struct SPLIT_HERE blazingio_ostream {
             auto x = uint64_t(value * 1e12);
 
 @match
-@case *-x86_64,*-aarch64
-            // This is a variation on Terje Mathisen's algorithm, just like in integer output. The
-            // reason for yet another reimplementation in this lambda as opposed to reusing existing
-            // code is because 'x' contains just 12 digits, not 20 supported by the general
-            // implementation, and that lets us use a less precise approximation.
-
-            // We shall approximate 'abs * 2^64 * 1e-10' as
-            //     ((abs * (2^72 // 1e10 + 1)) >> 8) + 1
-            // This is clearly an upper bound. To be correct, we want
-            //     (((((abs * 472236648287) >> 8) + 1) * 1e10) >> 64) - abs < 1
-            // This translates to
-            //     (((abs * 472236648287) >> 8) + 1) * 1e10 < (abs + 1) * 2^64
-            // which follows from
-            //     (abs * 472236648287 / 2^8 + 1) * 1e10 < (abs + 1) * 2^64
-            // which is clearly true because
-            //     abs * (472236648287e10 - 2^72) < 2^72 - 2^8 * 1e10
-            // holds for all abs up to 1e12. We choose 72 as the initial precision instead of
-            // something bigger to reduce length of the constant in source code.
-            auto n = (int128_t{472236648287} * x >> 8) + 1;
-            for (int i = 0; i < 6; i++) {
-                memcpy(ptr, decimal_lut + int(n >> 64), 2);
-                ptr += 2;
-                n = (n & ~0ULL) * 100;
-            }
+@case *-x86_64,*-aarch64 wrap
+            OUTPUT_MANTISSA
 @case *-i386 wrap
             // We can't reliably force MSVC to use SSE from within the program, so we have to
             // gracefully handle the case when FPU is used for floating-point computations. There is
@@ -1138,8 +1155,8 @@ struct SPLIT_HERE blazingio_ostream {
             // Split the 12-digit integer into two 6-digit parts. Then for each part x, apply the
             // same algorithm as the one used in u64.
             uint32_t n[] {
-                uint32_t((x / 1000000 * 429497) >> 7) + 1,
-                uint32_t((x % 1000000 * 429497) >> 7) + 1
+                uint32_t(x / 1000000 * 429497 >> 7) + 1,
+                uint32_t(x % 1000000 * 429497 >> 7) + 1
             };
             int shift = 25, mask = ~0U >> 7;
             for (int i = 0; i < 3; i++) {

@@ -353,7 +353,8 @@ def repl(s):
         ("IF_WINDOWS", "$w"),
         ("IF_MACOS", "$m"),
         ("UNWRAP", "$u"),
-        ("int128_t", "$Z"),
+        ("OUTPUT_64BIT_INT", "$n"),
+        ("OUTPUT_MANTISSA", "$M"),
 
         ("Inner", "A"),
         ("n_read", "A"),
@@ -407,17 +408,20 @@ def repl(s):
         ("arg1", "D"),
         ("stat_buf", "D"),
         ("AbsT", "D"),
+        ("high", "D"),
 
         ("buffer", "E"),
         ("interval", "E"),
         ("stdout_handle", "E"),
         ("tmp_n_read", "E"),
         ("exps", "E"),
+        ("low", "E"),
 
         ("Interactive", "F"),
         ("print", "F"),
         ("low_digits", "F"),
         ("attempt_direct_write", "F"),
+        ("tmp", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),

@@ -237,7 +237,7 @@ blazingio = "#define $O operator\n" + blazingio.replace("operator", "$O")
 blazingio = "#define $R return\n" + blazingio.replace("return", "$R")
 blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
 blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typename", "$c")
-blazingio = "#define $T template<\n" + re.sub(r"template\s*<", "$T ", blazingio)
+blazingio = "#define $T template<$c T\n" + re.sub(r"template\s*<\$c T", "$T", blazingio)
 
 # Add multiarch/multiOS support
 if "IF_AARCH64" in needed_factor_macros:

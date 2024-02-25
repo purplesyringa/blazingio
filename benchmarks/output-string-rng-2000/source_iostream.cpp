@@ -4,7 +4,7 @@
 int main() {
     char s[2048];
     std::minstd_rand gen;
-    for (size_t j = 0; j < 2048; j += 8) {
+    for (size_t j = 0; j < 2048; j++) {
         s[j] = gen() % (255 - 33 + 1) + 33;
     }
     uint64_t n = 1;

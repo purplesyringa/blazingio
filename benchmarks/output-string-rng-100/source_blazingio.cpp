@@ -5,7 +5,7 @@
 int main() {
     char s[128];
     std::minstd_rand gen;
-    for (size_t j = 0; j < 128; j += 8) {
+    for (size_t j = 0; j < 128; j++) {
         s[j] = gen() % (255 - 33 + 1) + 33;
     }
     uint64_t n = 1;

@@ -16,7 +16,7 @@ void generate(size_t length, size_t i) {
     __m128i b = _mm_set_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 15, 13, 11, 9, 7, 5, 3, 1);
     __m128i c = _mm_set1_epi16(26);
     for (size_t j = 0; j < length; j += 8) {
-        int64_t x = _mm_cvtsi128_si64(_mm_shuffle_epi8(a, b)) + 0x61616161;
+        int64_t x = _mm_cvtsi128_si64(_mm_shuffle_epi8(a, b)) + 0x6161616161616161;
         memcpy(s + j, &x, 8);
         a = _mm_add_epi16(a, c);
     }

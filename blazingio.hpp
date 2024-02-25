@@ -570,7 +570,7 @@ struct istream_impl {
             ptr = (NonAliasingChar*)p + BSFD(mask);
 @case *-aarch64+neon wrap
             uint64x2_t vec;
-            while (vec = (uint64x2_t)(*p <= ' '), !(vec[0] | vec[1]))
+            while (vec = (uint64x2_t)(*p < 33), !(vec[0] | vec[1]))
                 p++;
             ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
 @case *-x86+none,*-aarch64+none
@@ -627,7 +627,7 @@ struct istream_impl {
         // Luckily, we are allowed to overread up to 4095 bytes after EOF (because there's a
         // 4096-page and its second byte is non-whitespace). Therefore, we only have to check for
         // EOF for large enough N, and in this case the overhead is small enough.
-        if (N >= 4096 && !*this)
+        if (N > 4095 && !*this)
             return;
 !endif
         ptrdiff_t i = N;
@@ -703,7 +703,7 @@ struct istream_impl {
         if (!is_same_v<T, line_t>)
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
             // We expect short runs here, hence no vectorization.
-            while (FETCH 0 <= *ptr && *ptr <= ' ')
+            while (FETCH 0 <= *ptr && *ptr < 33)
                 ptr++;
 
         input(value);
@@ -889,7 +889,7 @@ struct SPLIT_HERE blazingio_ostream {
 
 !ifndef CHAR_WITH_SIGN_IS_GLYPH
         if constexpr (sizeof(T) == 1) {
-            int digits = 1 + (abs >= 10) + (abs >= 100);
+            int digits = 1 + (abs > 9) + (abs > 99);
             NonAliasingChar buf[6];
             memcpy(buf, decimal_lut + abs / 10, 2);
             buf[2] = '0' + abs % 10;

@@ -321,10 +321,19 @@ struct istream_impl {
 @case *-x86_64 UNWRAP(: "rcx", "r11")
 @case *-i386
 @end
+@define !X86_SYS_read
+@case linux-i386 3
+@case linux-x86_64 0
+@case macos-x86_64 0x2000003 /* This is not documented anywhere, but it's been this for dozens of years */
+@end
+@define !AARCH64_SYS_read
+@case linux-aarch64 63
+@case macos-aarch64 3
+@end
 !define UNIX_READ \
 @match
 @case *-x86 \
-            off_t n_read = SYS_read; \
+            off_t n_read = X86_SYS_read; \
             NonAliasingChar* arg1 = buffer; \
             asm volatile( \
                 /* XXX: Handling errors here is complicated, because on Linux syscall will return
@@ -346,7 +355,7 @@ struct istream_impl {
                 n_read asm("x0") = STDIN_FILENO, \
                 arg1 asm("x1") = (long)buffer, \
                 arg2 asm("x2") = 65536, \
-                syscall_no asm(SYSCALL_NO_REGISTER) = SYS_read; \
+                syscall_no asm(SYSCALL_NO_REGISTER) = AARCH64_SYS_read; \
             asm volatile( \
                 "svc 0" SVC \
                 : "+r"(n_read), "+r"(arg1) \

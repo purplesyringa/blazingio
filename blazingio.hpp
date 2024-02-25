@@ -109,7 +109,7 @@ struct NonAliasingChar {
     }
 };
 
-const uint64_t ONE_BYTES = ~0ULL / 255
+constexpr uint64_t ONE_BYTES = ~0ULL / 255
 !ifdef BITSET
 @ondemand *-x86+none,*-aarch64+none
 , BITSET_SHIFT = 0x8040201008040201

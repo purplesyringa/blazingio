@@ -15,6 +15,7 @@ jobs:
       - run: python3 test.py --bench
       - uses: actions/upload-artifact@v4
         with:
+          name: posix-${{ matrix.os }}
           path: benchmark-results.json
   linux-i386:
     runs-on: ubuntu-22.04
@@ -31,6 +32,7 @@ jobs:
       - run: python3 test.py --cross i386 --bench
       - uses: actions/upload-artifact@v4
         with:
+          name: linux-i386
           path: benchmark-results.json
   windows-mingw:
     runs-on: windows-latest
@@ -50,6 +52,7 @@ jobs:
       - run: python3 test.py --bench
       - uses: actions/upload-artifact@v4
         with:
+          name: windows-mingw
           path: benchmark-results.json
   windows-mingw-i386:
     runs-on: windows-latest
@@ -70,6 +73,7 @@ jobs:
       - run: python3 test.py --cross-windows i386 --bench
       - uses: actions/upload-artifact@v4
         with:
+          name: windows-mingw-i386
           path: benchmark-results.json
   windows-msvc:
     runs-on: windows-latest
@@ -88,6 +92,7 @@ jobs:
       - run: python3 test.py --msvc x86_64 --bench
       - uses: actions/upload-artifact@v4
         with:
+          name: windows-msvc
           path: benchmark-results.json
   windows-msvc-i386:
     runs-on: windows-latest
@@ -108,4 +113,5 @@ jobs:
       - run: python3 test.py --msvc i386 --bench
       - uses: actions/upload-artifact@v4
         with:
+          name: windows-msvc-i386
           path: benchmark-results.json

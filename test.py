@@ -1,5 +1,6 @@
 # Why can't I stop writing a new test harness in each project...
 
+import json
 import yaml
 import os
 import platform
@@ -120,8 +121,10 @@ if bench:
         else:
             test = b""
 
+        log = {}
         for file in os.listdir(f"benchmarks/{benchmark_name}"):
             if file.startswith("source_"):
+                impl_name = file[7:].partition(".")[0]
                 print(f"  Compiling {file}")
                 compile(f"benchmarks/{benchmark_name}/{file}", "a.out", "blazingio.min.hpp")
 
@@ -132,6 +135,9 @@ if bench:
                         times.append(run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe))
                     tm = sum(times[2:-2]) / 6
                     print(f"      Took {tm:.3} s")
+                    key = f"{benchmark_name}/{impl_name}/{'pipe' if use_pipe else 'file'}"
+                    log[key] = tm
+        json.dump(log, sys.stdout)
 else:
     for test_name in os.listdir("tests"):
         print("Test", test_name)

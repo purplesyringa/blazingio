@@ -958,8 +958,6 @@ struct SPLIT_HERE blazingio_ostream {
             buf >>= 40 - digits * 8;
             memcpy(ptr, &buf, 8);
         } else if constexpr (sizeof(T) == 4) {
-@match
-@case *-x86_64,*-aarch64 wrap
             // We use a 64-bit fixed-point format here. The high 7 bits are the whole part and the
             // low 57 low bits are the rneal part. 7 bits are used because that's the shortest
             // amount of bits 99 fits in.
@@ -973,7 +971,8 @@ struct SPLIT_HERE blazingio_ostream {
             //     (1441151881e8 - 2^57) * abs < 2^57.
             // Luckily, this is true from all abs up to 2^32.
             auto n = 1441151881ULL * abs;
-
+@match
+@case *-x86_64,*-aarch64 wrap
             int shift = 57;
             auto mask = ~0ULL >> 7;
             for (int i = 0; i < 5; i++)
@@ -990,7 +989,8 @@ struct SPLIT_HERE blazingio_ostream {
             // which follows from
             //     (1441151881e8 - 2^57) * abs < 2^57 - 1e8 * 2^25,
             // which holds for abs up to 2^32.
-            auto n = ((1441151881ULL * abs) >> 25) + 1;
+            n >>= 25;
+            n++;
             for (int i = 0; i < 5; i++)
                 buf[i] = decimal_lut[n >> 32],
                 n = (n & ~0U) * 100;

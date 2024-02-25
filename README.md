@@ -6,6 +6,8 @@
 
 ![Aggregated benchmark](aggregated-benchmark.svg)
 
+These results are from 64-bit Linux using gcc with libstdc++. Performance of blazingio is almost the same on other architectures. blazingio is just as fast on 32-bit machines, except for 64-bit I/O, which gets a bit slower. `<iostream>`, `<cstdio>`, however, experience major degradations in some cases. `<iostream>` is slow under libc++, which concidentally means blazingio is going to be faster on Apple, relatively speaking. `<iostream>` is also slow-ish under MSVC. On MinGW, `<iostream>` is slow on floating-point numbers, and `<cstdio>` is slow on integers. See raw data and more plots [here](https://docs.google.com/spreadsheets/d/1f6PY9vBJfsOq3pvIfLMSJdGjfvqt2bgXAQDAF3j0Fz0/edit?usp=sharing).
+
 
 ## How do I use this in produciton?
 

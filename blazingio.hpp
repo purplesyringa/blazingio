@@ -93,8 +93,6 @@
 @ondemand windows-*
 !undef OUTPUT_64BIT_INT
 !undef OUTPUT_MANTISSA
-#define OUTPUT_64BIT_INT MINTIME_OUTPUT_64BIT_INT
-#define OUTPUT_MANTISSA MINTIME_OUTPUT_MANTISSA
 #ifdef _MSC_VER
 #define OUTPUT_64BIT_INT \
     uint64_t high, low, tmp; \
@@ -113,6 +111,8 @@
         low = _umul128(100, low, &high);
 UNSET_SIMD
 #else
+#define OUTPUT_64BIT_INT MINTIME_OUTPUT_64BIT_INT
+#define OUTPUT_MANTISSA MINTIME_OUTPUT_MANTISSA
 @end
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))

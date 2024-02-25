@@ -40,13 +40,13 @@
 #include $w(<windows.h>,<sys/mman.h>)
 #include<sys/stat.h>
 #include $w(<io.h>,<unistd.h>)
-#define $n auto n=__int128{18}*C+(__int128{0x725dd1d243aba0e8}*C>>64)+1;for(int i=0;i<10;i++)H[i]=A[n>>64],n=(n&~0ULL)*100;
-#define $M auto n=(__int128{472236648287}*x>>8)+1;for(int i=0;i<6;i++)memcpy(I,A+(n>>64),2),I+=2,n=(n&~0ULL)*100;
 #ifdef _MSC_VER
 #define $n uint64_t D,E,F;_umul128(0x725dd1d243aba0e8,C,&F);_addcarry_u64(_addcarry_u64(1,_umul128(18,C,&D),F,&E),0,D,&D);for(int i=0;i<10;i++)H[i]=A[D],E=_umul128(100,E,&D);
 #define $M uint64_t D,E=_umul128(472236648287,x,&D)>>8|D<<56;D>>=8;_addcarry_u64(_addcarry_u64(0,1,E,&E),0,D,&D);for(int i=0;i<6;i++)memcpy(I,A+D,2),I+=2,E=_umul128(100,E,&D);
 #define $s
 #else
+#define $n auto n=__int128{18}*C+(__int128{0x725dd1d243aba0e8}*C>>64)+1;for(int i=0;i<10;i++)H[i]=A[n>>64],n=(n&~0ULL)*100;
+#define $M auto n=(__int128{472236648287}*x>>8)+1;for(int i=0;i<6;i++)memcpy(I,A+(n>>64),2),I+=2,n=(n&~0ULL)*100;
 #define $s $a(,__attribute__((target("avx2"))))
 #endif
 #define $z $a(16,32)

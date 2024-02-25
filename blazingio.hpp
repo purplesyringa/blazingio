@@ -492,7 +492,7 @@ struct istream_impl {
 !ifdef INTERACTIVE
         fetch();
 !endif
-        auto start = ptr;
+        NonAliasingChar* start = ptr;
         trace();
 
         // We know that [start; ptr) does not overlap 'value'. std::string::assign doesn't
@@ -640,7 +640,7 @@ struct istream_impl {
         while (i % SIMD_SIZE)
             value[--i] = *ptr++ == '1';
 !endif
-                auto p = (SIMD_TYPE*)ptr;
+                SIMD_TYPE* p = (SIMD_TYPE*)ptr;
 !ifdef INTERACTIVE
                 for (int64_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
 !else
@@ -1215,7 +1215,7 @@ struct SPLIT_HERE blazingio_ostream {
         auto i = N;
         while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
-        auto p = (SIMD_TYPE*)ptr;
+        SIMD_TYPE* p = (SIMD_TYPE*)ptr;
         i /= SIMD_SIZE;
         while (i) {
 @match

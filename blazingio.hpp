@@ -133,7 +133,7 @@ struct line_t {
 // lookahead over this byte though, so add 32 instead of 1.
 static NonAliasingChar buffer[65568];
 
-template<bool Interactive>
+template<int Interactive>
 !endif
 struct istream_impl {
     NonAliasingChar* end;
@@ -407,7 +407,7 @@ struct istream_impl {
     decltype((void)T{1})
 !endif
     input(T& x) {
-        bool negative = is_signed_v<T> && (FETCH *ptr == '-');
+        int negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
         x = negative ? NEGATE_MAYBE_UNSIGNED(x) : x;
@@ -416,7 +416,7 @@ struct istream_impl {
 !ifdef FLOAT
     template<typename T>
     INLINE decltype((void)T{1.}) input(T& x) {
-        bool negative = (FETCH *ptr == '-');
+        int negative = (FETCH *ptr == '-');
         ptr += negative;
         FETCH ptr += *ptr == '+';
 
@@ -425,7 +425,7 @@ struct istream_impl {
         for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++)
             n = n * 10 + *ptr++ - '0';
         int exponent = 20;  // Offset by 20, for reasons
-        bool has_dot = *ptr == '.';
+        int has_dot = *ptr == '.';
         ptr += has_dot;
         for (; i < 18 && (FETCH *ptr & 0xf0) == 0x30; i++)
             n = n * 10 + *ptr++ - '0',
@@ -773,7 +773,7 @@ char max_digits_by_log2[64]{1};
 struct SPLIT_HERE blazingio_ostream {
     char* base;
     NonAliasingChar* ptr;
-    bool ever_flushed;
+    int ever_flushed;
 
     blazingio_ostream() {
         // We *could* use 'base = new char[0x20000000];' instead of mmap-based allocation here, but
@@ -1034,7 +1034,7 @@ struct SPLIT_HERE blazingio_ostream {
             // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We
             // prefer 2^128 to slightly lower powers because this enables us to replace right-shift
             // by 64 with a single register read.
-            auto n = int128_t{18} * abs + ((int128_t{8240973594166534376} * abs) >> 64) + 1;
+            auto n = int128_t{18} * abs + ((int128_t{0x725dd1d243aba0e8} * abs) >> 64) + 1;
 
             for (int i = 0; i < 10; i++) {
                 buf[i] = decimal_lut[int(n >> 64)];

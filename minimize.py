@@ -415,7 +415,8 @@ def repl(s):
         ("Interactive", "F"),
         ("print", "F"),
         ("low_digits", "F"),
-        ("likely_regular_file", "F"),
+        ("attempt_direct_write", "F"),
+        ("index", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),
@@ -433,6 +434,7 @@ def repl(s):
         ("blazingio_istream", "J"),
         ("mask", "J"),
         ("a_coeff", "J"),
+        ("ever_flushed", "J"),
 
         ("value", "K"),
         ("init_assume_file", "K"),

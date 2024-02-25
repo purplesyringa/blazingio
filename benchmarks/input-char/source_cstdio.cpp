@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdio>
+#include <inttypes.h>
 
 int main() {
     char c;
@@ -8,6 +9,6 @@ int main() {
         sum += c;
     }
     // Do not optimize out reading of c
-    printf("%lu\n", sum);
+    printf("%" PRIu64 "\n", sum);
     return 0;
 }

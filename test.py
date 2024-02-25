@@ -137,7 +137,9 @@ if bench:
                     print(f"      Took {tm:.3} s")
                     key = f"{benchmark_name}/{impl_name}/{'pipe' if use_pipe else 'file'}"
                     log[key] = tm
-        json.dump(log, sys.stdout)
+
+        with open("benchmark-results.json", "w") as f:
+            json.dump(log, f)
 else:
     for test_name in os.listdir("tests"):
         print("Test", test_name)

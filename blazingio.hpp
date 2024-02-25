@@ -170,7 +170,7 @@ struct istream_impl {
         ensure(base)
         ensure(VirtualFree(base, 0, MEM_RELEASE))
         // Map the file there
-        DWORD mmaped_region_size = (file_size + 4095) & -65536;
+        DWORD mmaped_region_size = file_size & -65536;
         // If we remove this if and always call CreateFileMapping, it's going to interpret 0 as
         // "max", which we don't want.
         if (mmaped_region_size)

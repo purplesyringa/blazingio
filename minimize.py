@@ -510,15 +510,9 @@ if "_mm256_" in blazingio:
     blazingio = "#define M$(x,...)_mm256_##x##_epi8(__VA_ARGS__)\n" + re.sub(
         r"_mm256_(\w+)_epi8\(", r"M$(\1,", blazingio
     )
-    blazingio = "#define L$(x)_mm256_loadu_si256(x)\n" + blazingio.replace(
-        "_mm256_loadu_si256(", "L$("
-    )
 elif "_mm_" in blazingio:
     blazingio = "#define M$(x,...)_mm_##x##_epi8(__VA_ARGS__)\n" + re.sub(
         r"_mm_(\w+)_epi8\(", r"M$(\1,", blazingio
-    )
-    blazingio = "#define L$(x)_mm_loadu_si128(x)\n" + blazingio.replace(
-        "_mm_loadu_si128(", "L$("
     )
 
 blazingio = blazingio.strip()

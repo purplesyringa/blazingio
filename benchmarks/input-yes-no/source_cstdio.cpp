@@ -6,7 +6,7 @@
 int main() {
     char s[2048];
     uint64_t sum = 0;
-    while (fgets(s, 2048, stdin)) {
+    while (scanf("%s", s) == 1) {
         sum += strcmp(s, "YES") == 0;
     }
     // Do not optimize out reading of s

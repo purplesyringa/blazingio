@@ -239,6 +239,8 @@ blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")
 blazingio = "#define $c class\n" + blazingio.replace("class", "$c").replace("typename", "$c")
 blazingio = "#define $T template<$c T\n" + re.sub(r"template\s*<\$c T", "$T", blazingio)
 
+blazingio = "#define $P(x) void print(x value) {\n" + re.sub(r"void print\((.*?) value\) {", r"$P(\1)", blazingio)
+
 # Add multiarch/multiOS support
 if "IF_AARCH64" in needed_factor_macros:
     blazingio = f"#if __aarch64__\n#define IF_AARCH64(yes, no) yes\n#else\n#define IF_AARCH64(yes, no) no\n#endif\n" + blazingio

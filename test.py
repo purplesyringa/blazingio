@@ -116,10 +116,11 @@ if bench:
             print("  Generating")
             with open(f"{tmp}/blazingio-test", "wb") as f:
                 subprocess.run([sys.executable, generator], stdout=f, check=True)
-            with open(f"{tmp}/blazingio-test", "rb") as f:
-                test = f.read()
         else:
-            test = b""
+            with open(f"{tmp}/blazingio-test", "wb") as f:
+                pass
+        with open(f"{tmp}/blazingio-test", "rb") as f:
+            test = f.read()
 
         log = {}
         for file in os.listdir(f"benchmarks/{benchmark_name}"):

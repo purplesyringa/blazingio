@@ -37,7 +37,7 @@ struct Flusher {
 
 int main() {
     std::minstd_rand gen;
-    for (size_t i = 0; i < 5000000; i++) {
+    for (size_t i = 0; i < 20000000; i++) {
         uint32_t rng = gen();
         int sign = rng & 1;
         rng >>= 1;

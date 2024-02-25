@@ -1,3 +1,3 @@
 import random
 
-print(" ".join(random.choice(("YES", "NO")) for _ in range(10000000)))
+print(" ".join(random.choice(("YES", "NO")) for _ in range(30000000)))

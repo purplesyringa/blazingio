@@ -19,7 +19,7 @@ struct Flusher {
 } flusher;
 
 int main() {
-    for (size_t i = 0; i < 20000000; i++) {
+    for (size_t i = 0; i < 40000000; i++) {
         writeChar('x');
     }
     return 0;

@@ -20,7 +20,7 @@ inline void writeWord( const char *s ) {
 
 int main() {
     std::minstd_rand gen;
-    for (size_t i = 0; i < 10000000; i += 32) {
+    for (size_t i = 0; i < 20000000; i += 32) {
         uint32_t n = gen();
         for (size_t j = 0; j < 32; j++) {
             writeWord(((n >> j) & 1) ? "YES" : "NO");

@@ -1,5 +1,7 @@
 # blazingio
 
+![Tests](https://github.com/purplesyringa/blazingio/actions/workflows/test.yml/badge.svg)
+
 **blazingio** is a performant minimal drop-in replacement for C++ standard input and output facilities. It's stupid, doesn't guard against invalid data and can't do much, but it can read/write integers, strings, and other primitives 10x faster than libstdc++, and that's what matters in areas like competitive programming.
 
 

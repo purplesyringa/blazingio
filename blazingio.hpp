@@ -764,6 +764,7 @@ char max_digits_by_log2[64]{1};
 struct SPLIT_HERE blazingio_ostream {
     char* base;
     NonAliasingChar* ptr;
+    bool ever_flushed;
 
     blazingio_ostream() {
         // We *could* use 'base = new char[0x20000000];' instead of mmap-based allocation here, but
@@ -802,13 +803,13 @@ struct SPLIT_HERE blazingio_ostream {
 !ifdef INTERACTIVE
         flush(
 @ondemand windows-*
-            true
+           !ever_flushed
 @end
         );
     }
     void flush(
 @ondemand windows-*
-        int likely_regular_file = false
+        int attempt_direct_write = false
 @end
     ) {
 !endif
@@ -820,11 +821,12 @@ struct SPLIT_HERE blazingio_ostream {
             start += n_written;
         ensure(~n_written)
 @case windows-*
+        ever_flushed = true;
         auto stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
 !define WRAP_REOPEN(x) x
 !ifdef INTERACTIVE
 !undef WRAP_REOPEN
-!define WRAP_REOPEN(x) likely_regular_file ? x : INVALID_HANDLE_VALUE
+!define WRAP_REOPEN(x) attempt_direct_write ? x : INVALID_HANDLE_VALUE
 !endif
         auto handle = WRAP_REOPEN(ReOpenFile(
             stdout_handle,

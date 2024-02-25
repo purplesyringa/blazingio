@@ -416,7 +416,6 @@ def repl(s):
         ("print", "F"),
         ("low_digits", "F"),
         ("attempt_direct_write", "F"),
-        ("index", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),
@@ -457,6 +456,7 @@ def repl(s):
         ("rshift_impl", "Q"),
 
         ("BITSET_SHIFT", "R"),
+        ("index", "R"),
 
         ("NULL", "0"),
         ("false", "0"),

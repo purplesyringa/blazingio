@@ -548,7 +548,7 @@ struct istream_impl {
 @case windows-i386 (_BitScanForward(&index, (ULONG)x) || (_BitScanForward(&index, ULONG(x >> 32)), index += 32), index)
 @end
 @match
-@case *-x86+avx2 wrap
+@case *-x86+avx2
             int mask;
             __m256i space = _mm256_set1_epi8(' ');
             while (
@@ -558,7 +558,7 @@ struct istream_impl {
             )
                 p++;
             ptr = (NonAliasingChar*)p + BSFD(mask);
-@case *-x86+sse4.1 wrap
+@case *-x86+sse4.1
             int mask;
             __m128i space = _mm_set1_epi8(' ');
             while (
@@ -568,7 +568,7 @@ struct istream_impl {
             )
                 p++;
             ptr = (NonAliasingChar*)p + BSFD(mask);
-@case *-aarch64+neon wrap
+@case *-aarch64+neon
             uint64x2_t vec;
             while (vec = (uint64x2_t)(*p < 33), !(vec[0] | vec[1]))
                 p++;
@@ -677,7 +677,7 @@ struct istream_impl {
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     );
-@case *-aarch64+neon wrap
+@case *-aarch64+neon
                     auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - *p++);
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
                     ((uint16_t*)&value)[i / 16] = vaddvq_u16(
@@ -972,15 +972,16 @@ struct SPLIT_HERE blazingio_ostream {
             // Luckily, this is true from all abs up to 2^32.
             auto n = 1441151881ULL * abs;
 @match
-@case *-x86_64,*-aarch64 wrap
+@case *-x86_64,*-aarch64
             int shift = 57;
             auto mask = ~0ULL >> 7;
-            for (int i = 0; i < 5; i++)
-                buf[i] = decimal_lut[n >> shift],
-                n = (n & mask) * 25,
-                shift -= 2,
+            for (int i = 0; i < 5; i++) {
+                buf[i] = decimal_lut[n >> shift];
+                n = (n & mask) * 25;
+                shift -= 2;
                 mask /= 4;
-@case *-i386 wrap
+            }
+@case *-i386
             // Repeat what's going on in the above case, but use 32.32 for actual computations.
             // Proof of correctness: we want
             //     (((((1441151881 * abs) >> 25) + 1) * 1e8) >> 32) - abs < 1,
@@ -991,9 +992,10 @@ struct SPLIT_HERE blazingio_ostream {
             // which holds for abs up to 2^32.
             n >>= 25;
             n++;
-            for (int i = 0; i < 5; i++)
-                buf[i] = decimal_lut[n >> 32],
+            for (int i = 0; i < 5; i++) {
+                buf[i] = decimal_lut[n >> 32];
                 n = (n & ~0U) * 100;
+            }
 @end
 
             // Always copying 16 bytes enables us to always mov xmmword as opposed to multiple
@@ -1001,7 +1003,7 @@ struct SPLIT_HERE blazingio_ostream {
             memcpy(ptr, (NonAliasingChar*)buf + 10 - digits, 16);
         } else /* if constexpr (sizeof(T) == 8) */ {
 @match
-@case *-x86_64,*-aarch64 wrap
+@case *-x86_64,*-aarch64
             // This part is also based on James Anhalt's algorithm. See
             // https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
 
@@ -1034,9 +1036,10 @@ struct SPLIT_HERE blazingio_ostream {
             // by 64 with a single register read.
             auto n = int128_t{18} * abs + ((int128_t{8240973594166534376} * abs) >> 64) + 1;
 
-            for (int i = 0; i < 10; i++)
-                buf[i] = decimal_lut[int(n >> 64)],
+            for (int i = 0; i < 10; i++) {
+                buf[i] = decimal_lut[int(n >> 64)];
                 n = (n & ~0ULL) * 100;
+            }
 @case *-i386 wrap
             // The i386 case is hard. We don't even have i128; any attempt to emulate it is going to
             // be darn slow. We can't really output longs *fast* though, so this part of code is
@@ -1099,7 +1102,7 @@ struct SPLIT_HERE blazingio_ostream {
             auto x = uint64_t(value * 1e12);
 
 @match
-@case *-x86_64,*-aarch64 wrap
+@case *-x86_64,*-aarch64
             // This is a variation on Terje Mathisen's algorithm, just like in integer output. The
             // reason for yet another reimplementation in this lambda as opposed to reusing existing
             // code is because 'x' contains just 12 digits, not 20 supported by the general
@@ -1118,10 +1121,11 @@ struct SPLIT_HERE blazingio_ostream {
             // holds for all abs up to 1e12. We choose 72 as the initial precision instead of
             // something bigger to reduce length of the constant in source code.
             auto n = (int128_t{472236648287} * x >> 8) + 1;
-            for (int i = 0; i < 6; i++)
-                memcpy(ptr, decimal_lut + int(n >> 64), 2),
-                ptr += 2,
+            for (int i = 0; i < 6; i++) {
+                memcpy(ptr, decimal_lut + int(n >> 64), 2);
+                ptr += 2;
                 n = (n & ~0ULL) * 100;
+            }
 @case *-i386 wrap
             // We can't reliably force MSVC to use SSE from within the program, so we have to
             // gracefully handle the case when FPU is used for floating-point computations. There is

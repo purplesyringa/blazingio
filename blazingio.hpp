@@ -979,7 +979,7 @@ struct SPLIT_HERE blazingio_ostream {
                 buf[i] = decimal_lut[n >> shift],
                 n = (n & mask) * 25,
                 shift -= 2,
-                mask >>= 2;
+                mask /= 4;
 @case *-i386 wrap
             // Repeat what's going on in the above case, but use 32.32 for actual computations.
             // Proof of correctness: we want
@@ -1143,7 +1143,7 @@ struct SPLIT_HERE blazingio_ostream {
                     memcpy(ptr + i * 2 + j * 6, decimal_lut + (n[j] >> shift), 2),
                     n[j] = (n[j] & mask) * 25;
                 shift -= 2;
-                mask >>= 2;
+                mask /= 4;
             }
             ptr += 12;
 @end

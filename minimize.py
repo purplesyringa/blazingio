@@ -398,6 +398,7 @@ def repl(s):
         ("exception_record", "C"),
         ("handle", "C"),
         ("abs", "C"),
+        ("alloc_size", "C"),
 
         ("line_t", "D"),
         ("base", "D"),
@@ -416,6 +417,7 @@ def repl(s):
         ("tmp_n_read", "E"),
         ("exps", "E"),
         ("low", "E"),
+        ("rlim", "E"),
 
         ("Interactive", "F"),
         ("print", "F"),

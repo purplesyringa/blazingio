@@ -25,6 +25,10 @@
 @case linux-*,macos-* <unistd.h>
 @case windows-* <io.h>
 @end
+@include
+@case linux-* <sys/resource.h>
+@case windows-* none
+@end
 
 !define UNSET_SIMD
 @ondemand *-x86+avx2,*-x86+sse4.1
@@ -854,19 +858,34 @@ struct SPLIT_HERE blazingio_ostream {
         // that would lead to problems on systems without overcommit, such as Windows.
         // The size is limited by a bit greater than 0x20000000 because 32-bit WINE only allows to
         // allocate that much.
+        // ejudge seems to be cursed. It supports RSS limits as opposed to VMA limits, but this
+        // feature is used neither by ej-polygon nor polygon-to-ejudge, which means we'll likely
+        // fail to allocate 0.5 GiB of address space for output. We can't even make it *growable*,
+        // really, because there's no way to reserve an address range. We, however, don't want to
+        // hinder feature support on sunwalker and Yandex.Contest (it got *something* right for
+        // once, maybe let's congratulate it with that and offer emotional support). Therefore, only
+        // reduce allocation size to 24 MiB if a limit is detected.
+@define !CHECK_RLIMIT
+@case linux-* struct rlimit rlim; getrlimit(RLIMIT_AS, &rlim); if (~rlim.rlim_cur) alloc_size = 0x1800000;
+@case macos-*
+@end
 @match
 @case linux-*,macos-*
         // Avoid MAP_SHARED: it turns out it's pretty damn inefficient compared to a write at the
         // end. This also allows us to allocate memory immediately without waiting for freopen,
         // because we'll only use the fd in the destructor.
+        size_t alloc_size = 0x20000000;
+        CHECK_RLIMIT
         base = (char*)mmap(
             NULL,
-            0x20000000,
+            alloc_size,
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
             -1,
             0
         );
+        // ejudge limits virtual address space in some cases. For instance, it does that by default
+        // on problems imported with ej-polygon.
         ensure(base != MAP_FAILED)
 @case windows-*
         // Windows doesn't support anything like MAP_NORESERVE or overcommit. Therefore, reserve

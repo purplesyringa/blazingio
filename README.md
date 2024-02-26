@@ -61,6 +61,8 @@ Similar considerations apply to `std::cout`. Most types can be written, although
 - Pointers (`const void*` and `std::nullptr_t`) cannot be written. (There's no compelling reason to.)
 - `precision` and `width` are not handled.
 
+Output is limited by 0.5 GiB typically and by 24 MiB on old-style ejudge problems. Unfortunately, most ejudge problems are old-style, so whether outputting more will work depends on your luck. Neither sunwalker nor Yandex.Contest have this limitation. Hopefully this particular use case is rare enough.
+
 It also goes without saying that you won't be able to use this library if you can't or aren't allowed to use external code.
 
 

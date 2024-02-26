@@ -42,11 +42,15 @@
 UNSET_SIMD
 #else
 @end
+@match
+@case *-x86_64,*-aarch64
 uint64_t _umul128(uint64_t a, uint64_t b, uint64_t* high) {
     auto x = (__uint128_t)a * b;
     *high = x >> 64;
     return x;
 }
+@case *-i386
+@end
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))
 @case *-x86+sse4.1 __attribute__((target("sse4.1")))

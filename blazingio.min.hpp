@@ -45,7 +45,7 @@
 #define __builtin_add_overflow(a,b,c)_addcarry_u64(0,a,b,c)
 #define $s
 #else
-uint64_t _umul128(uint64_t a,uint64_t b,uint64_t*D){auto x=(__uint128_t)a*b;*D=x>>64;$R x;}
+$H(,uint64_t _umul128(uint64_t a,uint64_t b,uint64_t*D){auto x=(__uint128_t)a*b;*D=x>>64;$R x;})
 #define $s $a(,__attribute__((target("avx2"))))
 #endif
 #define $z $a(16,32)

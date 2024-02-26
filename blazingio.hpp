@@ -36,88 +36,17 @@
 !define UNSET_SIMD #define SIMD
 @end
 
-!define MINTIME_OUTPUT_64BIT_INT \
-    /* This part is based on James Anhalt's algorithm. See
-       https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
-
-       We use a 128-bit fixed-point format here. 7.121 would be inefficient because there are no
-       128-bit operations in x86, but 64.64 works just fine because there is mul r64, and extracting
-       the whole and real parts is just a question of using this or that register.
-
-       We want to compute abs / 1e18 in fixed point. We could compute that as
-           abs * (2^64 // 1e18 + 1),
-       but the approximation of 1e-18 in 64.64 is way too imprecise for large 'abs': it's just 19.
-       However, is that not too few bits compared to the seemingly suficient 64? Indeed, the cause
-       of the problem is not the precision of the fixed-point format, but double rounding. If 1e-18
-       itself wasn't rounded initially, the accuracy would be much better.
-
-       We shall approximate 'abs * 2^64 * 1e-18' as
-           ((abs * (2^128 // 1e18 + 1)) >> 64) + 1
-       This is clearly an upper bound. How precise is it? Just like in the 32-bit case, we want
-           (((((abs * 340282366920938463464) >> 64) + 1) * 1e18) >> 64) - abs < 1
-       This translates to
-           (((abs * 340282366920938463464) >> 64) + 1) * 1e18 < (abs + 1) * 2^64,
-       which follows from
-           (abs * 340282366920938463464 / 2^64 + 1) * 1e18 < (abs + 1) * 2^64,
-       which is clearly true because
-           abs * (340282366920938463464e18 - 2^128) < 2^128 - 2^64 * 1e18
-       holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We prefer 2^128
-       to slightly lower powers because this enables us to replace right-shift by 64 with a single
-       register read. */ \
-    auto n = __int128{18} * abs + (__int128{0x725dd1d243aba0e8} * abs >> 64) + 1; \
-    for (int i = 0; i < 10; i++) \
-        buf[i] = decimal_lut[n >> 64], \
-        n = (n & ~0ULL) * 100;
-!define MINTIME_OUTPUT_MANTISSA \
-    /* This is a variation on Terje Mathisen's algorithm, just like in integer output. The reason
-       for yet another reimplementation in this lambda as opposed to reusing existing code is
-       because 'x' contains just 12 digits, not 20 supported by the general implementation, and that
-       lets us use a less precise approximation.
-
-       We shall approximate 'abs * 2^64 * 1e-10' as
-           ((abs * (2^72 // 1e10 + 1)) >> 8) + 1
-       This is clearly an upper bound. To be correct, we want
-           (((((abs * 472236648287) >> 8) + 1) * 1e10) >> 64) - abs < 1
-       This translates to
-           (((abs * 472236648287) >> 8) + 1) * 1e10 < (abs + 1) * 2^64
-       which follows from
-           (abs * 472236648287 / 2^8 + 1) * 1e10 < (abs + 1) * 2^64
-       which is clearly true because
-           abs * (472236648287e10 - 2^72) < 2^72 - 2^8 * 1e10
-       holds for all abs up to 1e12. We choose 72 as the initial precision instead of something
-       bigger to reduce length of the constant in source code. */ \
-    auto n = (__int128{472236648287} * x >> 8) + 1; \
-    for (int i = 0; i < 6; i++) \
-        memcpy(ptr, decimal_lut + (n >> 64), 2), \
-        ptr += 2, \
-        n = (n & ~0ULL) * 100;
-
-!define OUTPUT_64BIT_INT MINTIME_OUTPUT_64BIT_INT
-!define OUTPUT_MANTISSA MINTIME_OUTPUT_MANTISSA
 @ondemand windows-*
-!undef OUTPUT_64BIT_INT
-!undef OUTPUT_MANTISSA
 #ifdef _MSC_VER
-#define OUTPUT_64BIT_INT \
-    uint64_t high, low, tmp; \
-    _umul128(0x725dd1d243aba0e8, abs, &tmp); \
-    _addcarry_u64(_addcarry_u64(1, _umul128(18, abs, &high), tmp, &low), 0, high, &high); \
-    for (int i = 0; i < 10; i++) \
-        buf[i] = decimal_lut[high], \
-        low = _umul128(100, low, &high);
-#define OUTPUT_MANTISSA \
-    uint64_t high, low = _umul128(472236648287, x, &high) >> 8 | high << 56; \
-    high >>= 8; \
-    _addcarry_u64(_addcarry_u64(0, 1, low, &low), 0, high, &high); \
-    for (int i = 0; i < 6; i++) \
-        memcpy(ptr, decimal_lut + high, 2), \
-        ptr += 2, \
-        low = _umul128(100, low, &high);
+#define __builtin_add_overflow(a, b, c) _addcarry_u64(0, a, b, c)
 UNSET_SIMD
 #else
-#define OUTPUT_64BIT_INT MINTIME_OUTPUT_64BIT_INT
-#define OUTPUT_MANTISSA MINTIME_OUTPUT_MANTISSA
 @end
+uint64_t _umul128(uint64_t a, uint64_t b, uint64_t* high) {
+    auto x = (__uint128_t)a * b;
+    *high = x >> 64;
+    return x;
+}
 @define SIMD
 @case *-x86+avx2 __attribute__((target("avx2")))
 @case *-x86+sse4.1 __attribute__((target("sse4.1")))
@@ -1097,7 +1026,43 @@ struct SPLIT_HERE blazingio_ostream {
         } else /* if constexpr (sizeof(T) == 8) */ {
 @match
 @case *-x86_64,*-aarch64 wrap
-            OUTPUT_64BIT_INT
+            // This part is based on James Anhalt's algorithm. See
+            // https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
+
+            // We use a 128-bit fixed-point format here. 7.121 would be inefficient because there
+            // are no 128-bit operations in x86, but 64.64 works just fine because there is mul r64,
+            // and extracting the whole and real parts is just a question of using this or that
+            // register.
+
+            // We want to compute abs / 1e18 in fixed point. We could compute that as
+            //     abs * (2^64 // 1e18 + 1),
+            // but the approximation of 1e-18 in 64.64 is way too imprecise for large 'abs': it's
+            // just 19. However, is that not too few bits compared to the seemingly suficient 64?
+            // Indeed, the cause of the problem is not the precision of the fixed-point format, but
+            // double rounding. If 1e-18 itself wasn't rounded initially, the accuracy would be much
+            // better.
+
+            // We shall approximate 'abs * 2^64 * 1e-18' as
+            //     ((abs * (2^128 // 1e18 + 1)) >> 64) + 1
+            // This is clearly an upper bound. How precise is it? Just like in the 32-bit case, we
+            // want
+            //     (((((abs * 340282366920938463464) >> 64) + 1) * 1e18) >> 64) - abs < 1
+            // This translates to
+            //     (((abs * 340282366920938463464) >> 64) + 1) * 1e18 < (abs + 1) * 2^64,
+            // which follows from
+            //     (abs * 340282366920938463464 / 2^64 + 1) * 1e18 < (abs + 1) * 2^64,
+            // which is clearly true because
+            //     abs * (340282366920938463464e18 - 2^128) < 2^128 - 2^64 * 1e18
+            // holds for all abs up to 2^64. In fact, the left-hand size is just 4% of RHS. We
+            // prefer 2^128 to slightly lower powers because this enables us to replace right-shift
+            // by 64 with a single register read.
+            uint64_t high, low = _umul128(18, abs, &high), tmp;
+            _umul128(0x725dd1d243aba0e8, abs, &tmp);
+            // As the constant is even, tmp is even and tmp + 1 can't overflow.
+            high += __builtin_add_overflow(low, tmp + 1, &low);
+            for (int i = 0; i < 10; i++)
+                buf[i] = decimal_lut[high],
+                low = _umul128(100, low, &high);
 @case *-i386 wrap
             // The i386 case is hard. We don't even have i128; any attempt to emulate it is going to
             // be darn slow. We can't really output longs *fast* though, so this part of code is
@@ -1161,7 +1126,41 @@ struct SPLIT_HERE blazingio_ostream {
 
 @match
 @case *-x86_64,*-aarch64 wrap
-            OUTPUT_MANTISSA
+            // This is a variation on Terje Mathisen's algorithm, just like in integer output. The
+            // reason for yet another reimplementation in this lambda as opposed to reusing existing
+            // code is because 'x' contains just 12 digits, not 20 supported by the general
+            // implementation, and that lets us use a less precise approximation.
+
+            // We shall approximate 'abs * 2^64 * 1e-10' as
+            //     ((abs * (2^72 // 1e10 + 1)) >> 8) + 1
+            // This is clearly an upper bound. To be correct, we want
+            //     (((((abs * 472236648287) >> 8) + 1) * 1e10) >> 64) - abs < 1
+            // This translates to
+            //     (((abs * 472236648287) >> 8) + 1) * 1e10 < (abs + 1) * 2^64
+            // which follows from
+            //     (abs * 472236648287 / 2^8 + 1) * 1e10 < (abs + 1) * 2^64
+            // which is clearly true because
+            //     abs * (472236648287e10 - 2^72) < 2^72 - 2^8 * 1e10
+            // holds for all abs up to 1e12. We choose 72 as the initial precision instead of
+            // something bigger to reduce length of the constant in source code.
+            uint64_t high, low = _umul128(472236648287, x, &high) >> 8;
+            low |= high << 56;
+            high >>= 8;
+            // We'd like to increment (high, low) here. Can low++ overflow?
+            // This can only happen if low = 0xffffffffffffffff, i.e. if
+            //     472236648287 * x = 0x??????????????ffffffffffffffff??
+            // where ? denoted arbitrary bits. We know that the high bits are less
+            // than 100, so we can just try to solve this equation head-on:
+            //     for top in range(100):
+            //         for low in range(256):
+            //             y = (((top << 64) | 0xffffffffffffffff) << 8) + low
+            //             assert y % 472236648287 != 0
+            // The asserts hold, therefore low++ can't overflow.
+            low++;
+            for (int i = 0; i < 6; i++)
+                memcpy(ptr, decimal_lut + high, 2),
+                ptr += 2,
+                low = _umul128(100, low, &high);
 @case *-i386 wrap
             // We can't reliably force MSVC to use SSE from within the program, so we have to
             // gracefully handle the case when FPU is used for floating-point computations. There is

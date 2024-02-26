@@ -355,6 +355,7 @@ def repl(s):
         ("UNWRAP", "$u"),
         ("OUTPUT_64BIT_INT", "$n"),
         ("OUTPUT_MANTISSA", "$M"),
+        ("add_carry", "a$"),
 
         ("Inner", "A"),
         ("n_read", "A"),

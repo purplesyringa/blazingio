@@ -237,7 +237,7 @@ struct istream_impl {
         // operator>> while skipping whitespace, or in input(). In the former case, the right thing
         // to do is stop the loop by encountering a non-space character; in the latter case, the
         // right thing to do is to stop the loop by encountering a space character. Something like
-        // "\n0" works for both cases: it stops (for instance) integer parsing immediately with a
+        // "\n0\0" works for both cases: it stops (for instance) integer parsing immediately with a
         // zero, and also stops whitespace parsing *soon*. \n is chosen instead of \0 so that
         // getline can detect EOL by scanning for \n and \r\n without caring about \0.
 @end
@@ -247,6 +247,7 @@ struct istream_impl {
         // We only really need to do this if we're willing to keep going "after" EOF, not just
         // handle 4k-aligned non-whitespace-terminated input.
         end[1] = '0';
+        end[2] = 0;
 !endif
         ptr = (NonAliasingChar*)base;
     }
@@ -394,9 +395,10 @@ struct istream_impl {
 !ifdef STDIN_EOF
             if (!n_read)
                 // This is an attempt to read past EOF. Simulate this just like with files, with
-                // "\n0". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
+                // "\n0\0". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
                 buffer[1] = '0',
+                buffer[2] = 0,
                 // We want ptr == end to evaluate to false.
                 end = NULL;
 !endif

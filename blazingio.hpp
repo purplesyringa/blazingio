@@ -413,15 +413,7 @@ struct istream_impl {
     }
 
     template<typename T>
-    INLINE
-    // Without float support, only integers can be cast to 1. With floating-point support, we can't
-    // use this trick.
-!ifdef FLOAT
-    enable_if_t<is_integral_v<T>>
-!else
-    decltype((void)T{1})
-!endif
-    input(T& x) {
+    INLINE decltype((void)~T{1}) input(T& x) {
         int negative = is_signed_v<T> && (FETCH *ptr == '-');
         ptr += negative;
         collect_digits(x = 0);
@@ -910,8 +902,7 @@ struct SPLIT_HERE blazingio_ostream {
     }
 
     template<typename T>
-    // We can't use decltype((void)T{1}) here because that's going to conflict with std::string.
-    enable_if_t<is_integral_v<T>> print(T value) {
+    decltype((void)~T{1}) print(T value) {
         using AbsT = make_unsigned_t<T>;
 
         AbsT abs = value;

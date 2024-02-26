@@ -1,3 +1,7 @@
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdollar-in-identifier-extension"
+// NOLINTBEGIN
+// clang-format off
 // DO NOT REMOVE THIS MESSAGE. The mess that follows is a minified build of
 // https://github.com/purplesyringa/blazingio. Refer to the repository for
 // a human-readable version and documentation.
@@ -63,3 +67,6 @@ $o{char*D;B*I;int J;$o(){$w(E$(D=(char*)VirtualAlloc(0,536870912,8192,4))E$(Virt
 #define clog e$
 #endif
 // End of blazingio
+#pragma GCC diagnostic pop
+// NOLINTEND
+// clang-format on

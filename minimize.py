@@ -535,7 +535,10 @@ blazingio = blazingio.strip()
 blazingio = re.sub(r"\s*SPLIT_HERE\s*", "\n", blazingio)
 
 # Add comments
-blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a minified build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Options: {config_str or '(none)'}\n{blazingio}\n// End of blazingio\n"
+blazingio = f"// DO NOT REMOVE THIS MESSAGE. The mess that follows is a minified build of\n// https://github.com/purplesyringa/blazingio. Refer to the repository for\n// a human-readable version and documentation.\n// Options: {config_str or '(none)'}\n{blazingio}\n// End of blazingio"
+
+# Disable lints and warnings
+blazingio = f'#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored "-Wdollar-in-identifier-extension"\n// NOLINTBEGIN\n// clang-format off\n{blazingio}\n#pragma GCC diagnostic pop\n// NOLINTEND\n// clang-format on\n'
 
 open("blazingio.min.hpp", "w").write(blazingio)
 

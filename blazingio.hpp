@@ -258,10 +258,12 @@ struct istream_impl {
 !endif
 
 !ifndef INTERACTIVE
-    // For people writing cie.tie(0);
-    void* tie(nullptr_t) {
-        return NULL;
+    // For people writing cin.tie(0);
+    istream_impl* tie(nullptr_t) {
+        return this;
     }
+    // For people writing cin.tie(0)->sync_with_stdio(0);
+    void sync_with_stdio(bool) {}
 !endif
 
 !ifdef INTERACTIVE
@@ -754,10 +756,12 @@ struct blazingio_istream {
             : interactive.init_assume_interactive();
     }
 
-    // For people writing cie.tie(0);
-    void* tie(nullptr_t) {
-        return NULL;
+    // For people writing cin.tie(0);
+    blazingio_istream* tie(nullptr_t) {
+        return this;
     }
+    // For people writing cin.tie(0)->sync_with_stdio(0);
+    void sync_with_stdio(bool) {}
 
     template<typename T>
     INLINE blazingio_istream& operator>>(T& value) {

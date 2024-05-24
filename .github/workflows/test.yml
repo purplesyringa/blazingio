@@ -4,14 +4,21 @@ jobs:
   posix:
     strategy:
       matrix:
-        os: [ubuntu-latest, buildjet-2vcpu-ubuntu-2204-arm, macos-13, macos-14]
+        os: [ubuntu-latest, macos-13, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
+          python-version: "3.10"
           cache: pip
-      - run: pip3 install pyyaml
+      - run: pip3 install -r requirements.txt
+      - run: python3 test.py
+  linux-arm64:
+    runs-on: buildjet-2vcpu-ubuntu-2204-arm
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip3 install -r requirements.txt
       - run: python3 test.py
   linux-i386:
     runs-on: ubuntu-22.04
@@ -23,8 +30,9 @@ jobs:
           sudo apt-get install g++-i686-linux-gnu
       - uses: actions/setup-python@v5
         with:
+          python-version: "3.10"
           cache: pip
-      - run: pip3 install pyyaml
+      - run: pip3 install -r requirements.txt
       - run: python3 test.py --cross i386
   windows-mingw:
     runs-on: windows-latest
@@ -71,8 +79,9 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
       - uses: actions/setup-python@v5
         with:
+          python-version: "3.10"
           cache: pip
-      - run: pip3 install pyyaml pywin32
+      - run: pip3 install -r requirements.txt
       - run: python3 test.py --msvc x86_64
   windows-msvc-i386:
     runs-on: windows-latest
@@ -88,6 +97,7 @@ jobs:
           arch: x86
       - uses: actions/setup-python@v5
         with:
+          python-version: "3.10"
           cache: pip
-      - run: pip3 install pyyaml pywin32
+      - run: pip3 install -r requirements.txt
       - run: python3 test.py --msvc i386

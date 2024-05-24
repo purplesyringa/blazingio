@@ -1,0 +1,2 @@
+pyyaml
+pywin32; sys_platform == 'win32'

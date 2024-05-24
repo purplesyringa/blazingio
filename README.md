@@ -46,7 +46,7 @@ Other methods are not supported. `std::getline` is available, though.
 The differences in format are:
 
 - Integral types can't start with positive sign `+`.
-- Floating-point accuracy is insignificantly worse than 1 ulp.
+- Floating-point accuracy is worse than 1 ulp. (You can, however, increase `double` accuracy by reading into `long double` and then casting to `double`, and similarly with `float` via `double`.)
 - Only decimal formats are supported for both ints and floats.
 - `std::bitset<N>` can't handle input strings shorter than `N` (std would zero-pads them).
 - Parameters of PRNGs (`std::linear_congruential_engine` and `std::uniform_int_distribution`) cannot be loaded. (Did you even know these *can* be read?)

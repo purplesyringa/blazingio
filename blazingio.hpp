@@ -512,7 +512,7 @@ struct istream_impl {
         //     memcpy(value.data(), start, ptr - start);
         // This worked just fine, but libc++ forbids this code because UninitChar is not a trivial
         // type. Therefore, disable this optimization.
-        value.assign((const char*)start, ptr - start);
+        value.assign((char*)start, ptr - start);
 
 !ifdef INTERACTIVE
         while (Interactive && ptr == end && (FETCH end != buffer)) {

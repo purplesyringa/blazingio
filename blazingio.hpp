@@ -532,6 +532,7 @@ struct istream_impl {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
+            NonAliasingChar* p = ptr;
 @match
 @case linux-*,macos-*
 @case windows-*
@@ -553,45 +554,37 @@ struct istream_impl {
 @case *-x86+avx2
             int mask;
             SIMD_TYPE space = _mm256_set1_epi8(' ');
-            SIMD_TYPE *p = (SIMD_TYPE*)ptr;
             while (
                 !(mask = _mm256_movemask_epi8(
-                    _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p)))
+                    _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256((SIMD_TYPE*)p)))
                 ))
             )
-                // XXX: I have no idea if this pointer arithmetic is sound. __m256i is may_alias, so
-                // it likely is, but there aren't any explicit guarantees.
-                p++;
-            ptr = (NonAliasingChar*)p + BSFD(mask);
+                p += 32;
+            ptr = p + BSFD(mask);
 @case *-x86+sse4.1
             int mask;
             SIMD_TYPE space = _mm_set1_epi8(' ');
-            SIMD_TYPE *p = (SIMD_TYPE*)ptr;
             while (
                 !(mask = _mm_movemask_epi8(
-                    _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p)))
+                    _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128((SIMD_TYPE*)p)))
                 ))
             )
-                // XXX: I have no idea if this pointer arithmetic is sound. __m128i is may_alias, so
-                // it likely is, but there aren't any explicit guarantees.
-                p++;
-            ptr = (NonAliasingChar*)p + BSFD(mask);
+                p += 16;
+            ptr = p + BSFD(mask);
 @case *-aarch64+neon
             uint64x2_t vec;
-            auto p = (uint8_t*)ptr;
-            while (vec = (uint64x2_t)(vld1q_u8(p) < 33), !(vec[0] | vec[1]))
+            while (vec = (uint64x2_t)(vld1q_u8((uint8_t*)p) < 33), !(vec[0] | vec[1]))
                 p += 16;
-            ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
+            ptr = p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
 @case *-x86+none,*-aarch64+none
             // This is a variation on Mycroft's algorithm. See
             // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for
             // the original code.
-            // XXX: there's a strict aliasing violation here
-            SIMD_TYPE* p = (SIMD_TYPE*)ptr;
             uint64_t vec;
-            while (!(vec = ((*p - ONE_BYTES * 33) & ~*p & (ONE_BYTES << 7))))
-                p++;
-            ptr = (NonAliasingChar*)p + BSFQ(vec) / 8;
+            // XXX: there's a strict aliasing violation here
+            while (!(vec = ((*(SIMD_TYPE*)p - ONE_BYTES * 33) & ~*(SIMD_TYPE*)p & (ONE_BYTES << 7))))
+                p += 8;
+            ptr = p + BSFQ(vec) / 8;
 @end
         });
     }
@@ -651,7 +644,7 @@ struct istream_impl {
         while (i % SIMD_SIZE)
             value[--i] = *ptr++ == '1';
 !endif
-                SIMD_TYPE* p = (SIMD_TYPE*)ptr;
+                NonAliasingChar* p = ptr;
 !ifdef INTERACTIVE
                 for (int64_t j = 0; j < min(i, end - ptr) / SIMD_SIZE; j++) {
 !else
@@ -674,10 +667,7 @@ struct istream_impl {
                     PUT(uint32_t, BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
-                                // XXX: I have no idea if this pointer arithmetic is sound. __m256i
-                                // is may_alias, so it likely is, but there aren't any explicit
-                                // guarantees.
-                                _mm256_slli_epi32(_mm256_loadu_si256(p++), 7),
+                                _mm256_slli_epi32(_mm256_loadu_si256((SIMD_TYPE*)p), 7),
                                 _mm256_set_epi64x(
                                     a + ONE_BYTES * 24,
                                     a + ONE_BYTES * 16,
@@ -692,28 +682,26 @@ struct istream_impl {
                     uint64_t a = ~0ULL / 65025;
                     PUT(uint16_t, _mm_movemask_epi8(
                         _mm_shuffle_epi8(
-                            // XXX: I have no idea if this pointer arithmetic is sound. __m128i is
-                            // may_alias, so it likely is, but there aren't any explicit guarantees.
-                            _mm_slli_epi32(_mm_loadu_si128(p++), 7),
+                            _mm_slli_epi32(_mm_loadu_si128((SIMD_TYPE*)p), 7),
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     ));
 @case *-aarch64+neon
-                    // XXX: there's a strict aliasing violation here
-                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - vld1q_u8((uint8_t*)p++));
+                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - vld1q_u8((uint8_t*)p));
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
                     PUT(uint16_t, vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     ));
 @case *-x86+none,*-aarch64+none
                     // XXX: there's a strict aliasing violation here
-                    PUT(char, (*p++ & ONE_BYTES) * BITSET_SHIFT >> 56);
+                    PUT(char, (*(uint64_t*)p & ONE_BYTES) * BITSET_SHIFT >> 56);
 @end
+                    p += SIMD_SIZE;
 @ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
                     memcpy((char*)&value + i / 8, &x, sizeof(x));
 @end
                 }
-                ptr = (NonAliasingChar*)p;
+                ptr = p;
 !ifdef INTERACTIVE
             }
 !endif
@@ -1274,21 +1262,20 @@ struct SPLIT_HERE blazingio_ostream {
         auto i = N;
         while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
-        SIMD_TYPE* p = (SIMD_TYPE*)ptr;
+        NonAliasingChar* p = ptr;
         i /= SIMD_SIZE;
         while (i) {
 @match
 @case *-x86+avx2
             auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
             _mm256_storeu_si256(
-                // XXX: I have no idea if this pointer arithmetic is sound. __m256i is may_alias, so
-                // it likely is, but there aren't any explicit guarantees.
-                p++,
+                (SIMD_TYPE*)p,
                 _mm256_sub_epi8(
                     _mm256_set1_epi8('0'),
                     _mm256_cmpeq_epi8(
                         _mm256_and_si256(
                             _mm256_shuffle_epi8(
+                                // XXX: there's a strict aliasing violation here
                                 _mm256_set1_epi32(((uint32_t*)&value)[--i]),
                                 _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
                             ),
@@ -1301,14 +1288,13 @@ struct SPLIT_HERE blazingio_ostream {
 @case *-x86+sse4.1
             auto b = _mm_set1_epi64x(POWERS_OF_TWO);
             _mm_storeu_si128(
-                // XXX: I have no idea if this pointer arithmetic is sound. __m128i is may_alias, so
-                // it likely is, but there aren't any explicit guarantees.
-                p++,
+                (SIMD_TYPE*)p,
                 _mm_sub_epi8(
                     _mm_set1_epi8('0'),
                     _mm_cmpeq_epi8(
                         _mm_and_si128(
                             _mm_shuffle_epi8(
+                                // XXX: there's a strict aliasing violation here
                                 _mm_set1_epi16(((uint16_t*)&value)[--i]),
                                 _mm_set_epi64x(0, ONE_BYTES)
                             ),
@@ -1319,18 +1305,22 @@ struct SPLIT_HERE blazingio_ostream {
                 )
             );
 @case *-aarch64+neon
+            // XXX: there's a strict aliasing violation here
             auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
-            // XXX: there's an aliasing violation here
-            *p++ = '0' - vtstq_u8(
-                vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
-                (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
+            vst1q_u8(
+                (uint8_t*)p,
+                '0' - vtstq_u8(
+                    vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
+                    (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
+                )
             );
 @case *-x86+none,*-aarch64+none
             // XXX: there's an aliasing violation here
-            *p++ = ((BITSET_SHIFT * (((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
+            *(uint64_t*)p = ((BITSET_SHIFT * (((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
 @end
+            p += SIMD_SIZE;
         }
-        ptr = (NonAliasingChar*)p;
+        ptr = p;
     }
 !endif
 

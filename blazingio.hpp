@@ -180,28 +180,28 @@ struct istream_impl {
         ensure(VirtualFree(base, 0, MEM_RELEASE))
         // Map the file there
         DWORD mmaped_region_size = file_size & -65536;
-        // If we remove this if and always call CreateFileMapping, it's going to interpret 0 as
-        // "max", which we don't want.
-        if (mmaped_region_size)
-            ensure(
-                MapViewOfFileEx(
-                    CreateFileMapping(
-                        GetStdHandle(STD_INPUT_HANDLE),
-                        NULL,
-                        PAGE_READONLY,
-                        // XXX: This assumes the file fits in ~4 GB by putting the size in the low
-                        // DWORD only
-                        0,
-                        mmaped_region_size,
-                        NULL
-                    ),
-                    FILE_MAP_READ,
+        ensure(
+            // If we remove this if and always call CreateFileMapping, it's going to interpret 0 as
+            // "max", which we don't want.
+            !mmaped_region_size
+            || MapViewOfFileEx(
+                CreateFileMapping(
+                    GetStdHandle(STD_INPUT_HANDLE),
+                    NULL,
+                    PAGE_READONLY,
+                    // XXX: This assumes the file fits in ~4 GB by putting the size in the low
+                    // DWORD only
                     0,
-                    0,
-                    0,
-                    base
-                ) == base
-            )
+                    mmaped_region_size,
+                    NULL
+                ),
+                FILE_MAP_READ,
+                0,
+                0,
+                0,
+                base
+            ) == base
+        )
         // Read into the start of a 64k region
         ensure(
             VirtualAlloc(base + mmaped_region_size, 65536, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE)
@@ -210,18 +210,16 @@ struct istream_impl {
         ensure(~_lseek(STDIN_FILENO, mmaped_region_size, SEEK_SET))
         DWORD tmp_n_read = 0;
         ReadFile(GetStdHandle(STD_INPUT_HANDLE), base + mmaped_region_size, 65536, &tmp_n_read, NULL);
-        // WIN32_MEMORY_RANGE_ENTRY range{end - file_size, (size_t)file_size};
-        // ensure(PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0) != -1)
 @case linux-*,macos-*
-        // We expect a zero byte after EOF. On Linux, man mmap(2) says:
+        // We expect a zero byte soon after EOF. On Linux, man mmap(2) says:
         //     A file is mapped in multiples of the page size.  For a file that is not a multiple of
         //     the page size, the remaining bytes in the partial page at the end of the mapping are
         //     zeroed when mapped, and modifications to that region are not written out to the file.
         // This is not the whole truth: if the file has previously been mapped with MAP_SHARED,
         // modifications to the few bytes after EOF are saved in the shared page and visible even to
         // processes that map the file with MAP_PRIVATE. Therefore assuming the rest of the last
-        // page is zero-filled is unreliable and has to be fixed. To do that, we mmap the file
-        // read-write and explicitly zero the byte after EOF.
+        // page is zero-filled is unreliable. To prevent that, we mmap the file read-write and
+        // explicitly zero the byte after EOF.
         // Various functions assume at least a few bytes after EOF are readable. For instance,
         // that's what vectorized implementations expect. Round that up to page size for simplicity
         // because we're going to map an anonymous page anyway. This also enables bitset to work
@@ -231,19 +229,17 @@ struct istream_impl {
         ensure(base != MAP_FAILED)
         // Remap the last page from anonymous mapping to avoid SIGBUS
         ensure(mmap(base + ((file_size + page_size - 1) & -page_size), page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != MAP_FAILED)
-        // Handle attempts to read beyond EOF of stdin gracefully. This would happen either in
-        // operator>> while skipping whitespace, or in input(). In the former case, the right thing
-        // to do is stop the loop by encountering a non-space character; in the latter case, the
-        // right thing to do is to stop the loop by encountering a space character. Something like
-        // "\n0\0" works for both cases: it stops (for instance) integer parsing immediately with a
-        // zero, and also stops whitespace parsing *soon*. \n is chosen instead of \0 so that
-        // getline can detect EOL by scanning for \n and \r\n without caring about \0.
 @end
         end = (NonAliasingChar*)base + file_size;
+        // Handle attempts to read beyond EOF of stdin in input(). The right thing to do is to stop
+        // the loop by encountering a space character. \n is chosen instead of \0 so that getline
+        // can detect EOL by scanning for \n and \r\n without caring about \0.
         *end = '\n';
 !ifdef STDIN_EOF
-        // We only really need to do this if we're willing to keep going "after" EOF, not just
-        // handle 4k-aligned non-whitespace-terminated input.
+        // Handle attempts to read beyond EOF of stdin after it was reached. We stop the loop in
+        // skip_whitespace() by encountering a non-space character, and then stop the input() called
+        // after that by a space character. "0\0" works just fine and doesn't lead to UB for any
+        // type.
         end[1] = '0';
         end[2] = 0;
 !endif
@@ -388,16 +384,20 @@ struct istream_impl {
             ReadFile(GetStdHandle(STD_INPUT_HANDLE), ptr = buffer, 65536, &n_read, NULL);
 @end
             end = ptr + n_read;
-            // This matches the behavior we have with files
+            // Reading strings is more efficient if we don't have to check that ptr < end on each
+            // iteration. Indeed, if we put whitespace after each chunk of data, string procedures
+            // can only check if ptr == end (and thus the next chunk has to be loaded) after the
+            // last iteration. We also need '\n' at EOF (i.e. after the last chunk) for getline(),
+            // and this kills two birds with one stone.
             *end = '\n';
 !ifdef STDIN_EOF
             if (!n_read)
-                // This is an attempt to read past EOF. Simulate this just like with files, with
-                // "\n0\0". Be careful to use 'buffer' instead of 'ptr' here -- using the latter
+                // Handle attempts to read beyond EOF of stdin after it was reached, just like with
+                // files. Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
                 buffer[1] = '0',
                 buffer[2] = 0,
-                // We want ptr == end to evaluate to false.
+                // We want ptr == end to evaluate to false. XXX: why?
                 end = NULL;
 !endif
         }
@@ -412,7 +412,10 @@ struct istream_impl {
 
     template<typename T>
     INLINE decltype((void)~T{1}) input(T& x) {
-        int negative = is_signed_v<T> && (FETCH *ptr == '-');
+!ifdef INTERACTIVE
+        fetch();
+!endif
+        int negative = is_signed_v<T> && *ptr == '-';
         ptr += negative;
         collect_digits(x = 0);
         x = negative ? NEGATE_MAYBE_UNSIGNED(x) : x;
@@ -421,7 +424,10 @@ struct istream_impl {
 !ifdef FLOAT
     template<typename T>
     INLINE decltype((void)T{1.}) input(T& x) {
-        int negative = (FETCH *ptr == '-');
+!ifdef INTERACTIVE
+        fetch();
+!endif
+        int negative = *ptr == '-';
         ptr += negative;
         FETCH ptr += *ptr == '+';
 

@@ -492,7 +492,7 @@ def whitespace(s):
             s += "\n"
         return s
     for _ in range(3):
-        s = re.sub(r"([^a-zA-Z0-9_$])\s+(\S)", r"\1\2", s)
+        s = re.sub(r"([^a-zA-Z0-9_$\"\'])\s+(\S)", r"\1\2", s)
         s = re.sub(r"(\S)\s+([^a-zA-Z0-9_$])", r"\1\2", s)
     s = s.replace("\n", " ")
     s = s.replace("''", "' '")

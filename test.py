@@ -105,7 +105,7 @@ def run(name, input, output, use_pipe):
 
 
 def assert_equal_files(a, b):
-    subprocess.run(["git", "diff", "--no-index", a, b], check=True)
+    subprocess.run(["git", "diff", "--no-index", "--ignore-cr-at-eol", a, b], check=True)
 
 
 if bench:

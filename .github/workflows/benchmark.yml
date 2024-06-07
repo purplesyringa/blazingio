@@ -49,6 +49,7 @@ jobs:
             mingw-w64-x86_64-python
             mingw-w64-x86_64-python-yaml
             mingw-w64-x86_64-python-pywin32
+            git
       - run: python3 test.py --bench
       - uses: actions/upload-artifact@v4
         with:
@@ -70,6 +71,7 @@ jobs:
             mingw-w64-i686-python
             mingw-w64-i686-python-yaml
             mingw-w64-i686-python-pywin32
+            git
       - run: python3 test.py --cross-windows i386 --bench
       - uses: actions/upload-artifact@v4
         with:

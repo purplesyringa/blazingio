@@ -172,7 +172,7 @@ struct istream_impl {
         // access without letting us to map the page right. Therefore, we map the file and one more
         // page; this both gives us free space to work with and guarantees at most 64k bytes trap.
         // Aligning the sizes to 64k, we then remap the last 64k with rw memory and read it from
-        // file. This is a mix mmap-based file handling with read-based file handling and is
+        // file. This is a mix of mmap-based file handling and read-based file handling and is
         // hopefully more efficient than a pure read-based method.
         // Find free space
         char* base = (char*)VirtualAlloc(NULL, (file_size + 8191) & -4096, MEM_RESERVE, PAGE_NOACCESS);

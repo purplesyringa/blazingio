@@ -104,6 +104,10 @@ def run(name, input, output, use_pipe):
     return cpu_time_after - cpu_time_before
 
 
+def assert_equal_files(a, b):
+    subprocess.run(["git", "diff", "--no-index", a, b], check=True)
+
+
 if bench:
     print("Minimizing")
     subprocess.run([sys.executable, "minimize.py"], stdout=subprocess.DEVNULL, check=True)
@@ -166,8 +170,7 @@ else:
                 compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")
                 print("    Running")
                 run("./a.out", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out", use_pipe)
-                with open(f"{tmp}/blazingio-out", "rb") as f:
-                    assert test.replace(b"\r\n", b"\n") == f.read()
+                assert_equal_files(f"{tmp}/blazingio-test", f"{tmp}/blazingio-out")
             elif manifest["type"] == "compare-std":
                 print("    Compiling with blazingio")
                 compile(f"tests/{test_name}/source.cpp", "a.out.blazingio", "blazingio.min.hpp")
@@ -177,21 +180,19 @@ else:
                 run("./a.out.blazingio", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-blazingio", use_pipe)
                 print("    Running with std")
                 run("./a.out.std", f"{tmp}/blazingio-test", f"{tmp}/blazingio-out-std", use_pipe)
-                with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
-                    with open(f"{tmp}/blazingio-out-std", "rb") as f2:
-                        blazingio = f.read()
-                        std = f2.read().replace(b"\r\n", b"\n")
-                        if "approx" in manifest:
-                            approx = manifest["approx"]
-                            blazingio = blazingio.split()
-                            std = std.split()
+                if "approx" in manifest:
+                    approx = manifest["approx"]
+                    with open(f"{tmp}/blazingio-out-blazingio", "rb") as f:
+                        with open(f"{tmp}/blazingio-out-std", "rb") as f2:
+                            blazingio = f.read().split()
+                            std = f2.read().replace(b"\r\n", b"\n").split()
                             assert len(blazingio) == len(std)
                             for a, b in zip(blazingio, std):
                                 a_n = float(a)
                                 b_n = float(b)
                                 assert abs(a_n - b_n) / max(1, min(abs(a_n), abs(b_n))) < approx, (a, b)
-                        else:
-                            assert blazingio == std
+                else:
+                    assert_equal_files(f"{tmp}/blazingio-out-blazingio", f"{tmp}/blazingio-out-std")
             elif manifest["type"] == "exit-code":
                 print("    Compiling")
                 compile(f"tests/{test_name}/source.cpp", "a.out", "blazingio.min.hpp")

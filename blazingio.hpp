@@ -785,7 +785,7 @@ struct blazingio_istream {
 uint16_t decimal_lut[100];
 char max_digits_by_log2[64]{1};
 
-struct SPLIT_HERE blazingio_ostream {
+struct blazingio_ostream {
     char* base;
     NonAliasingChar* ptr;
     int ever_flushed;
@@ -833,7 +833,7 @@ struct SPLIT_HERE blazingio_ostream {
 @end
         ptr = (NonAliasingChar*)base;
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
-        for (int i = 0; i < 100; i++)
+        for (int SPLIT_HERE i = 0; i < 100; i++)
             decimal_lut[i] = ('0' + i / 10) | (('0' + i % 10) << 8);
         for (int i = 1; i < 64; i++)
             max_digits_by_log2[i] = max_digits_by_log2[i - 1] + (0x8922489224892249 >> i & 1);

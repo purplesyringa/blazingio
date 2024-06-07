@@ -1188,7 +1188,7 @@ struct SPLIT_HERE blazingio_ostream {
             // and it is rounded to 1 in 64-bit precision, 'x' is going to be equal to 1e12 exactly,
             // and this breaks stringification. Fix this by introducing a small error to make the
             // number fit in 12 decimal digits anyway.
-            x -= x == 1000000000000;
+            x -= x > 999999999999;
 
             // Split the 12-digit integer into two 6-digit parts. Then for each part x, apply the
             // same algorithm as the one used in u64.

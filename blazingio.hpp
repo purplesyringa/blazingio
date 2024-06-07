@@ -396,9 +396,7 @@ struct istream_impl {
                 // files. Be careful to use 'buffer' instead of 'ptr' here -- using the latter
                 // confuses GCC's optimizer for some reason.
                 buffer[1] = '0',
-                buffer[2] = 0,
-                // We want ptr == end to evaluate to false. XXX: why?
-                end = NULL;
+                buffer[2] = 0;
 !endif
         }
     }
@@ -506,27 +504,21 @@ struct istream_impl {
         NonAliasingChar* start = ptr;
         trace();
 
-        // We know that [start; ptr) does not overlap 'value'. std::string::assign doesn't
-        // know that and will perform a runtime check to determine if it need to handle
-        // aliasing strings gracefully. This takes a bit of time, so we *used to* do the
-        // following instead:
+        // We know that [start; ptr) does not overlap 'value'. std::string::assign doesn't know that
+        // and will perform a runtime check to determine if it need to handle aliasing strings
+        // gracefully. This takes a bit of time, so we *used to* do the following instead:
         //     struct UninitChar { UninitChar& operator=(UninitChar) { return *this; } };
         //     ((basic_string<UninitChar>&)value).resize(ptr - start);
         //     memcpy(value.data(), start, ptr - start);
-        // This worked just fine, but libc++ forbids this code because UninitChar is not
-        // a trivial type. Therefore, disable this optimization.
+        // This worked just fine, but libc++ forbids this code because UninitChar is not a trivial
+        // type. Therefore, disable this optimization.
         value.assign((const char*)start, ptr - start);
 
 !ifdef INTERACTIVE
-        while (Interactive && ptr == end) {
+        while (Interactive && ptr == end && (FETCH end != buffer)) {
             // We have read *some* data, but stumbled upon an unfetched chunk and thus have to load
             // more. We can't reuse the same code as we want to append to the string instead of
-            // replacing it. fetch() will set 'end = NULL' on EOF here, even though the string/line
-            // exists and we don't want to report end at the moment; therefore, patch 'end'.
-            if (FETCH !end) {
-                end = ptr;
-                break;
-            }
+            // replacing it.
             // Abuse the fact that ptr points at buffer after a non-trivial fetch to avoid storing
             // start.
             trace();

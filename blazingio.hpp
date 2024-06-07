@@ -658,11 +658,16 @@ struct istream_impl {
 @case linux-*,macos-* __builtin_bswap32
 @case windows-* _byteswap_ulong
 @end
+!define PUT(type, expression) ((char*)&value)[i / 8] = expression
+@ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
+!undef PUT
+!define PUT(type, expression) type x = expression
+@end
 @match
 @case *-x86+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
-                    ((uint32_t*)&value)[i / 32] = BSWAP32(
+                    PUT(uint32_t, BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
                                 _mm256_slli_epi32(_mm256_loadu_si256(p++), 7),
@@ -674,24 +679,27 @@ struct istream_impl {
                                 )
                             )
                         )
-                    );
+                    ));
 @case *-x86+sse4.1
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
-                    ((uint16_t*)&value)[i / 16] = _mm_movemask_epi8(
+                    PUT(uint16_t, _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_slli_epi32(_mm_loadu_si128(p++), 7),
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
-                    );
+                    ));
 @case *-aarch64+neon
                     auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - *p++);
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
-                    ((uint16_t*)&value)[i / 16] = vaddvq_u16(
+                    PUT(uint16_t, vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
-                    );
+                    ));
 @case *-x86+none,*-aarch64+none
-                    ((char*)&value)[i / 8] = (*p++ & ONE_BYTES) * BITSET_SHIFT >> 56;
+                    PUT(char, (*p++ & ONE_BYTES) * BITSET_SHIFT >> 56);
+@end
+@ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
+                    memcpy((char*)&value + i / 8, &x, sizeof(x));
 @end
                 }
                 ptr = (NonAliasingChar*)p;

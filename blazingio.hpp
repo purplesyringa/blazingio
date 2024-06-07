@@ -532,7 +532,6 @@ struct istream_impl {
             // We expect long runs here, hence vectorization. Instrinsics break aliasing, and if we
             // interleave ptr modification with SIMD loading, there's going to be an extra memory
             // write on every iteration.
-            SIMD_TYPE* p = (SIMD_TYPE*)ptr;
 @match
 @case linux-*,macos-*
 @case windows-*
@@ -553,33 +552,42 @@ struct istream_impl {
 @match
 @case *-x86+avx2
             int mask;
-            __m256i space = _mm256_set1_epi8(' ');
+            SIMD_TYPE space = _mm256_set1_epi8(' ');
+            SIMD_TYPE *p = (SIMD_TYPE*)ptr;
             while (
                 !(mask = _mm256_movemask_epi8(
                     _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256(p)))
                 ))
             )
+                // XXX: I have no idea if this pointer arithmetic is sound. __m256i is may_alias, so
+                // it likely is, but there aren't any explicit guarantees.
                 p++;
             ptr = (NonAliasingChar*)p + BSFD(mask);
 @case *-x86+sse4.1
             int mask;
-            __m128i space = _mm_set1_epi8(' ');
+            SIMD_TYPE space = _mm_set1_epi8(' ');
+            SIMD_TYPE *p = (SIMD_TYPE*)ptr;
             while (
                 !(mask = _mm_movemask_epi8(
                     _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128(p)))
                 ))
             )
+                // XXX: I have no idea if this pointer arithmetic is sound. __m128i is may_alias, so
+                // it likely is, but there aren't any explicit guarantees.
                 p++;
             ptr = (NonAliasingChar*)p + BSFD(mask);
 @case *-aarch64+neon
             uint64x2_t vec;
-            while (vec = (uint64x2_t)(*p < 33), !(vec[0] | vec[1]))
-                p++;
+            auto p = (uint8_t*)ptr;
+            while (vec = (uint64x2_t)(vld1q_u8(p) < 33), !(vec[0] | vec[1]))
+                p += 16;
             ptr = (NonAliasingChar*)p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
 @case *-x86+none,*-aarch64+none
             // This is a variation on Mycroft's algorithm. See
             // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for
             // the original code.
+            // XXX: there's a strict aliasing violation here
+            SIMD_TYPE* p = (SIMD_TYPE*)ptr;
             uint64_t vec;
             while (!(vec = ((*p - ONE_BYTES * 33) & ~*p & (ONE_BYTES << 7))))
                 p++;
@@ -666,6 +674,9 @@ struct istream_impl {
                     PUT(uint32_t, BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
+                                // XXX: I have no idea if this pointer arithmetic is sound. __m256i
+                                // is may_alias, so it likely is, but there aren't any explicit
+                                // guarantees.
                                 _mm256_slli_epi32(_mm256_loadu_si256(p++), 7),
                                 _mm256_set_epi64x(
                                     a + ONE_BYTES * 24,
@@ -681,17 +692,21 @@ struct istream_impl {
                     uint64_t a = ~0ULL / 65025;
                     PUT(uint16_t, _mm_movemask_epi8(
                         _mm_shuffle_epi8(
+                            // XXX: I have no idea if this pointer arithmetic is sound. __m128i is
+                            // may_alias, so it likely is, but there aren't any explicit guarantees.
                             _mm_slli_epi32(_mm_loadu_si128(p++), 7),
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
                     ));
 @case *-aarch64+neon
-                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - *p++);
+                    // XXX: there's a strict aliasing violation here
+                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - vld1q_u8((uint8_t*)p++));
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
                     PUT(uint16_t, vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     ));
 @case *-x86+none,*-aarch64+none
+                    // XXX: there's a strict aliasing violation here
                     PUT(char, (*p++ & ONE_BYTES) * BITSET_SHIFT >> 56);
 @end
 @ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
@@ -1266,6 +1281,8 @@ struct SPLIT_HERE blazingio_ostream {
 @case *-x86+avx2
             auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
             _mm256_storeu_si256(
+                // XXX: I have no idea if this pointer arithmetic is sound. __m256i is may_alias, so
+                // it likely is, but there aren't any explicit guarantees.
                 p++,
                 _mm256_sub_epi8(
                     _mm256_set1_epi8('0'),
@@ -1284,6 +1301,8 @@ struct SPLIT_HERE blazingio_ostream {
 @case *-x86+sse4.1
             auto b = _mm_set1_epi64x(POWERS_OF_TWO);
             _mm_storeu_si128(
+                // XXX: I have no idea if this pointer arithmetic is sound. __m128i is may_alias, so
+                // it likely is, but there aren't any explicit guarantees.
                 p++,
                 _mm_sub_epi8(
                     _mm_set1_epi8('0'),
@@ -1301,11 +1320,13 @@ struct SPLIT_HERE blazingio_ostream {
             );
 @case *-aarch64+neon
             auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
+            // XXX: there's an aliasing violation here
             *p++ = '0' - vtstq_u8(
                 vcombine_u8(vuzp2_u8(vec, vec), vuzp1_u8(vec, vec)),
                 (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO)
             );
 @case *-x86+none,*-aarch64+none
+            // XXX: there's an aliasing violation here
             *p++ = ((BITSET_SHIFT * (((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
 @end
         }
@@ -1383,14 +1404,14 @@ namespace std {
 @case windows-*
 LONG WINAPI vectored_exception_handler(_EXCEPTION_POINTERS* exception_info) {
     auto exception_record = exception_info->ExceptionRecord;
-    char* trigger_address = (char*)exception_record->ExceptionInformation[1];
+    auto trigger_address = exception_record->ExceptionInformation[1];
     if (
         exception_record->ExceptionCode == STATUS_GUARD_PAGE_VIOLATION
-        && (size_t)(trigger_address - std::blazingio_cout.base) < 0x40000000
+        && trigger_address - (ULONG_PTR)std::blazingio_cout.base < 0x40000000
     ) {
         ensure(
-            VirtualAlloc(trigger_address, 0x1000000, MEM_COMMIT, PAGE_READWRITE)
-            && VirtualAlloc(trigger_address + 0x1000000, 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD)
+            VirtualAlloc((char*)trigger_address, 0x1000000, MEM_COMMIT, PAGE_READWRITE)
+            && VirtualAlloc((char*)(trigger_address + 0x1000000), 4096, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD)
         )
         return EXCEPTION_CONTINUE_EXECUTION;
     }

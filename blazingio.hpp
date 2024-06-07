@@ -109,8 +109,7 @@ namespace blazingio {
 using namespace std;
 
 struct NonAliasingChar {
-    enum class Inner : char {};
-    Inner c;
+    enum class Inner : char {} c;
     NonAliasingChar& operator=(char x) {
         c = Inner{x};
         return *this;
@@ -147,8 +146,7 @@ static NonAliasingChar buffer[65568];
 template<int Interactive>
 !endif
 struct istream_impl {
-    NonAliasingChar* end;
-    NonAliasingChar* ptr;
+    NonAliasingChar *end, *ptr;
 
 !ifdef INTERACTIVE
     void init_assume_file(off_t file_size) {

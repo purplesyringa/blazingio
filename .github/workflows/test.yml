@@ -49,6 +49,7 @@ jobs:
             mingw-w64-x86_64-python
             mingw-w64-x86_64-python-yaml
             mingw-w64-x86_64-python-pywin32
+            git
       - run: python3 test.py
   windows-mingw-i386:
     runs-on: windows-latest
@@ -66,6 +67,7 @@ jobs:
             mingw-w64-i686-python
             mingw-w64-i686-python-yaml
             mingw-w64-i686-python-pywin32
+            git
       - run: python3 test.py --cross-windows i386
   windows-msvc:
     runs-on: windows-latest

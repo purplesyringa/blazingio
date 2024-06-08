@@ -73,6 +73,13 @@ uint64_t _umul128(uint64_t a, uint64_t b, uint64_t* high) {
 @case *-x86+none,*-aarch64+none uint64_t
 @end
 
+@define !SIMD_TYPE_OVER_EIGHT
+@case *-x86+avx2 uint32_t
+@case *-x86+sse4.1 uint16_t
+@case *-aarch64+neon uint16_t
+@case *-x86+none,*-aarch64+none uint8_t
+@end
+
 // This is ridiculous but necessary for clang codegen to be at least somewhat reasonable --
 // otherwise it resorts to way too many memory accesses. XXX: is this necessary on MSVC?
 // MinGW eats up __forceinline just fine
@@ -694,7 +701,7 @@ struct istream_impl {
                     ));
 @case *-x86+none,*-aarch64+none
                     // XXX: there's a strict aliasing violation here
-                    PUT(char, (*(uint64_t*)p & ONE_BYTES) * BITSET_SHIFT >> 56);
+                    PUT(char, (*(SIMD_TYPE*)p & ONE_BYTES) * BITSET_SHIFT >> 56);
 @end
                     p += SIMD_SIZE;
 @ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
@@ -1263,8 +1270,11 @@ struct SPLIT_HERE blazingio_ostream {
         while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
         NonAliasingChar* p = ptr;
-        i /= SIMD_SIZE;
+        i /= 8;
         while (i) {
+            i -= SIMD_SIZE / 8;
+            SIMD_TYPE_OVER_EIGHT x;
+            memcpy(&x, (char*)&value + i, sizeof(x));
 @match
 @case *-x86+avx2
             auto b = _mm256_set1_epi64x(POWERS_OF_TWO);
@@ -1275,8 +1285,7 @@ struct SPLIT_HERE blazingio_ostream {
                     _mm256_cmpeq_epi8(
                         _mm256_and_si256(
                             _mm256_shuffle_epi8(
-                                // XXX: there's a strict aliasing violation here
-                                _mm256_set1_epi32(((uint32_t*)&value)[--i]),
+                                _mm256_set1_epi32(x),
                                 _mm256_set_epi64x(0, ONE_BYTES, ONE_BYTES * 2, ONE_BYTES * 3)
                             ),
                             b
@@ -1294,8 +1303,7 @@ struct SPLIT_HERE blazingio_ostream {
                     _mm_cmpeq_epi8(
                         _mm_and_si128(
                             _mm_shuffle_epi8(
-                                // XXX: there's a strict aliasing violation here
-                                _mm_set1_epi16(((uint16_t*)&value)[--i]),
+                                _mm_set1_epi16(x),
                                 _mm_set_epi64x(0, ONE_BYTES)
                             ),
                             b
@@ -1305,8 +1313,7 @@ struct SPLIT_HERE blazingio_ostream {
                 )
             );
 @case *-aarch64+neon
-            // XXX: there's a strict aliasing violation here
-            auto vec = (uint8x8_t)vdup_n_u16(((uint16_t*)&value)[--i]);
+            auto vec = (uint8x8_t)vdup_n_u16(x);
             vst1q_u8(
                 (uint8_t*)p,
                 '0' - vtstq_u8(
@@ -1315,8 +1322,8 @@ struct SPLIT_HERE blazingio_ostream {
                 )
             );
 @case *-x86+none,*-aarch64+none
-            // XXX: there's an aliasing violation here
-            *(uint64_t*)p = ((BITSET_SHIFT * (((uint8_t*)&value)[--i]) >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
+            uint64_t y = ((BITSET_SHIFT * x >> 7) & ONE_BYTES) | (ONE_BYTES * 0x30);
+            memcpy((char*)p, &y, 8);
 @end
             p += SIMD_SIZE;
         }

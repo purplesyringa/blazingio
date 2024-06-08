@@ -437,7 +437,9 @@ def repl(s):
         ("coeff", "H"),
         ("buf", "H"),
 
-        ("ptr", "I"),
+        # Avoid using I: it clashes with I from <complex.h>. Granted, the C complex.h header can
+        # only be used on C++ with older non-conforming compilers, but sleirsgoevy has managed to
+        # reproduce that on a default NixOS configuration, so better fix that anyway.
 
         ("blazingio_istream", "J"),
         ("mask", "J"),
@@ -466,6 +468,8 @@ def repl(s):
 
         ("BITSET_SHIFT", "R"),
         ("index", "R"),
+
+        ("ptr", "S"),
 
         ("NULL", "0"),
         ("false", "0"),

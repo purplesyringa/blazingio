@@ -557,14 +557,14 @@ struct istream_impl {
 @case linux-*,macos-*,windows-x86_64,windows-aarch64 BSFQ_64BIT(x)
 @case windows-i386 (_BitScanForward(&index, (ULONG)x) || (_BitScanForward(&index, ULONG(x >> 32)), index += 32), index)
 @end
+            SIMD_TYPE x;
 @match
 @case *-x86+avx2
             int mask;
             SIMD_TYPE space = _mm256_set1_epi8(' ');
             while (
-                !(mask = _mm256_movemask_epi8(
-                    _mm256_cmpeq_epi8(space, _mm256_max_epu8(space, _mm256_loadu_si256((SIMD_TYPE*)p)))
-                ))
+                memcpy(&x, p, 32),
+                !(mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(space, _mm256_max_epu8(space, x))))
             )
                 p += 32;
             ptr = p + BSFD(mask);
@@ -572,15 +572,14 @@ struct istream_impl {
             int mask;
             SIMD_TYPE space = _mm_set1_epi8(' ');
             while (
-                !(mask = _mm_movemask_epi8(
-                    _mm_cmpeq_epi8(space, _mm_max_epu8(space, _mm_loadu_si128((SIMD_TYPE*)p)))
-                ))
+                memcpy(&x, p, 16),
+                !(mask = _mm_movemask_epi8(_mm_cmpeq_epi8(space, _mm_max_epu8(space, x))))
             )
                 p += 16;
             ptr = p + BSFD(mask);
 @case *-aarch64+neon
             uint64x2_t vec;
-            while (vec = (uint64x2_t)(vld1q_u8((uint8_t*)p) < 33), !(vec[0] | vec[1]))
+            while (memcpy(&x, p, 16), vec = (uint64x2_t)(x < 33), !(vec[0] | vec[1]))
                 p += 16;
             ptr = p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
 @case *-x86+none,*-aarch64+none
@@ -588,8 +587,7 @@ struct istream_impl {
             // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for
             // the original code.
             uint64_t vec;
-            // XXX: there's a strict aliasing violation here
-            while (!(vec = ((*(SIMD_TYPE*)p - ONE_BYTES * 33) & ~*(SIMD_TYPE*)p & (ONE_BYTES << 7))))
+            while (memcpy(&x, p, 8), !(vec = ((x - ONE_BYTES * 33) & ~x & (ONE_BYTES << 7))))
                 p += 8;
             ptr = p + BSFQ(vec) / 8;
 @end
@@ -662,19 +660,16 @@ struct istream_impl {
 @case linux-*,macos-* __builtin_bswap32
 @case windows-* _byteswap_ulong
 @end
-!define PUT(type, expression) ((char*)&value)[i / 8] = expression
-@ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
-!undef PUT
-!define PUT(type, expression) type x = expression
-@end
+                    SIMD_TYPE x;
+                    memcpy(&x, p, SIMD_SIZE);
 @match
 @case *-x86+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
-                    PUT(uint32_t, BSWAP32(
+                    uint32_t y = BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
-                                _mm256_slli_epi32(_mm256_loadu_si256((SIMD_TYPE*)p), 7),
+                                _mm256_slli_epi32(x, 7),
                                 _mm256_set_epi64x(
                                     a + ONE_BYTES * 24,
                                     a + ONE_BYTES * 16,
@@ -683,30 +678,27 @@ struct istream_impl {
                                 )
                             )
                         )
-                    ));
+                    );
 @case *-x86+sse4.1
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
-                    PUT(uint16_t, _mm_movemask_epi8(
+                    uint16_t y = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
-                            _mm_slli_epi32(_mm_loadu_si128((SIMD_TYPE*)p), 7),
+                            _mm_slli_epi32(x, 7),
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
                         )
-                    ));
+                    );
 @case *-aarch64+neon
-                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - vld1q_u8((uint8_t*)p));
+                    auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - x);
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
-                    PUT(uint16_t, vaddvq_u16(
+                    uint16_t y = vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
-                    ));
+                    );
 @case *-x86+none,*-aarch64+none
-                    // XXX: there's a strict aliasing violation here
-                    PUT(char, (*(SIMD_TYPE*)p & ONE_BYTES) * BITSET_SHIFT >> 56);
+                    char y = (x & ONE_BYTES) * BITSET_SHIFT >> 56;
 @end
                     p += SIMD_SIZE;
-@ondemand *-x86+avx2,*-x86+sse4.1,*-aarch64+neon
-                    memcpy((char*)&value + i / 8, &x, sizeof(x));
-@end
+                    memcpy((char*)&value + i / 8, &y, SIMD_SIZE / 8);
                 }
                 ptr = p;
 !ifdef INTERACTIVE
@@ -1270,11 +1262,10 @@ struct SPLIT_HERE blazingio_ostream {
         while (i % SIMD_SIZE)
             *ptr++ = '0' + value[--i];
         NonAliasingChar* p = ptr;
-        i /= 8;
         while (i) {
-            i -= SIMD_SIZE / 8;
+            i -= SIMD_SIZE;
             SIMD_TYPE_OVER_EIGHT x;
-            memcpy(&x, (char*)&value + i, sizeof(x));
+            memcpy(&x, (char*)&value + i / 8, SIMD_SIZE / 8);
 @match
 @case *-x86+avx2
             auto b = _mm256_set1_epi64x(POWERS_OF_TWO);

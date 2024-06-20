@@ -27,7 +27,7 @@ jobs:
       - run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install g++-i686-linux-gnu
+          sudo apt-get install g++-i686-linux-gnu libasan6:i386 libubsan1:i386
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"

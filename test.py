@@ -25,18 +25,32 @@ if "--bench" in sys.argv:
 else:
     bench = False
 
-if len(sys.argv) >= 2 and sys.argv[1] == "--cross":
+disable_sanitizers = bench
+
+def compile(source, target, blazingio):
+    subprocess.run(
+        gcc
+        + [source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2", "-Wall", "-Werror"]
+        + ([] if disable_sanitizers else ["-fsanitize=address,pointer-compare,pointer-subtract,undefined"]),
+        check=True
+    )
+
+if len(sys.argv) >= 2 and sys.argv[1] in ("--cross", "--cross-windows"):
     arch = sys.argv[2]
-    def compile(source, target, blazingio):
-        subprocess.run([f"{gcc_arch}-linux-gnu-g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2", "-Wall", "-Werror"], check=True)
-elif len(sys.argv) >= 2 and sys.argv[1] == "--cross-windows":
-    arch = sys.argv[2]
-    def compile(source, target, blazingio):
-        subprocess.run([f"{gcc_arch}-w64-mingw32-g++", "-static", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2", "-Wall", "-Werror"], check=True)
+    gcc_arch = "i686" if arch == "i386" else arch
+    if sys.argv[1] == "--cross":
+        gcc = [f"{gcc_arch}-linux-gnu-g++"]
+    else:
+        gcc = [f"{gcc_arch}-w64-mingw32-g++", "-static"]
+        disable_sanitizers = True
 elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
     arch = sys.argv[2]
     def compile(source, target, blazingio):
-        subprocess.run([f"cl", source, "/I.", f"/DBLAZINGIO=\"{blazingio}\"", f"/Fe{target}", "/std:c++17", "/O2", "/EHsc", "/nologo", "/W2", "/WX"], check=True)
+        subprocess.run(
+            [f"cl", source, "/I.", f"/DBLAZINGIO=\"{blazingio}\"", f"/Fe{target}", "/std:c++17", "/O2", "/EHsc", "/nologo", "/W2", "/WX"]
+            + ([] if disable_sanitizers else ["/fsanitize=address", "/Zi"]),
+            check=True
+        )
     if "GITHUB_RUN_ID" in os.environ:
         os.environ["CPP"] = "msys2 -c \"exec cpp $*\" cpp"
     else:
@@ -44,15 +58,13 @@ elif len(sys.argv) >= 2 and sys.argv[1] == "--msvc":
     os.environ["MSYSTEM"] = "UCRT64"
 else:
     arch = platform.machine()
-    def compile(source, target, blazingio):
-        subprocess.run(["g++", source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2", "-Wall", "-Werror"], check=True)
-
-if arch == "AMD64":
-    arch = "x86_64"
-elif arch == "arm64":
-    arch = "aarch64"
-
-gcc_arch = "i686" if arch == "i386" else arch
+    if arch == "AMD64":
+        arch = "x86_64"
+    elif arch == "arm64":
+        arch = "aarch64"
+    gcc = ["g++"]
+    if platform.system() == "Windows":
+        disable_sanitizers = True
 
 
 def iterate_config(config, props = []):

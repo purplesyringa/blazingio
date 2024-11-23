@@ -354,9 +354,6 @@ def repl(s):
         ("IF_WINDOWS", "$w"),
         ("IF_MACOS", "$m"),
         ("UNWRAP", "$u"),
-        ("OUTPUT_64BIT_INT", "$n"),
-        ("OUTPUT_MANTISSA", "$M"),
-        ("add_carry", "a$"),
 
         ("Inner", "A"),
         ("n_read", "A"),
@@ -367,12 +364,10 @@ def repl(s):
         ("file", "A"),
         ("decimal_lut", "A"),
         ("n_written", "A"),
-        ("computed", "A"),
         ("func", "A"),
         ("yes", "A"),
         ("mmaped_region_size", "A"),
         ("exception_info", "A"),
-        ("do_trace", "A"),
         ("length", "A"),
         ("page_size", "A"),
 
@@ -380,8 +375,6 @@ def repl(s):
         ("exponent", "B"),
         ("imag_part", "B"),
         ("interactive", "B"),
-        ("iov", "B"),
-        ("MinDigits", "B"),
         ("whole", "B"),
         ("stream", "B"),
         ("no", "B"),
@@ -394,8 +387,6 @@ def repl(s):
         ("has_dot", "C"),
         ("trace", "C"),
         ("space", "C"),
-        ("vec1", "C"),
-        ("MaxDigits", "C"),
         ("zipped", "C"),
         ("exception_record", "C"),
         ("handle", "C"),
@@ -405,16 +396,12 @@ def repl(s):
         ("line_t", "D"),
         ("base", "D"),
         ("new_exponent", "D"),
-        ("vec2", "D"),
-        ("Factor", "D"),
-        ("table", "D"),
         ("arg1", "D"),
         ("stat_buf", "D"),
         ("AbsT", "D"),
         ("high", "D"),
 
         ("buffer", "E"),
-        ("interval", "E"),
         ("stdout_handle", "E"),
         ("tmp_n_read", "E"),
         ("exps", "E"),
@@ -423,26 +410,22 @@ def repl(s):
 
         ("Interactive", "F"),
         ("print", "F"),
-        ("low_digits", "F"),
         ("attempt_direct_write", "F"),
         ("tmp", "F"),
 
         ("istream_impl", "G"),
         ("start", "G"),
-        ("write_int_split", "G"),
         ("arg2", "G"),
         ("digits", "G"),
         ("write12", "G"),
 
         ("end", "H"),
-        ("coeff", "H"),
         ("buf", "H"),
 
         # Avoid using I: it clashes with I from <complex.h>. Granted, the C complex.h header can
         # only be used on C++ with older non-conforming compilers, but sleirsgoevy has managed to
         # reproduce that on a default NixOS configuration, so better fix that anyway.
 
-        ("blazingio_istream", "J"),
         ("mask", "J"),
         ("a_coeff", "J"),
         ("ever_flushed", "J"),

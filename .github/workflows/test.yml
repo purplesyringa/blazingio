@@ -14,12 +14,14 @@ jobs:
           cache: pip
       - run: pip3 install -r requirements.txt
       - run: python3 test.py
+      - run: python3 test.py --clang
   linux-arm64:
     runs-on: buildjet-2vcpu-ubuntu-2204-arm
     steps:
       - uses: actions/checkout@v4
       - run: pip3 install -r requirements.txt
       - run: python3 test.py
+      - run: python3 test.py --clang
   linux-i386:
     runs-on: ubuntu-22.04
     steps:

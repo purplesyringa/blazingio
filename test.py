@@ -63,7 +63,10 @@ else:
         arch = "x86_64"
     elif arch == "arm64":
         arch = "aarch64"
-    gcc = ["g++"]
+    if len(sys.argv) >= 2 and sys.argv[1] == "--clang":
+        gcc = ["clang++"]
+    else:
+        gcc = ["g++"]
     if platform.system() == "Windows":
         disable_sanitizers = True
 

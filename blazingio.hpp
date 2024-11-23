@@ -580,7 +580,7 @@ struct istream_impl {
             ptr = p + BSFD(mask);
 @case *-aarch64+neon
             uint64x2_t vec;
-            while (memcpy(&x, p, 16), vec = (uint64x2_t)(x < 33), !(vec[0] | vec[1]))
+            while (memcpy(&x, p, 16), vec = uint64x2_t(x < 33), !(vec[0] | vec[1]))
                 p += 16;
             ptr = p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ? vec[0] : vec[1]) / 8;
 @case *-x86+none,*-aarch64+none

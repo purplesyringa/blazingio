@@ -333,9 +333,6 @@ def repl(s):
 
     # Replace identifiers
     for old, new in [
-        ("blazingio_istream", "$i"),
-        ("blazingio_ostream", "$o"),
-        ("blazingio_ignoreostream", "$e"),
         ("blazingio_cin", "i$"),
         ("blazingio_cout", "o$"),
         ("blazingio_cerr", "e$"),
@@ -454,6 +451,12 @@ def repl(s):
         ("index", "R"),
 
         ("ptr", "S"),
+
+        ("blazingio_istream", "U"),
+
+        ("blazingio_ostream", "V"),
+
+        ("blazingio_ignoreostream", "W"),
 
         ("NULL", "0"),
         ("false", "0"),

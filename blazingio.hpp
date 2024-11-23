@@ -582,7 +582,7 @@ struct istream_impl {
             uint64x2_t vec;
             while (memcpy(&x, p, 16), vec = (uint64x2_t)(x < 33), !(vec[0] | vec[1]))
                 p += 16;
-            ptr = p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ?: vec[1]) / 8;
+            ptr = p + (vec[0] ? 0 : 8) + BSFQ_64BIT(vec[0] ? vec[0] : vec[1]) / 8;
 @case *-x86+none,*-aarch64+none
             // This is a variation on Mycroft's algorithm. See
             // https://groups.google.com/forum/#!original/comp.lang.c/2HtQXvg7iKc/xOJeipH6KLMJ for

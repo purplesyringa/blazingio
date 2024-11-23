@@ -721,8 +721,8 @@ struct istream_impl {
                 FETCH
 @match
 @case *-i386,*-x86_64
-@case *-aarch64
                 0 <= *ptr &&
+@case *-aarch64
 @end
                 *ptr < 33
             )

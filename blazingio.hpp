@@ -717,15 +717,7 @@ struct istream_impl {
         if (!is_same_v<T, line_t>)
             // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed
             // input. We expect short runs here, hence no vectorization.
-            while (
-                FETCH
-@match
-@case *-i386,*-x86_64
-                0 <= *ptr &&
-@case *-aarch64
-@end
-                *ptr < 33
-            )
+            while (FETCH (uint8_t)*ptr < 33)
                 ptr++;
 
         input(value);

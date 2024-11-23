@@ -841,13 +841,17 @@ struct SPLIT_HERE blazingio_ostream {
     ~blazingio_ostream() {
 !ifdef INTERACTIVE
         flush(
-@ondemand windows-*
+@match
+@case linux-*,macos-*
+@case windows-*
            !ever_flushed
 @end
         );
     }
     void flush(
-@ondemand windows-*
+@match
+@case linux-*,macos-*
+@case windows-*
         int attempt_direct_write = false
 @end
     ) {

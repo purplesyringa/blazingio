@@ -1109,9 +1109,9 @@ struct SPLIT_HERE blazingio_ostream {
             // which is true for b up to 1e5 (and 1e6, really).
             NonAliasingChar buf[40];
             for (int i = 0; i < 4; i++) {
-                uint32_t n = (429497ULL * b[i] >> 7) + 1;
+                int n = int((429497ULL * b[i] >> 7) + 1);
                 NonAliasingChar* p = buf + i * 5;
-                *p = '0' + (n >> 25);
+                *p = '0' + char(n >> 25);
                 n = (n & ~0U >> 7) * 25;
                 memcpy(p + 1, decimal_lut + (n >> 23), 2);
                 memcpy(p + 3, decimal_lut + ((n & ~0U >> 9) * 25 >> 21), 2);

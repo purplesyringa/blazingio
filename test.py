@@ -30,7 +30,8 @@ disable_sanitizers = bench
 def compile(source, target, blazingio):
     subprocess.run(
         gcc
-        + [source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2", "-Wall", "-Wextra", "-Werror"]
+        + [source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2"]
+        + ["-Wall", "-Wextra", "-Wconversion", "-Werror"]
         + ([] if disable_sanitizers else ["-fsanitize=address,pointer-compare,pointer-subtract,undefined"]),
         check=True
     )

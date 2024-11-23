@@ -37,7 +37,7 @@
 @end
 
 @ondemand windows-*
-#ifdef _MSC_VER
+#if _MSC_VER
 #define __builtin_add_overflow(a, b, c) _addcarry_u64(0, a, b, c)
 UNSET_SIMD
 #else
@@ -46,8 +46,8 @@ UNSET_SIMD
 @case *-x86_64,*-aarch64
 uint64_t _umul128(uint64_t a, uint64_t b, uint64_t* high) {
     auto x = (__uint128_t)a * b;
-    *high = x >> 64;
-    return x;
+    *high = uint64_t(x >> 64);
+    return (uint64_t)x;
 }
 @case *-i386
 @end
@@ -73,10 +73,11 @@ uint64_t _umul128(uint64_t a, uint64_t b, uint64_t* high) {
 @case *-x86+none,*-aarch64+none uint64_t
 @end
 
+// Needs to be unsigned for SWAR code
 @define !SIMD_TYPE_OVER_EIGHT
-@case *-x86+avx2 uint32_t
-@case *-x86+sse4.1 uint16_t
-@case *-aarch64+neon uint16_t
+@case *-x86+avx2 int
+@case *-x86+sse4.1 short
+@case *-aarch64+neon short
 @case *-x86+none,*-aarch64+none uint8_t
 @end
 
@@ -412,7 +413,7 @@ struct istream_impl {
     template<typename T>
     INLINE void collect_digits(T& x) {
         while (FETCH (*ptr & 0xf0) == 0x30)
-            x = x * 10 + (*ptr++ - '0');
+            x = T(x * 10 + (*ptr++ - '0'));
     }
 
     template<typename T>
@@ -666,7 +667,7 @@ struct istream_impl {
 @case *-x86+avx2
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
-                    uint32_t y = BSWAP32(
+                    auto y = BSWAP32(
                         _mm256_movemask_epi8(
                             _mm256_shuffle_epi8(
                                 _mm256_slli_epi32(x, 7),
@@ -682,7 +683,7 @@ struct istream_impl {
 @case *-x86+sse4.1
                     // This is actually 0x0001020304050607
                     uint64_t a = ~0ULL / 65025;
-                    uint16_t y = _mm_movemask_epi8(
+                    int y = _mm_movemask_epi8(
                         _mm_shuffle_epi8(
                             _mm_slli_epi32(x, 7),
                             _mm_set_epi64x(a, a + ONE_BYTES * 8)
@@ -691,11 +692,11 @@ struct istream_impl {
 @case *-aarch64+neon
                     auto masked = (uint8x16_t)vdupq_n_u64(POWERS_OF_TWO) & ('0' - x);
                     auto zipped = vzip_u8(vget_high_u8(masked), vget_low_u8(masked));
-                    uint16_t y = vaddvq_u16(
+                    auto y = vaddvq_u16(
                         (uint16x8_t)vcombine_u8(zipped.val[0], zipped.val[1])
                     );
 @case *-x86+none,*-aarch64+none
-                    char y = (x & ONE_BYTES) * BITSET_SHIFT >> 56;
+                    char y = char((x & ONE_BYTES) * BITSET_SHIFT >> 56);
 @end
                     p += SIMD_SIZE;
                     memcpy((char*)&value + i / 8, &y, SIMD_SIZE / 8);
@@ -782,7 +783,7 @@ struct blazingio_istream {
 };
 !endif
 
-uint16_t decimal_lut[100];
+short decimal_lut[100];
 char max_digits_by_log2[64]{1};
 
 struct SPLIT_HERE blazingio_ostream {
@@ -803,7 +804,7 @@ struct SPLIT_HERE blazingio_ostream {
         // once, maybe let's congratulate it with that and offer emotional support). Therefore, only
         // reduce allocation size to 24 MiB if a limit is detected.
 @define !CHECK_RLIMIT
-@case linux-* struct rlimit rlim; getrlimit(RLIMIT_AS, &rlim); if (~rlim.rlim_cur) alloc_size = 0x1800000;
+@case linux-* rlimit rlim; getrlimit(RLIMIT_AS, &rlim); if (~rlim.rlim_cur) alloc_size = 0x1800000;
 @case macos-*
 @end
 @match
@@ -834,7 +835,7 @@ struct SPLIT_HERE blazingio_ostream {
         ptr = (NonAliasingChar*)base;
         // The code gets shorter if we initialize LUT here as opposed to during compile time.
         for (int i = 0; i < 100; i++)
-            decimal_lut[i] = ('0' + i / 10) | (('0' + i % 10) << 8);
+            decimal_lut[i] = short(('0' + i / 10) | (('0' + i % 10) << 8));
         for (int i = 1; i < 64; i++)
             max_digits_by_log2[i] = max_digits_by_log2[i - 1] + (0x8922489224892249 >> i & 1);
     }
@@ -925,7 +926,7 @@ struct SPLIT_HERE blazingio_ostream {
             int digits = 1 + (abs > 9) + (abs > 99);
             NonAliasingChar buf[6];
             memcpy(buf, decimal_lut + abs / 10, 2);
-            buf[2] = '0' + abs % 10;
+            buf[2] = '0' + char(abs % 10);
             memcpy(ptr, buf + 3 - digits, 4);
             ptr += digits;
             return;
@@ -965,7 +966,7 @@ struct SPLIT_HERE blazingio_ostream {
         // This is a variation on Terje Mathisen's algorithm. See
         // http://computer-programming-forum.com/46-asm/7aa4b50bce8dd985.htm
 
-        uint16_t buf[20];
+        short buf[20];
 
         if constexpr (sizeof(T) == 2) {
             // We use a 32-bit fixed-point format here. The high 7 bits are the whole part and the
@@ -1213,7 +1214,7 @@ struct SPLIT_HERE blazingio_ostream {
         } else if (value >= 1) {
             auto whole = (uint64_t)value;
             print(whole);
-            if (value -= whole)
+            if (value -= (T)whole)
                 print('.'),
                 write12();
         } else

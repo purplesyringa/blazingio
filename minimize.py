@@ -232,7 +232,8 @@ blazingio = re.sub(r"^cpp#", "#", blazingio, flags=re.M)
 # Replace "return *this;"
 blazingio = "#define $r return*this;\n" + re.sub(r"return\s*\*this;", "$r", blazingio)
 
-# Replace various common keywords
+# Replace various common keywords and types
+blazingio = "#define u$ uint64_t\n" + blazingio.replace("uint64_t", "u$")
 blazingio = "#define $O operator\n" + blazingio.replace("operator", "$O")
 blazingio = "#define $R return\n" + blazingio.replace("return", "$R")
 blazingio = "#define $C constexpr\n" + blazingio.replace("constexpr", "$C")

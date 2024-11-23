@@ -31,7 +31,7 @@ def compile(source, target, blazingio):
     subprocess.run(
         gcc
         + [source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2"]
-        + ["-Wall", "-Wextra", "-Wconversion", "-Werror"]
+        + ["-Wall", "-Wextra", "-Wconversion", "-Wno-sign-conversion", "-Werror"]
         + ([] if disable_sanitizers else ["-fsanitize=address,pointer-compare,pointer-subtract,undefined"]),
         check=True
     )

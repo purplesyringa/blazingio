@@ -1207,7 +1207,7 @@ struct SPLIT_HERE blazingio_ostream {
             ptr += 12;
 @end
         };
-        if (!value)
+        if (value == 0)
             return print('0');
         if (value >= 1e16) {
             value *= (T)1e-16;
@@ -1222,7 +1222,7 @@ struct SPLIT_HERE blazingio_ostream {
         } else if (value >= 1) {
             auto whole = (uint64_t)value;
             print(whole);
-            if (value -= (T)whole)
+            if ((value -= (T)whole) > 0)
                 print('.'),
                 write12();
         } else

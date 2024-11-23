@@ -715,9 +715,17 @@ struct istream_impl {
     INLINE blazingio_istream& operator>>(T& value) {
 !endif
         if (!is_same_v<T, line_t>)
-            // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed input.
-            // We expect short runs here, hence no vectorization.
-            while (FETCH 0 <= *ptr && *ptr < 33)
+            // Skip whitespace. 0..' ' are not all whitespace, but we only care about well-formed
+            // input. We expect short runs here, hence no vectorization.
+            while (
+                FETCH
+@match
+@case *-i386,*-x86_64
+@case *-aarch64
+                0 <= *ptr &&
+@end
+                *ptr < 33
+            )
                 ptr++;
 
         input(value);

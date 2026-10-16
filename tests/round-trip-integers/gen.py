@@ -4,8 +4,9 @@ import random
 def round_trip(n, l, r):
     print(n)
     total = 0
-    for _ in range(n):
-        x = random.randint(l, r - 1)
+    values = [l, l + 1, 0, r - 2, r - 1]
+    values += [random.randint(l, r - 1) for _ in range(n - len(values))]
+    for x in values:
         total += x
         print(x, end=" ")
     print()

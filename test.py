@@ -32,7 +32,7 @@ def compile(source, target, blazingio):
         gcc
         + [source, "-o", target, "-iquote", ".", f"-DBLAZINGIO=\"{blazingio}\"", "-std=c++17", "-O2"]
         + ["-Wall", "-Wextra", "-Wconversion", "-Wno-sign-conversion", "-pedantic-errors", "-Wno-dollar-in-identifier-extension", "-Werror"]
-        + ([] if disable_sanitizers else ["-fsanitize=address,pointer-compare,pointer-subtract,undefined"]),
+        + ([] if disable_sanitizers else ["-fsanitize=address,pointer-compare,pointer-subtract,undefined", "-fno-sanitize-recover=undefined"]),
         check=True
     )
 

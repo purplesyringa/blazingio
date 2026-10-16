@@ -423,8 +423,9 @@ struct istream_impl {
 !endif
         int negative = is_signed_v<T> && *ptr == '-';
         ptr += negative;
-        collect_digits(x = 0);
-        x = negative ? NEGATE_MAYBE_UNSIGNED(x) : x;
+        make_unsigned_t<T> abs = 0;
+        collect_digits(abs);
+        x = T(negative ? NEGATE_MAYBE_UNSIGNED(abs) : abs);
     }
 
 !ifdef FLOAT

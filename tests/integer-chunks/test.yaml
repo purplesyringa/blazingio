@@ -1,0 +1,6 @@
+type: compare-std
+config:
+  architecture: x86_64,i386,aarch64
+  os: windows,linux,macos
+  interactive: [y, n]
+  hoist_globals_on_interactive_input: [y, n]

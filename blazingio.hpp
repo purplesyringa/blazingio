@@ -412,8 +412,16 @@ struct istream_impl {
 
     template<typename T>
     INLINE void collect_digits(T& x) {
-        while (FETCH (*ptr & 0xf0) == 0x30)
-            x = T(x * 10 + (*ptr++ - '0'));
+        // The buffer's newline sentinel lets the digit loop run without refill checks.
+        unsigned c = (FETCH uint8_t(*ptr));
+        do {
+            auto cursor = ptr;
+            do {
+                x = T(x * 10 + (c & 15));
+                cursor++;
+            } while (((c = uint8_t(*cursor)) ^ '0') < 16);
+            ptr = cursor;
+        } while (ptr == end && (FETCH ((c = uint8_t(*ptr)) ^ '0') < 16));
     }
 
     template<typename T>

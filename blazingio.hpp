@@ -410,12 +410,16 @@ struct istream_impl {
 
     template<typename T>
     INLINE void collect_digits(T& x) {
+        // Keep c wide to avoid Clang's redundant zero extension:
+        // https://github.com/llvm/llvm-project/issues/56498#issuecomment-6273094293
         unsigned c = (FETCH uint8_t(*ptr));
         do {
-            auto cursor = ptr;
+            // GCC generates worse code when updating ptr directly:
+            // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=128016
+            auto p = ptr;
             do x = T(x * 10 + (c & 15));
-            while (((c = uint8_t(*++cursor)) ^ '0') < 16);
-            ptr = cursor;
+            while (((c = uint8_t(*++p)) ^ '0') < 16);
+            ptr = p;
         } while (ptr == end && (FETCH ((c = uint8_t(*ptr)) ^ '0') < 16));
     }
 

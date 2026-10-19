@@ -392,11 +392,9 @@ struct istream_impl {
             ReadFile(GetStdHandle(STD_INPUT_HANDLE), ptr = buffer, 65536, &n_read, NULL);
 @end
             end = ptr + n_read;
-            // Reading strings is more efficient if we don't have to check that ptr < end on each
-            // iteration. Indeed, if we put whitespace after each chunk of data, string procedures
-            // can only check if ptr == end (and thus the next chunk has to be loaded) after the
-            // last iteration. We also need '\n' at EOF (i.e. after the last chunk) for getline(),
-            // and this kills two birds with one stone.
+            // String readers and collect_digits scan to this newline without checking ptr < end
+            // on each iteration. At ptr == end, they load the next chunk. getline() also needs
+            // this newline at EOF.
             *end = '\n';
 !ifdef STDIN_EOF
             if (!n_read)
@@ -412,14 +410,11 @@ struct istream_impl {
 
     template<typename T>
     INLINE void collect_digits(T& x) {
-        // The buffer's newline sentinel lets the digit loop run without refill checks.
         unsigned c = (FETCH uint8_t(*ptr));
         do {
             auto cursor = ptr;
-            do {
-                x = T(x * 10 + (c & 15));
-                cursor++;
-            } while (((c = uint8_t(*cursor)) ^ '0') < 16);
+            do x = T(x * 10 + (c & 15));
+            while (((c = uint8_t(*++cursor)) ^ '0') < 16);
             ptr = cursor;
         } while (ptr == end && (FETCH ((c = uint8_t(*ptr)) ^ '0') < 16));
     }

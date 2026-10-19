@@ -392,11 +392,9 @@ struct istream_impl {
             ReadFile(GetStdHandle(STD_INPUT_HANDLE), ptr = buffer, 65536, &n_read, NULL);
 @end
             end = ptr + n_read;
-            // Reading strings is more efficient if we don't have to check that ptr < end on each
-            // iteration. Indeed, if we put whitespace after each chunk of data, string procedures
-            // can only check if ptr == end (and thus the next chunk has to be loaded) after the
-            // last iteration. We also need '\n' at EOF (i.e. after the last chunk) for getline(),
-            // and this kills two birds with one stone.
+            // String readers and collect_digits scan to this newline without checking ptr < end
+            // on each iteration. At ptr == end, they load the next chunk. getline() also needs
+            // this newline at EOF.
             *end = '\n';
 !ifdef STDIN_EOF
             if (!n_read)
@@ -412,8 +410,17 @@ struct istream_impl {
 
     template<typename T>
     INLINE void collect_digits(T& x) {
-        while (FETCH (*ptr & 0xf0) == 0x30)
-            x = T(x * 10 + (*ptr++ - '0'));
+        // Keep c wide to avoid Clang's redundant zero extension:
+        // https://github.com/llvm/llvm-project/issues/56498#issuecomment-6273094293
+        unsigned c = (FETCH uint8_t(*ptr));
+        do {
+            // GCC generates worse code when updating ptr directly:
+            // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=128016
+            auto p = ptr;
+            do x = T(x * 10 + (c & 15));
+            while (((c = uint8_t(*++p)) ^ '0') < 16);
+            ptr = p;
+        } while (ptr == end && (FETCH ((c = uint8_t(*ptr)) ^ '0') < 16));
     }
 
     template<typename T>

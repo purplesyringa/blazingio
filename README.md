@@ -21,6 +21,10 @@ Copy-paste [blazingio.min.hpp](blazingio.min.hpp) from this repository into your
 Yes, really. The selling point is you don't have to re-learn I/O. It's just magically optimized.
 
 
+## License for minified code
+
+BlazingIO is distributed under the [MIT license](LICENSE). As an additional permission, you may include upstream-generated `blazingio.min.hpp` code, unchanged except for formatting, in solutions submitted to Codeforces or equivalent public competitive-programming online judges without reproducing the full copyright and permission notices from `LICENSE`. Retain the generated attribution notice. This permission includes practice and off-contest submissions, and the judge storing, executing and displaying their source through its submission pages and archives. Redistribution elsewhere remains subject to the MIT license. This additional permission does not cover code generated from modified BlazingIO sources. The MIT license's warranty disclaimer and limitation of liability continue to apply.
+
 ## `.min.hpp`? What's that JSism doing in my C++?
 
 Certain programming competitions impose a limit on the source code size, often 64 KiB or 256 KiB. Regardless of how minimal the library is by C++ standards, anything larger than a few kilobytes in source code is likely to hinder its use by the competitive programming community.
